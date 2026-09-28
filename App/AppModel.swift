@@ -8,7 +8,7 @@ import Observation
 @MainActor
 @Observable
 final class AppModel {
-    static let refreshTask = "tech.abera.alarms.refresh"
+    nonisolated static let refreshTask = "tech.abera.alarms.refresh"
 
     private(set) var paired = false
     private(set) var started = false
