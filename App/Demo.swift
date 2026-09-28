@@ -34,15 +34,15 @@
                 lastFetchAt: now,
                 lastSuccessAt: now,
                 alerts: [
-                    Alert(
+                    PlannedAlert(
                         key: "standup", title: "Standup", location: "Room 4", startsAt: at(70), alertAt: at(60)),
-                    Alert(
+                    PlannedAlert(
                         key: "lunch", title: "Lunch", startsAt: at(130), alertAt: at(120),
                         type: AlertType.notification),
-                    Alert(
+                    PlannedAlert(
                         key: "brief", title: "Commander's brief", startsAt: at(190), alertAt: at(180),
                         acknowledged: true, acknowledgedAt: now, acknowledgedVia: "browser"),
-                    Alert(key: "pt", title: "PT test", location: "Track", startsAt: at(300), alertAt: at(290)),
+                    PlannedAlert(key: "pt", title: "PT test", location: "Track", startsAt: at(300), alertAt: at(290)),
                 ])
         }
     }

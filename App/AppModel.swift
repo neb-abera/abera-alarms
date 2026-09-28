@@ -25,7 +25,7 @@ final class AppModel {
     }
 
     /// The alarms this phone rings: the server's alarm-type alerts still ahead.
-    var alarms: [Alert] {
+    var alarms: [PlannedAlert] {
         (state?.alerts ?? []).filter { $0.isAlarm && $0.startsAt > Date() }
     }
 
@@ -34,7 +34,7 @@ final class AppModel {
         (state?.alerts ?? []).filter { $0.type == AlertType.notification }.count
     }
 
-    func isHeld(_ alert: Alert) -> Bool {
+    func isHeld(_ alert: PlannedAlert) -> Bool {
         report?.held.contains { $0.key == alert.key } ?? false
     }
 
@@ -82,12 +82,12 @@ final class AppModel {
         await sync()
     }
 
-    func skip(_ alert: Alert) async {
+    func skip(_ alert: PlannedAlert) async {
         let key = alert.key
         await perform { client throws(APIError) in try await client.skip(key: key) }
     }
 
-    func unskip(_ alert: Alert) async {
+    func unskip(_ alert: PlannedAlert) async {
         let key = alert.key
         await perform { client throws(APIError) in try await client.unskip(key: key) }
     }

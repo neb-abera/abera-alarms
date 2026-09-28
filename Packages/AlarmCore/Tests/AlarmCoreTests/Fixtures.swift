@@ -15,15 +15,15 @@ enum Fixtures {
         skipped: Bool = false,
         muted: Bool = false,
         acknowledged: Bool = false
-    ) -> Alert {
+    ) -> PlannedAlert {
         let start = now.addingTimeInterval((minutes + lead) * 60)
-        return Alert(
+        return PlannedAlert(
             key: key, title: "Event \(key)", location: nil,
             startsAt: start, alertAt: now.addingTimeInterval(minutes * 60),
             skipped: skipped, muted: muted, type: type, acknowledged: acknowledged)
     }
 
-    static func state(_ alerts: [Alert], mutedUntil: Date? = nil) -> AlertsState {
+    static func state(_ alerts: [PlannedAlert], mutedUntil: Date? = nil) -> AlertsState {
         AlertsState(configured: true, timeZone: "America/New_York", mutedUntil: mutedUntil, alerts: alerts)
     }
 
@@ -35,7 +35,7 @@ enum Fixtures {
         let sync: AlarmSync
     }
 
-    static func rig(_ alerts: [Alert], paired: Bool = true) -> Rig {
+    static func rig(_ alerts: [PlannedAlert], paired: Bool = true) -> Rig {
         let server = FakeAlertsServer(state: state(alerts), token: token)
         let alarms = MemoryAlarms()
         let documents = MemoryDocuments()

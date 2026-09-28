@@ -121,7 +121,7 @@ struct AlarmsView: View {
 }
 
 struct AlarmRow: View {
-    let alert: Alert
+    let alert: PlannedAlert
     let held: Bool
 
     var body: some View {
