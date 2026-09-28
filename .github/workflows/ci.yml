@@ -69,13 +69,18 @@ jobs:
         include:
           - xcode: "27"
             runner: xcode-27
+          # The Xcode on Neb's Intel MacBook, which Xcode 27 does not support.
+          - xcode: "26.5"
+            runner: macos-26
     steps:
       # harden-runner supports Linux runners only.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: select the pinned Xcode
+      - name: select Xcode
+        env:
+          XCODE_VERSION: ${{ matrix.xcode }}
         run: scripts/select-xcode.sh
 
       - name: the committed project matches project.yml
@@ -92,7 +97,7 @@ jobs:
         if: failure() || cancelled()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: xcresult
+          name: xcresult-${{ matrix.xcode }}
           path: build/AberaAlarms.xcresult
           retention-days: 7
           if-no-files-found: ignore
