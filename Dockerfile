@@ -1,0 +1,11 @@
+# The Linux toolchain for AlarmCore: the package's logic, tests and format
+# check run here, in the same image in CI and on the dev box. The app itself
+# needs Xcode and builds on the macOS runner (.github/workflows/ci.yml).
+FROM swift:6.4.0-resolute@sha256:bb6e5d5f2a97bc07cf8022c1a3e062f8164b8fd078698327ce2ab097e02a91dc AS toolchain
+
+WORKDIR /src
+
+# Prose rules (scripts/check-prose.sh) and workflow lint (make lint). Named
+# stages, so Dependabot bumps them with the rest.
+FROM jdkato/vale:v3.23.0@sha256:d87d6355dc8992f92ec39c4c862a388e56e30302a771fd4512c02660fb25cdf3 AS vale
+FROM rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 AS actionlint

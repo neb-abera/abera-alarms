@@ -1,0 +1,85 @@
+# The Xcode project is generated from this file by XcodeGen
+# (tools/xcodegen.env pins the version). CI regenerates it and fails when
+# the committed AberaAlarms.xcodeproj differs: run scripts/xcodegen.sh
+# after editing this file.
+name: AberaAlarms
+options:
+  bundleIdPrefix: tech.abera
+  deploymentTarget:
+    iOS: "26.1"
+  createIntermediateGroups: true
+  developmentLanguage: en
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    SWIFT_TREAT_WARNINGS_AS_ERRORS: YES
+    GCC_TREAT_WARNINGS_AS_ERRORS: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    MARKETING_VERSION: "0.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+packages:
+  AlarmCore:
+    path: Packages/AlarmCore
+targets:
+  AberaAlarms:
+    type: application
+    platform: iOS
+    sources:
+      - App
+    dependencies:
+      - package: AlarmCore
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Alarms
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSRequiresIPhoneOS: true
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAlarmKitUsageDescription: Rings the alarms you set on abera.tech/alerts, with or without a connection.
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - tech.abera.alarms.refresh
+        CFBundleURLTypes:
+          - CFBundleURLName: tech.abera.alarms.pair
+            CFBundleURLSchemes:
+              - aberaalarms
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tech.abera.alarms
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_PREVIEWS: YES
+  AberaAlarmsUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - AppUITests
+    dependencies:
+      - target: AberaAlarms
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tech.abera.alarms.uitests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  AberaAlarms:
+    build:
+      targets:
+        AberaAlarms: all
+        AberaAlarmsUITests: [test]
+    test:
+      targets:
+        - AberaAlarmsUITests
+      gatherCoverageData: true
+      coverageTargets:
+        - AberaAlarms
