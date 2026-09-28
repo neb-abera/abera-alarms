@@ -42,7 +42,7 @@ final class AlarmsUITests: XCTestCase {
         field.tap()
         field.typeText("aberaalarms://pair#token=aat_short")
         app.buttons["pair"].tap()
-        XCTAssertTrue(app.descendants(matching: .any)["pairing-error"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["pairing-error"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(row(app, "standup").exists)
     }
 
@@ -54,7 +54,7 @@ final class AlarmsUITests: XCTestCase {
         field.tap()
         field.typeText("aberaalarms://pair#token=aat_" + String(repeating: "X", count: 43))
         app.buttons["pair"].tap()
-        let error = app.descendants(matching: .any)["pairing-error"]
+        let error = app.descendants(matching: .any)["pairing-error"].firstMatch
         XCTAssertTrue(error.waitForExistence(timeout: 5))
         XCTAssertTrue(error.label.contains("refused"))
     }
@@ -98,7 +98,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         app.buttons["menu"].tap()
         app.buttons["Mute for an hour"].tap()
-        let muted = app.descendants(matching: .any)["muted"]
+        let muted = app.descendants(matching: .any)["muted"].firstMatch
         XCTAssertTrue(muted.waitForExistence(timeout: 5))
         XCTAssertTrue(waitFor(row(app, "standup"), labelContaining: "Muted"))
 
@@ -111,7 +111,7 @@ final class AlarmsUITests: XCTestCase {
 
     func testOfflineSaysTheAlarmsStillRing() {
         let app = launch("-demo-offline")
-        let error = app.descendants(matching: .any)["sync-error"]
+        let error = app.descendants(matching: .any)["sync-error"].firstMatch
         XCTAssertTrue(error.waitForExistence(timeout: 10))
         XCTAssertTrue(error.label.contains("Offline"))
     }
