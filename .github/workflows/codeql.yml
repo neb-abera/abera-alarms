@@ -29,9 +29,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # CodeQL's Swift tracer fails on the xcode-27 preview image
+          # ("Bad CPU type in executable"), so Swift is analysed on the GA
+          # macos-26 image with its newest Xcode. Move it to .xcode-version
+          # when xcode-27 is GA and the tracer runs there.
           - language: swift
-            runner: xcode-27
+            runner: macos-26
             build-mode: manual
+            xcode: "26.6"
           - language: actions
             runner: ubuntu-26.04
             build-mode: none
@@ -41,8 +46,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: select the pinned Xcode
+      - name: select Xcode
         if: matrix.language == 'swift'
+        env:
+          XCODE_VERSION: ${{ matrix.xcode }}
         run: scripts/select-xcode.sh
 
       - name: initialize CodeQL

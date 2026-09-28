@@ -2,12 +2,13 @@
 #
 # select-xcode.sh: switch the runner to the Xcode that .xcode-version names,
 # and print the exact version and the SDKs it brings. A runner without it
-# fails and lists what it has.
+# fails and lists what it has. XCODE_VERSION overrides the file for a job
+# that must run on another image (CodeQL, see codeql.yml).
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-want="$(tr -d '[:space:]' < .xcode-version)"
+want="${XCODE_VERSION:-$(tr -d '[:space:]' < .xcode-version)}"
 app=""
 for candidate in /Applications/Xcode_"$want"*.app /Applications/Xcode-"$want"*.app; do
   [ -d "$candidate" ] && { app="$candidate"; break; }

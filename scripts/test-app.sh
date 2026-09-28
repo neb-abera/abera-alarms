@@ -25,17 +25,23 @@ xcrun simctl list devices | grep "$device"
 
 mkdir -p build
 rm -rf build/AberaAlarms.xcresult
-status=0
+# Streamed, so a hung test shows where it hung. Each test gets two minutes.
+set +e +o pipefail
 xcodebuild test \
   -project AberaAlarms.xcodeproj \
   -scheme AberaAlarms \
   -destination "id=$device" \
   -resultBundlePath build/AberaAlarms.xcresult \
   -derivedDataPath build/DerivedData \
+  -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 120 \
+  -maximum-test-execution-time-allowance 120 \
   CODE_SIGNING_ALLOWED=NO \
-  > build/xcodebuild.log 2>&1 || status=$?
+  2>&1 | tee build/xcodebuild.log \
+  | grep --line-buffered -E '^(Test Case|Test Suite|\*\*)|error:|warning:|t = .*(Launch|Wait|Tap|Type|Find)'
+status="${PIPESTATUS[0]}"
+set -e -o pipefail
 
-grep -E '^(Test Case|Test Suite|\*\*)|error:|warning:' build/xcodebuild.log || true
 if [ "$status" -ne 0 ]; then
   echo "error: xcodebuild exited $status. The last 80 lines of build/xcodebuild.log:" >&2
   tail -80 build/xcodebuild.log >&2
