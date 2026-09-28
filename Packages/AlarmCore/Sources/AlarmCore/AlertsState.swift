@@ -12,7 +12,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var lastFetchAt: Date?
     public var lastFetchError: String?
     public var lastSuccessAt: Date?
-    public var alerts: [Alert]
+    public var alerts: [PlannedAlert]
 
     public init(
         configured: Bool = true,
@@ -21,7 +21,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastFetchAt: Date? = nil,
         lastFetchError: String? = nil,
         lastSuccessAt: Date? = nil,
-        alerts: [Alert] = []
+        alerts: [PlannedAlert] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -40,12 +40,12 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastFetchAt = try container.decodeIfPresent(Date.self, forKey: .lastFetchAt)
         lastFetchError = try container.decodeIfPresent(String.self, forKey: .lastFetchError)
         lastSuccessAt = try container.decodeIfPresent(Date.self, forKey: .lastSuccessAt)
-        alerts = try container.decodeIfPresent([Alert].self, forKey: .alerts) ?? []
+        alerts = try container.decodeIfPresent([PlannedAlert].self, forKey: .alerts) ?? []
     }
 }
 
 /// One occurrence of one event and when its alert goes off.
-public struct Alert: Codable, Equatable, Hashable, Sendable, Identifiable {
+public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// The event's UID and this occurrence's start. Stable across reads.
     public var key: String
     public var title: String
