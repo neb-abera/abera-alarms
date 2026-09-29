@@ -89,6 +89,7 @@ final class AppModel {
             pairingError = Self.describe(error)
         } else {
             paired = true
+            await PushRegistration.shared.send()
         }
     }
 
