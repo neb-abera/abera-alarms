@@ -15,6 +15,7 @@
 		85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */; };
 		BAD1171ACB15FA680E814E50 /* AberaAlarmsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */; };
 		DB15419C87DF8B5D7C88D72E /* AlarmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5C1DB0A5BDFD4210EC59B6A7 /* AlarmCore */; };
+		EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA375A6D175B012E7A00735A /* PushDelegate.swift */; };
 		EE865A5050DC3D50560C7919 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = A783C0B2E1BA54C7B72F43B0 /* Views.swift */; };
 /* End PBXBuildFile section */
 
@@ -38,6 +39,8 @@
 		A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmsUITests.swift; sourceTree = "<group>"; };
 		A783C0B2E1BA54C7B72F43B0 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
 		AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AberaAlarmsApp.swift; sourceTree = "<group>"; };
+		B3D757DF0CE2B28CA2EF99FC /* AberaAlarms.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AberaAlarms.entitlements; sourceTree = "<group>"; };
+		CA375A6D175B012E7A00735A /* PushDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushDelegate.swift; sourceTree = "<group>"; };
 		CD10358D4297D739F6D33457 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		CF1B80F6CA8CFDF72AEFA15E /* AberaAlarms.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AberaAlarms.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
@@ -77,6 +80,7 @@
 		6AA06B9EB7C95B939E055BB3 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				B3D757DF0CE2B28CA2EF99FC /* AberaAlarms.entitlements */,
 				AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */,
 				1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */,
 				EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */,
@@ -84,6 +88,7 @@
 				09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */,
 				87A83F32AF14C10AA49161F6 /* Dependencies.swift */,
 				3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */,
+				CA375A6D175B012E7A00735A /* PushDelegate.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
 			);
 			path = App;
@@ -216,6 +221,7 @@
 				85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */,
 				7928AA7FE04A07B473533544 /* Demo.swift in Sources */,
 				0B44891BF6F5A9AAD4B3E7CF /* Dependencies.swift in Sources */,
+				EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -324,6 +330,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/AberaAlarms.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = App/Info.plist;
@@ -406,6 +413,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = App/AberaAlarms.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				ENABLE_PREVIEWS = YES;
 				INFOPLIST_FILE = App/Info.plist;

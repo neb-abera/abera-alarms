@@ -81,6 +81,17 @@ public struct AlertsClient: Sendable {
         try await call("POST", "events", body: event)
     }
 
+    /// Where abera.tech sends a push when this phone's alarms change.
+    public func registerPush(token: String, environment: PushEnvironment) async throws(APIError) {
+        try await callNoContent(
+            "PUT", "devices/me/push", body: ["apnsToken": token, "environment": environment.rawValue])
+    }
+
+    /// Stops the pushes, on Unpair.
+    public func unregisterPush() async throws(APIError) {
+        try await callNoContent("DELETE", "devices/me/push", body: nil)
+    }
+
     func request(_ method: String, _ action: String, body: (any Encodable & Sendable)?) -> URLRequest {
         var request = URLRequest(url: pairing.server.appending(path: "api/alerts/\(action)"))
         request.httpMethod = method
@@ -122,6 +133,26 @@ public struct AlertsClient: Sendable {
         }
     }
 
+    private func callNoContent(_ method: String, _ action: String, body: (any Encodable & Sendable)?)
+        async throws(APIError)
+    {
+        let response: HTTPURLResponse
+        do {
+            (_, response) = try await transport.send(request(method, action, body: body))
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw .offline
+        }
+        switch response.statusCode {
+        case 200, 204: return
+        case 401: throw .unpaired
+        case 404: throw .notFound
+        case 429: throw .rateLimited
+        default: throw .status(response.statusCode)
+        }
+    }
+
     /// The server's reason from a ValidationProblem or a problem detail,
     /// cut to one line a person can read.
     static func reason(_ data: Data) -> String {
@@ -136,6 +167,25 @@ public struct AlertsClient: Sendable {
         let first = problem.errors?.sorted { $0.key < $1.key }.first?.value.first
         let text = problem.detail ?? first ?? problem.title ?? "abera.tech refused the request."
         return String(text.prefix(200))
+    }
+}
+
+/// Which APNs host abera.tech must use for this build: an Xcode install
+/// is "sandbox", TestFlight and the App Store are "production".
+public enum PushEnvironment: String, Codable, Sendable {
+    case sandbox
+    case production
+}
+
+/// An APNs device token as the server stores it: lowercase hex.
+public enum PushToken {
+    public static func hex(_ data: Data) -> String {
+        data.map { String(format: "%02x", $0) }.joined()
+    }
+
+    public static func isValid(_ text: String) -> Bool {
+        (64...200).contains(text.utf8.count)
+            && text.utf8.allSatisfy { (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }
     }
 }
 

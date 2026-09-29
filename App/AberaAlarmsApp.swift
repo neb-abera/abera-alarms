@@ -3,6 +3,7 @@ import SwiftUI
 
 @main
 struct AberaAlarmsApp: App {
+    @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var phase
 
