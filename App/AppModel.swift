@@ -24,9 +24,33 @@ final class AppModel {
         self.dependencies = dependencies
     }
 
-    /// The alarms this phone rings: the server's alarm-type alerts still ahead.
-    var alarms: [PlannedAlert] {
-        (state?.alerts ?? []).filter { $0.isAlarm && $0.startsAt > Date() }
+    /// All events, or only the ones that ring on this phone.
+    var showAll = false
+    private(set) var eventError: String?
+
+    /// The events still ahead: every one, or the alarms alone.
+    var events: [PlannedAlert] {
+        let now = Date()
+        return (state?.alerts ?? []).filter { $0.startsAt > now && (showAll || $0.isAlarm) }
+    }
+
+    /// The events grouped by the day their alert goes off, in order.
+    var days: [(day: Date, alerts: [PlannedAlert])] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: events) { calendar.startOfDay(for: $0.alertAt) }
+        return grouped.keys.sorted().map { day in
+            (day, grouped[day]!.sorted { ($0.alertAt, $0.key) < ($1.alertAt, $1.key) })
+        }
+    }
+
+    var emptyMessage: String {
+        if showAll { return "No events in the next 48 hours. Tap + to add one." }
+        let others = (state?.alerts ?? []).filter { !$0.isAlarm && $0.startsAt > Date() }.count
+        let hint =
+            "Show All events and tap the icon beside one to make it an alarm, or add #critical to it in Google Calendar."
+        return others == 0
+            ? "No alarms in the next 48 hours."
+            : "No alarms in the next 48 hours. \(others) other event(s) are not alarms. \(hint)"
     }
 
     /// How many listed alerts go to Pushover alone.
@@ -92,6 +116,25 @@ final class AppModel {
         await perform { client throws(APIError) in try await client.unskip(key: key) }
     }
 
+    func setType(_ alert: PlannedAlert, _ type: String) async {
+        let key = alert.key
+        await perform { client throws(APIError) in try await client.setType(key: key, type: type) }
+    }
+
+    /// True when abera.tech made the event, so the form can close.
+    func createEvent(_ event: NewEvent) async -> Bool {
+        eventError = nil
+        await perform { client throws(APIError) in try await client.createEvent(event) }
+        if let error = report?.error {
+            eventError = Self.describe(error)
+            return false
+        }
+        showAll = showAll || event.type != AlertType.alarm
+        return true
+    }
+
+    func clearEventError() { eventError = nil }
+
     func mute(_ length: AlertsClient.MuteLength) async {
         await perform { client throws(APIError) in try await client.mute(length) }
     }
@@ -144,6 +187,8 @@ final class AppModel {
             "No connection to abera.tech."
         case APIError.rateLimited:
             "Too many requests. Wait a minute."
+        case APIError.refused(let reason):
+            reason
         case APIError.status(let code):
             "abera.tech answered \(code)."
         default:

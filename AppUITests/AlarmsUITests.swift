@@ -2,14 +2,12 @@ import XCTest
 
 /// Every screen and button, driven through the app with abera.tech and
 /// AlarmKit in memory (`-demo`, App/Demo.swift).
+@MainActor
 final class AlarmsUITests: XCTestCase {
     static let link = "aberaalarms://pair#token=aat_" + String(repeating: "D", count: 43)
 
-    override func setUp() {
-        continueAfterFailure = false
-    }
-
     private func launch(_ arguments: String...) -> XCUIApplication {
+        continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-demo"] + arguments
         app.launch()
@@ -66,7 +64,68 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         XCTAssertTrue(row(app, "pt").exists)
         XCTAssertFalse(row(app, "lunch").exists)
+        XCTAssertFalse(row(app, "dinner").exists)
         XCTAssertTrue(app.staticTexts["1 notification(s) go through Pushover only."].exists)
+
+        app.buttons["All events"].tap()
+        XCTAssertTrue(row(app, "lunch").waitForExistence(timeout: 5))
+        XCTAssertTrue(row(app, "dinner").exists)
+    }
+
+    // MARK: Type
+
+    func testMakingAnEventAnAlarmSetsItOnThePhone() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["All events"].tap()
+        let type = app.buttons["type-dinner"]
+        XCTAssertTrue(type.waitForExistence(timeout: 5))
+        type.tap()
+        app.buttons["Alarm"].tap()
+        XCTAssertTrue(waitFor(type, labelContaining: "Alarm"))
+
+        app.buttons["Alarms"].tap()
+        let dinner = row(app, "dinner")
+        XCTAssertTrue(dinner.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitFor(dinner, labelContaining: "Set on this phone"))
+    }
+
+    func testMakingAnAlarmNoneTakesItOffThePhone() {
+        let app = launch()
+        let type = app.buttons["type-standup"]
+        XCTAssertTrue(type.waitForExistence(timeout: 10))
+        type.tap()
+        app.buttons["None"].tap()
+        XCTAssertTrue(row(app, "pt").waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForGone(row(app, "standup")))
+    }
+
+    // MARK: New event
+
+    func testANewAlarmEventRingsOnThePhone() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["new-event"].tap()
+        let title = app.textFields["event-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Dentist")
+        app.buttons["add-event"].tap()
+
+        let dentist = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Dentist'")
+        ).firstMatch
+        XCTAssertTrue(dentist.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(waitFor(dentist, labelContaining: "Set on this phone"), dentist.label)
+    }
+
+    func testTheNewEventFormNeedsATitle() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["new-event"].tap()
+        let add = app.buttons["add-event"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        XCTAssertFalse(add.isEnabled)
     }
 
     func testAnAlarmAcknowledgedInABrowserSaysSo() {
@@ -125,6 +184,11 @@ final class AlarmsUITests: XCTestCase {
         app.buttons["Unpair this phone"].tap()
         app.buttons["Unpair and remove its alarms"].tap()
         XCTAssertTrue(app.buttons["pair"].waitForExistence(timeout: 5))
+    }
+
+    private func waitForGone(_ element: XCUIElement) -> Bool {
+        let predicate = NSPredicate(format: "exists == false")
+        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
     }
 
     private func waitFor(_ element: XCUIElement, labelContaining text: String) -> Bool {

@@ -43,6 +43,9 @@
                         key: "brief", title: "Commander's brief", startsAt: at(190), alertAt: at(180),
                         acknowledged: true, acknowledgedAt: now, acknowledgedVia: "browser"),
                     PlannedAlert(key: "pt", title: "PT test", location: "Track", startsAt: at(300), alertAt: at(290)),
+                    PlannedAlert(
+                        key: "dinner", title: "Dinner", startsAt: at(400), alertAt: at(390), type: AlertType.none,
+                        typeFrom: "default"),
                 ])
         }
     }

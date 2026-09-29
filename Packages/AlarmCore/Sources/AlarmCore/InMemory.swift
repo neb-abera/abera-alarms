@@ -59,6 +59,12 @@ public actor FakeAlertsServer: HTTPTransport {
     public var offline = false
     public private(set) var requests: [String] = []
     public private(set) var acknowledgements: [String] = []
+    public private(set) var typeChanges: [String] = []
+    public private(set) var created: [NewEvent] = []
+    /// What the server says when Google refuses the write. Nil writes cleanly.
+    public var calendarWriteFailure: String?
+    /// A 409 detail for new events, as when no calendar has edit access.
+    public var createRefusal: String?
 
     public init(state: AlertsState, token: String, offline: Bool = false) {
         self.state = state
@@ -69,6 +75,12 @@ public actor FakeAlertsServer: HTTPTransport {
     public func setOffline(_ offline: Bool) { self.offline = offline }
     public func setState(_ state: AlertsState) { self.state = state }
     public func revoke() { token = "" }
+    public func failCalendarWrites(_ reason: String?) { calendarWriteFailure = reason }
+    public func refuseNewEvents(_ reason: String?) { createRefusal = reason }
+
+    static func event(of key: String) -> Substring {
+        key.split(separator: "|", maxSplits: 1).first ?? Substring(key)
+    }
 
     public func send(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
         guard !offline else { throw URLError(.notConnectedToInternet) }
@@ -105,6 +117,40 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("POST", "/api/alerts/unmute"):
             state.mutedUntil = nil
             for index in state.alerts.indices { state.alerts[index].muted = false }
+        case ("PUT", "/api/alerts/event-type"):
+            guard listed != nil else { return respond(request, 404, Data()) }
+            let type = body["type"] ?? ""
+            guard [AlertType.alarm, AlertType.notification, AlertType.none, AlertType.default].contains(type) else {
+                return respond(request, 400, Data(#"{"errors":{"type":["Not a type."]}}"#.utf8))
+            }
+            // Every occurrence of the event: the key is the UID, a bar, and the start.
+            let event = Self.event(of: key)
+            for index in state.alerts.indices where Self.event(of: state.alerts[index].key) == event {
+                state.alerts[index].type = type == AlertType.default ? AlertType.none : type
+                state.alerts[index].typeFrom = type == AlertType.default ? "default" : "set"
+            }
+            state.calendarWrite = calendarWriteFailure
+            typeChanges.append("\(event) \(type)")
+        case ("POST", "/api/alerts/events"):
+            guard let data = request.httpBody,
+                let event = try? ServerDates.decoder().decode(NewEvent.self, from: data)
+            else { return respond(request, 400, Data(#"{"title":"Not an event."}"#.utf8)) }
+            if let problem = event.problems(now: Date()).first {
+                return respond(request, 400, Data(#"{"errors":{"event":["\#(problem)"]}}"#.utf8))
+            }
+            if let refusal = createRefusal {
+                return respond(request, 409, Data(#"{"detail":"\#(refusal)"}"#.utf8))
+            }
+            created.append(event)
+            let lead = Double(event.leadMinutes ?? 10) * 60
+            state.alerts.append(
+                PlannedAlert(
+                    key: "created-\(created.count)|\(event.startsAt.timeIntervalSince1970)",
+                    title: event.title, location: event.location, startsAt: event.startsAt,
+                    alertAt: event.startsAt.addingTimeInterval(-lead), type: event.type, typeFrom: "set"))
+            state.alerts.sort { $0.alertAt < $1.alertAt }
+            state.calendarWrite = calendarWriteFailure
+            return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
         default:
             return respond(request, 404, Data())
         }

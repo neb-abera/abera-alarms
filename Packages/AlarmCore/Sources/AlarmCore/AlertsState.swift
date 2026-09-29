@@ -12,6 +12,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var lastFetchAt: Date?
     public var lastFetchError: String?
     public var lastSuccessAt: Date?
+    /// Why the last type change or new event did not reach Google Calendar.
+    /// Null when it did, or when nothing was written.
+    public var calendarWrite: String?
     public var alerts: [PlannedAlert]
 
     public init(
@@ -21,6 +24,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastFetchAt: Date? = nil,
         lastFetchError: String? = nil,
         lastSuccessAt: Date? = nil,
+        calendarWrite: String? = nil,
         alerts: [PlannedAlert] = []
     ) {
         self.configured = configured
@@ -29,6 +33,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.lastFetchAt = lastFetchAt
         self.lastFetchError = lastFetchError
         self.lastSuccessAt = lastSuccessAt
+        self.calendarWrite = calendarWrite
         self.alerts = alerts
     }
 
@@ -40,6 +45,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastFetchAt = try container.decodeIfPresent(Date.self, forKey: .lastFetchAt)
         lastFetchError = try container.decodeIfPresent(String.self, forKey: .lastFetchError)
         lastSuccessAt = try container.decodeIfPresent(Date.self, forKey: .lastSuccessAt)
+        calendarWrite = try container.decodeIfPresent(String.self, forKey: .calendarWrite)
         alerts = try container.decodeIfPresent([PlannedAlert].self, forKey: .alerts) ?? []
     }
 }
@@ -57,6 +63,9 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
     /// "alarm", "notification" or "none". A server from before the type
     /// existed sends every alert as an alarm, so a missing type is "alarm".
     public var type: String
+    /// Where the type came from: "set" on the page or phone, "critical"
+    /// from the calendar, "default" from the settings.
+    public var typeFrom: String?
     public var acknowledged: Bool
     public var acknowledgedAt: Date?
     /// "phone" or "browser".
@@ -75,6 +84,7 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         skipped: Bool = false,
         muted: Bool = false,
         type: String = AlertType.alarm,
+        typeFrom: String? = nil,
         acknowledged: Bool = false,
         acknowledgedAt: Date? = nil,
         acknowledgedVia: String? = nil
@@ -87,6 +97,7 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         self.skipped = skipped
         self.muted = muted
         self.type = type
+        self.typeFrom = typeFrom
         self.acknowledged = acknowledged
         self.acknowledgedAt = acknowledgedAt
         self.acknowledgedVia = acknowledgedVia
@@ -102,6 +113,7 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         skipped = try container.decodeIfPresent(Bool.self, forKey: .skipped) ?? false
         muted = try container.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         type = try container.decodeIfPresent(String.self, forKey: .type) ?? AlertType.alarm
+        typeFrom = try container.decodeIfPresent(String.self, forKey: .typeFrom)
         acknowledged = try container.decodeIfPresent(Bool.self, forKey: .acknowledged) ?? false
         acknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .acknowledgedAt)
         acknowledgedVia = try container.decodeIfPresent(String.self, forKey: .acknowledgedVia)
@@ -112,6 +124,8 @@ public enum AlertType {
     public static let alarm = "alarm"
     public static let notification = "notification"
     public static let none = "none"
+    /// Sent to drop a choice, so the event follows #critical and the default again.
+    public static let `default` = "default"
 }
 
 /// The server's dates: ISO 8601 with an offset, with or without fractional
