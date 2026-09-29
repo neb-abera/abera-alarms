@@ -31,6 +31,11 @@ targets:
       - App
     dependencies:
       - package: AlarmCore
+    entitlements:
+      path: App/AberaAlarms.entitlements
+      properties:
+        # Xcode signs a TestFlight or App Store build as production.
+        aps-environment: development
     info:
       path: App/Info.plist
       properties:
@@ -46,6 +51,7 @@ targets:
         NSAlarmKitUsageDescription: Rings the alarms you set on abera.tech/alerts, with or without a connection.
         UIBackgroundModes:
           - fetch
+          - remote-notification
         BGTaskSchedulerPermittedIdentifiers:
           - tech.abera.alarms.refresh
         CFBundleURLTypes:

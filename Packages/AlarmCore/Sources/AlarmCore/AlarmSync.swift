@@ -61,8 +61,28 @@ public actor AlarmSync {
         }
     }
 
+    /// Tells abera.tech where to push when this phone's alarms change. Safe
+    /// to call on every launch: the server keeps the latest token.
+    @discardableResult
+    public func registerPush(token: String, environment: PushEnvironment) async -> APIError? {
+        guard PushToken.isValid(token) else { return .badResponse }
+        guard let pairing = await pairing() else { return .unpaired }
+        do {
+            try await AlertsClient(pairing: pairing, transport: transport)
+                .registerPush(token: token, environment: environment)
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     /// Forgets the token and removes every alarm this app holds.
     public func unpair() async {
+        if let pairing = await pairing() {
+            // Best effort: a phone with no signal still unpairs. Revoking the
+            // phone on the page drops its push token as well.
+            try? await AlertsClient(pairing: pairing, transport: transport).unregisterPush()
+        }
         try? await credentials.remove()
         try? await documents.remove(Self.pendingName)
         _ = await apply(AlertsState(configured: false))
