@@ -12,7 +12,8 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 - The + button adds an event to Google Calendar through abera.tech, with its type and how long before the start it alerts. A new alarm is set on the phone at once.
 - The list is grouped by day. It shows the alarms, or every event.
 - Swipe to skip one day, mute for an hour or until morning, unpair.
-- The phone syncs on launch, on pull to refresh, after every action and when iOS grants a background refresh. iOS decides how often that is.
+- abera.tech sends a silent push when anything changes what the phone should hold: a type change, a new event, a skip, a mute, an acknowledgement elsewhere or a calendar change. The push carries no content. It wakes the app, which syncs.
+- The phone also syncs on launch, on pull to refresh, after every action and when iOS grants a background refresh. iOS rations silent pushes and drops them for an app force-quit from the app switcher, so these stay.
 
 ## How it fits together
 

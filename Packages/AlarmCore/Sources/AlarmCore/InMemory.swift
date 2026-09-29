@@ -60,6 +60,8 @@ public actor FakeAlertsServer: HTTPTransport {
     public private(set) var requests: [String] = []
     public private(set) var acknowledgements: [String] = []
     public private(set) var typeChanges: [String] = []
+    /// "<token> <environment>" as the phone last registered it.
+    public private(set) var pushRegistration: String?
     public private(set) var created: [NewEvent] = []
     /// What the server says when Google refuses the write. Nil writes cleanly.
     public var calendarWriteFailure: String?
@@ -117,6 +119,15 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("POST", "/api/alerts/unmute"):
             state.mutedUntil = nil
             for index in state.alerts.indices { state.alerts[index].muted = false }
+        case ("PUT", "/api/alerts/devices/me/push"):
+            guard let token = body["apnsToken"], PushToken.isValid(token),
+                let environment = body["environment"], PushEnvironment(rawValue: environment) != nil
+            else { return respond(request, 400, Data()) }
+            pushRegistration = "\(token) \(environment)"
+            return respond(request, 204, Data())
+        case ("DELETE", "/api/alerts/devices/me/push"):
+            pushRegistration = nil
+            return respond(request, 204, Data())
         case ("PUT", "/api/alerts/event-type"):
             guard listed != nil else { return respond(request, 404, Data()) }
             let type = body["type"] ?? ""
