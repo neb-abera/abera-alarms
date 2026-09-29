@@ -1,0 +1,10 @@
+# actionlint configuration.
+#
+# ubuntu-26.04 is a GitHub-hosted runner label in public preview
+# (actions/runner-images#14226). xcode-27 is the Xcode 27 image, also in
+# preview (actions/runner-images#14404). actionlint's built-in label list
+# lags new images, so they are declared here.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
+    - xcode-27

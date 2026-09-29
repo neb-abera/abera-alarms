@@ -1,0 +1,16 @@
+# The checks branch protection requires on main.
+#
+# scripts/check-required-contexts.sh (make gates) fails when these lines and
+# the pull-request jobs of the `workflow` files disagree, in either
+# direction. Add a job to one of these workflows and its name goes here in
+# the same pull request.
+workflow .github/workflows/ci.yml
+workflow .github/workflows/codeql.yml
+check core (AlarmCore on Linux)
+check gates (version, concurrency, required checks, prose)
+check app (build and UI tests, Xcode 27)
+check app (build and UI tests, Xcode 26.5)
+check dependency review
+check attribution (no AI credit in commits)
+check analyze (swift)
+check analyze (actions)

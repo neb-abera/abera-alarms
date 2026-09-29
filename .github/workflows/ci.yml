@@ -1,0 +1,160 @@
+name: CI
+
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+  schedule:
+    # Weekly, so a pinned tool that fell behind turns the build red.
+    - cron: "15 6 * * 1"
+
+# Outside a pull request each commit gets its own group. A group holds one
+# running and one pending run, and a third run cancels the pending one
+# whatever cancel-in-progress says. scripts/check-concurrency.sh enforces
+# this.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: core (AlarmCore on Linux)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    steps:
+      - name: harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          # Audit: the jobs run containers, whose DNS bypasses the resolver.
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: format, workflow and shell lint
+        run: make lint
+
+      - name: tests, with the coverage floor
+        run: make coverage
+
+  gates:
+    name: gates (version, concurrency, required checks, prose)
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - name: harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: every gate proves it can fail, then runs
+        run: make gates
+
+  app:
+    name: app (build and UI tests, Xcode ${{ matrix.xcode }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - xcode: "27"
+            runner: xcode-27
+          # The Xcode on Neb's Intel MacBook, which Xcode 27 does not support.
+          - xcode: "26.5"
+            runner: macos-26
+    steps:
+      # harden-runner supports Linux runners only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: select Xcode
+        env:
+          XCODE_VERSION: ${{ matrix.xcode }}
+        run: scripts/select-xcode.sh
+
+      - name: the committed project matches project.yml
+        run: scripts/xcodegen.sh --check
+
+      - name: AlarmCore tests on macOS (the CryptoKit path)
+        run: swift test --package-path Packages/AlarmCore
+
+      - name: build, then run the UI tests in the simulator
+        timeout-minutes: 30
+        run: scripts/test-app.sh
+
+      - name: test results
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xcresult-${{ matrix.xcode }}
+          path: build/AberaAlarms.xcresult
+          retention-days: 7
+          if-no-files-found: ignore
+
+  dependency-review:
+    name: dependency review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - name: harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            api.deps.dev:443
+            api.securityscorecards.dev:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          deny-licenses: >-
+            AGPL-3.0-only, AGPL-3.0-or-later,
+            GPL-2.0-only, GPL-2.0-or-later,
+            GPL-3.0-only, GPL-3.0-or-later,
+            LGPL-2.0-only, LGPL-2.0-or-later,
+            LGPL-2.1-only, LGPL-2.1-or-later,
+            LGPL-3.0-only, LGPL-3.0-or-later
+
+  attribution:
+    name: attribution (no AI credit in commits)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: harden runner
+        uses: step-security/harden-runner@e14015d583714f6e62063499dc959a02595150a1 # v2.21.1
+        with:
+          egress-policy: block
+          allowed-endpoints: >
+            github.com:443
+            api.github.com:443
+            codeload.github.com:443
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: prove the check can fail
+        run: ./scripts/check-attribution.sh --self-test
+
+      - name: no commit in this pull request credits an AI
+        run: ./scripts/check-attribution.sh "origin/${GITHUB_BASE_REF}..HEAD"

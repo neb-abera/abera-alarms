@@ -1,0 +1,28 @@
+# Every ecosystem in the repository. Patch and minor grouped per ecosystem.
+# Every Dependabot pull request auto-merges once its required checks pass
+# (dependabot-automerge.yml). Red CI is the review.
+version: 2
+updates:
+  - package-ecosystem: swift
+    directory: /Packages/AlarmCore
+    schedule:
+      interval: weekly
+    groups:
+      swift:
+        update-types: [minor, patch]
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      docker:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        update-types: [minor, patch]
