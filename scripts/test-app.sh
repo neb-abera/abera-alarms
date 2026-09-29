@@ -23,6 +23,11 @@ for runtime in reversed(ios):
 [ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
 
+# Boot first and wait, so the first test does not pay the cold start
+# (51 s to launch the app on the xcode-27 runner) inside its two minutes.
+xcrun simctl boot "$device" 2>/dev/null || true
+xcrun simctl bootstatus "$device" -b
+
 mkdir -p build
 rm -rf build/AberaAlarms.xcresult
 # Streamed, so a hung test shows where it hung. Each test gets two minutes.

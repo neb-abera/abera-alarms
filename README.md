@@ -8,7 +8,10 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 - An alarm already on the phone rings offline. Only changes need a connection: a new event, a moved event, a skip, a mute.
 - Stop on a ringing alarm acknowledges it on abera.tech, which stops the Pushover repeats for the same alert. With no signal the acknowledgement waits on the phone and goes on the next sync.
 - An alert acknowledged in a browser or skipped on abera.tech is removed from the phone on its next sync.
-- Swipe to skip, mute for an hour or until morning, unpair.
+- Tap the icon beside any event to make it an Alarm, a Notification or None, for every occurrence. abera.tech writes an Alarm back to Google Calendar as #critical in the event's description.
+- The + button adds an event to Google Calendar through abera.tech, with its type and how long before the start it alerts. A new alarm is set on the phone at once.
+- The list is grouped by day. It shows the alarms, or every event.
+- Swipe to skip one day, mute for an hour or until morning, unpair.
 - The phone syncs on launch, on pull to refresh, after every action and when iOS grants a background refresh. iOS decides how often that is.
 
 ## How it fits together

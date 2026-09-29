@@ -78,3 +78,50 @@ actor ScriptedTransport: HTTPTransport {
         await #expect(throws: APIError.offline) { try await client.status() }
     }
 }
+
+@Suite struct AlertsClientEventTests {
+    let okBody = Data(#"{"configured":true,"alerts":[]}"#.utf8)
+
+    @Test func setTypePutsTheKeyAndType() async throws {
+        let transport = ScriptedTransport(body: okBody)
+        _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport)
+            .setType(key: "uid|2026", type: "alarm")
+        let request = try #require(await transport.last)
+        #expect(request.httpMethod == "PUT")
+        #expect(request.url?.path == "/api/alerts/event-type")
+        let body = try JSONDecoder().decode([String: String].self, from: try #require(request.httpBody))
+        #expect(body == ["key": "uid|2026", "type": "alarm"])
+    }
+
+    @Test func createEventPostsTheEventWithAnOffsetDate() async throws {
+        let transport = ScriptedTransport(status: 201, body: okBody)
+        let event = NewEvent(
+            title: "Dentist", startsAt: Date(timeIntervalSince1970: 1_790_000_000), durationMinutes: 30,
+            location: nil, type: "alarm", leadMinutes: 15)
+        let state = try await AlertsClient(pairing: Fixtures.pairing, transport: transport).createEvent(event)
+        #expect(state.configured)
+        let request = try #require(await transport.last)
+        #expect(request.httpMethod == "POST")
+        #expect(request.url?.path == "/api/alerts/events")
+        let json = String(decoding: try #require(request.httpBody), as: UTF8.self)
+        #expect(json.contains(#""startsAt":"2026-09-21T14:13:20.000Z""#))
+        #expect(json.contains(#""durationMinutes":30"#))
+        #expect(json.contains(#""leadMinutes":15"#))
+    }
+
+    @Test(arguments: [
+        (400, #"{"errors":{"startsAt":["The start must be in the future."]}}"#, "The start must be in the future."),
+        (
+            409, #"{"detail":"No calendar with edit access is connected."}"#,
+            "No calendar with edit access is connected."
+        ),
+        (400, "not json", "abera.tech refused the request."),
+    ])
+    func aRefusalCarriesTheReason(status: Int, body: String, reason: String) async {
+        let client = AlertsClient(
+            pairing: Fixtures.pairing, transport: ScriptedTransport(status: status, body: Data(body.utf8)))
+        await #expect(throws: APIError.refused(reason)) {
+            try await client.setType(key: "k", type: "alarm")
+        }
+    }
+}
