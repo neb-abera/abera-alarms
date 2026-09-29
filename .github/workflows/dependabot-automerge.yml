@@ -1,0 +1,65 @@
+name: Dependabot auto-merge
+# Arms GitHub's auto-merge on every Dependabot PR — majors included — so
+# updates merge themselves once every required check is green. The verify
+# suite and CI gates are the reviewer: an update that genuinely conflicts
+# (a peer-dependency wall, an API break the tests catch) fails those checks
+# and simply stays open. An open red Dependabot PR is the signal that a
+# human decision is needed, and the only kind of update that should consume
+# human attention.
+#
+# Needs two things an adopting repository must set up once:
+#  - the "Allow auto-merge" setting enabled on the repository, and
+#  - a DEPENDABOT_AUTOMERGE_TOKEN secret — a fine-grained PAT with
+#    contents:write and pull-requests:write on the repository — stored under
+#    Settings, Secrets and variables, DEPENDABOT. Not under Actions.
+#
+# The namespace is the whole trick, and it is easy to get wrong because the
+# two lists look identical in the UI. A workflow Dependabot triggers is handed
+# the Dependabot secret store; Actions secrets are absent, so
+# secrets.DEPENDABOT_AUTOMERGE_TOKEN reads empty however correct the Actions
+# copy is. Moving the trigger to pull_request_target does not rescue it: when
+# the base ref was created by Dependabot the token is read-only and secrets
+# are still unavailable. A token that other actors' workflows also need must
+# be stored under both namespaces, under the same name.
+# https://docs.github.com/en/code-security/reference/supply-chain-security/troubleshoot-dependabot/dependabot-on-actions
+#
+# A PAT rather than GITHUB_TOKEN, on purpose: a merge performed via
+# GITHUB_TOKEN does not trigger workflows, so pushes to the default branch
+# would run no CI, release or deploy workflow — the repository would ship a
+# dependency it never rebuilt.
+on: pull_request
+
+permissions: {}
+
+jobs:
+  automerge:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    # The PR must be Dependabot's, and so must the event. A human pushing to
+    # a Dependabot branch (the Update branch button, a merge of the default
+    # branch into it) fires pull_request with the human as actor, and that
+    # run is handed the Actions secret store, where this token is not and
+    # need not be: the job failed on an empty token and painted every such
+    # PR red for nothing. Dependabot's own events are what arm auto-merge,
+    # and an armed PR stays armed across later human pushes, so a human's
+    # event has nothing to do here and skips.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.actor == 'dependabot[bot]'
+    steps:
+      - name: Arm auto-merge
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.DEPENDABOT_AUTOMERGE_TOKEN }}
+        run: |
+          # Fail, rather than warn and pass. This step warned and exited 0
+          # until 2026-09-07, so a repository whose token sat in the wrong
+          # namespace showed a green Dependabot auto-merge job on every PR
+          # while arming nothing. Three repositories quietly stopped taking
+          # dependency updates for a week that way, which is precisely the
+          # advisory-check failure this project treats as a design defect.
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::DEPENDABOT_AUTOMERGE_TOKEN is empty: auto-merge was NOT armed and this PR will sit open until a human merges it. Store the token as a DEPENDABOT secret (Settings, Secrets and variables, Dependabot) — an Actions secret of the same name is invisible to a Dependabot-triggered run. It needs contents:write and pull-requests:write on this repository, and the repository's Allow auto-merge setting must be on."
+            exit 1
+          fi
+          gh pr merge --auto --merge "$PR_URL"
