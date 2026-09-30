@@ -241,6 +241,19 @@ public struct EventEdit: Codable, Equatable, Sendable {
         self.leadMinutes = leadMinutes
     }
 
+    /// Location is always sent: null clears it on the server, where a
+    /// missing field would leave the old one in place.
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(key, forKey: .key)
+        try container.encode(scope, forKey: .scope)
+        try container.encode(title, forKey: .title)
+        try container.encode(startsAt, forKey: .startsAt)
+        try container.encodeIfPresent(durationMinutes, forKey: .durationMinutes)
+        try container.encode(location, forKey: .location)
+        try container.encodeIfPresent(leadMinutes, forKey: .leadMinutes)
+    }
+
     /// The bounds the server checks, so the editor can say what is wrong first.
     public func problems(now: Date) -> [String] {
         var problems: [String] = []

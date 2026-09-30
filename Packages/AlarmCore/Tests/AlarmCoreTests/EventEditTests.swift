@@ -127,4 +127,14 @@ import Testing
         #expect(!state.alerts[1].recurring)
         #expect(state.alerts[1].endsAt == nil)
     }
+
+    @Test func aClearedLocationIsSentAsNull() throws {
+        let edit = EventEdit(
+            key: "k", scope: .occurrence, title: "T", startsAt: Fixtures.now, durationMinutes: nil, location: nil,
+            leadMinutes: nil)
+        let json = String(decoding: try ServerDates.encoder().encode(edit), as: UTF8.self)
+        #expect(json.contains(#""location":null"#))
+        #expect(!json.contains("durationMinutes"))
+        #expect(!json.contains("leadMinutes"))
+    }
 }
