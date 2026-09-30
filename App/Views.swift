@@ -155,6 +155,8 @@ enum DayHeading {
 struct EventRow: View {
     @Bindable var model: AppModel
     let alert: PlannedAlert
+    @State private var editing = false
+    @State private var confirmingDelete = false
 
     var body: some View {
         HStack(alignment: .top) {
@@ -173,10 +175,27 @@ struct EventRow: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("alarm-\(alert.key)")
+            .accessibilityHint("Opens the event to edit or delete it")
+            .contentShape(Rectangle())
+            .onTapGesture { editing = true }
             Spacer()
             TypeMenu(model: model, alert: alert)
         }
+        .sheet(isPresented: $editing) {
+            EventEditor(model: model, alert: alert)
+        }
+        .confirmationDialog(
+            "Delete \(alert.title)?", isPresented: $confirmingDelete, titleVisibility: .visible
+        ) {
+            DeleteChoices(model: model, alert: alert)
+        } message: {
+            Text("It is removed from Google Calendar, which keeps it in its trash for 30 days.")
+        }
         .swipeActions {
+            // Red, without the destructive role: that role makes the list
+            // start removing the row, and the dialog below goes with it.
+            Button("Delete") { confirmingDelete = true }
+                .tint(.red)
             if alert.skipped {
                 Button("Unskip") { Task { await model.unskip(alert) } }
                     .tint(.blue)
@@ -256,6 +275,135 @@ struct TypeMenu: View {
         case AlertType.notification: "bell"
         default: "bell.slash"
         }
+    }
+}
+
+/// Delete this event, or every event in its series when it repeats.
+struct DeleteChoices: View {
+    @Bindable var model: AppModel
+    let alert: PlannedAlert
+    var done: () -> Void = {}
+
+    var body: some View {
+        if alert.recurring {
+            Button("Delete This Event", role: .destructive) { delete(.occurrence) }
+            Button("Delete All Events", role: .destructive) { delete(.series) }
+        } else {
+            Button("Delete Event", role: .destructive) { delete(.occurrence) }
+        }
+    }
+
+    private func delete(_ scope: EditScope) {
+        Task {
+            if await model.deleteEvent(alert, scope: scope) { done() }
+        }
+    }
+}
+
+/// Change an event's title, start, length, location and alert, or delete
+/// it. abera.tech makes the change in Google Calendar.
+struct EventEditor: View {
+    @Bindable var model: AppModel
+    let alert: PlannedAlert
+    @Environment(\.dismiss) private var dismiss
+    @State private var title: String
+    @State private var startsAt: Date
+    @State private var durationMinutes: Int
+    @State private var location: String
+    @State private var leadMinutes: Int
+    @State private var scope = EditScope.occurrence
+    @State private var confirmingDelete = false
+
+    init(model: AppModel, alert: PlannedAlert) {
+        self.model = model
+        self.alert = alert
+        _title = State(initialValue: alert.title)
+        _startsAt = State(initialValue: alert.startsAt)
+        _durationMinutes = State(initialValue: alert.durationMinutes ?? 30)
+        _location = State(initialValue: alert.location ?? "")
+        _leadMinutes = State(initialValue: alert.leadMinutes)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("Title", text: $title)
+                        .accessibilityIdentifier("edit-title")
+                    DatePicker("Starts", selection: $startsAt, in: Date()...)
+                    if alert.durationMinutes != nil {
+                        Stepper("Length: \(durationMinutes) min", value: $durationMinutes, in: 5...1440, step: 5)
+                    }
+                    TextField("Location", text: $location)
+                    Stepper(
+                        leadMinutes == 0 ? "Rings at the start" : "Rings \(leadMinutes) min before the start",
+                        value: $leadMinutes, in: 0...1440, step: 5)
+                }
+                if alert.recurring {
+                    Section {
+                        Picker("Change", selection: $scope) {
+                            Text("This event").tag(EditScope.occurrence)
+                            Text("All events").tag(EditScope.series)
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("edit-scope")
+                    } footer: {
+                        Text("This event repeats.")
+                    }
+                }
+                ForEach(problems, id: \.self) { problem in
+                    Text(problem).foregroundStyle(.red)
+                }
+                if let error = model.eventError {
+                    Section {
+                        Label(error, systemImage: "exclamationmark.triangle")
+                            .foregroundStyle(.red)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("edit-error")
+                    }
+                }
+                Section {
+                    Button("Delete Event", role: .destructive) { confirmingDelete = true }
+                        .accessibilityIdentifier("delete-event")
+                }
+            }
+            .navigationTitle("Edit Event")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        Task {
+                            if await model.updateEvent(edit) { dismiss() }
+                        }
+                    }
+                    .disabled(!problems.isEmpty || model.busy)
+                    .accessibilityIdentifier("save-event")
+                }
+            }
+            .confirmationDialog(
+                "Delete \(alert.title)?", isPresented: $confirmingDelete, titleVisibility: .visible
+            ) {
+                DeleteChoices(model: model, alert: alert) { dismiss() }
+            } message: {
+                Text("It is removed from Google Calendar, which keeps it in its trash for 30 days.")
+            }
+            .onAppear { model.clearEventError() }
+        }
+    }
+
+    private var edit: EventEdit {
+        EventEdit(
+            key: alert.key, scope: alert.recurring ? scope : .occurrence,
+            title: title.trimmingCharacters(in: .whitespacesAndNewlines), startsAt: startsAt,
+            durationMinutes: alert.durationMinutes == nil ? nil : durationMinutes,
+            location: location.isEmpty ? nil : location, leadMinutes: leadMinutes)
+    }
+
+    private var problems: [String] {
+        edit.problems(now: Date())
     }
 }
 

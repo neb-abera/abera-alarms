@@ -61,6 +61,8 @@ public actor FakeAlertsServer: HTTPTransport {
     public private(set) var acknowledgements: [String] = []
     public private(set) var typeChanges: [String] = []
     public private(set) var routineUpdates: [Routine] = []
+    public private(set) var edits: [EventEdit] = []
+    public private(set) var deletions: [String] = []
     /// "<token> <environment>" as the phone last registered it.
     public private(set) var pushRegistration: String?
     public private(set) var created: [NewEvent] = []
@@ -138,6 +140,42 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("POST", "/api/alerts/unmute"):
             state.mutedUntil = nil
             for index in state.alerts.indices { state.alerts[index].muted = false }
+        case ("PUT", "/api/alerts/events"):
+            guard let data = request.httpBody, let edit = try? ServerDates.decoder().decode(EventEdit.self, from: data)
+            else { return respond(request, 400, Data()) }
+            guard let index = state.alerts.firstIndex(where: { $0.key == edit.key }) else {
+                return respond(request, 404, Data())
+            }
+            if let refusal = createRefusal {
+                return respond(request, 409, Data(#"{"detail":"\#(refusal)"}"#.utf8))
+            }
+            let event = Self.event(of: edit.key)
+            let lead = Double(edit.leadMinutes ?? state.alerts[index].leadMinutes) * 60
+            let indices =
+                edit.scope == .series
+                ? state.alerts.indices.filter { Self.event(of: state.alerts[$0].key) == event } : [index]
+            let shift = edit.startsAt.timeIntervalSince(state.alerts[index].startsAt)
+            for i in indices {
+                let start = state.alerts[i].startsAt.addingTimeInterval(shift)
+                state.alerts[i].title = edit.title
+                state.alerts[i].location = edit.location
+                state.alerts[i].startsAt = start
+                state.alerts[i].alertAt = start.addingTimeInterval(-lead)
+                if let minutes = edit.durationMinutes {
+                    state.alerts[i].endsAt = start.addingTimeInterval(Double(minutes) * 60)
+                }
+            }
+            edits.append(edit)
+        case ("POST", "/api/alerts/events/delete"):
+            guard listed != nil, let scope = EditScope(rawValue: body["scope"] ?? "") else {
+                return respond(request, listed == nil ? 404 : 400, Data())
+            }
+            if let refusal = createRefusal {
+                return respond(request, 409, Data(#"{"detail":"\#(refusal)"}"#.utf8))
+            }
+            let event = Self.event(of: key)
+            state.alerts.removeAll { scope == .series ? Self.event(of: $0.key) == event : $0.key == key }
+            deletions.append("\(key) \(scope.rawValue)")
         case ("POST", "/api/alerts/routines"):
             guard let draft = routineDraft(request) else { return respond(request, 400, Data()) }
             guard state.routines.count < RoutineDraft.maxRoutines else {

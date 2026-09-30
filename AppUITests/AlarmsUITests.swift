@@ -72,7 +72,7 @@ final class AlarmsUITests: XCTestCase {
     func testTheListShowsAlarmsAndNotNotifications() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
-        XCTAssertTrue(row(app, "pt").exists)
+        XCTAssertTrue(row(app, "pt|1").exists)
         XCTAssertFalse(row(app, "lunch").exists)
         XCTAssertFalse(row(app, "dinner").exists)
         XCTAssertTrue(app.staticTexts["1 notification(s) go through Pushover only."].exists)
@@ -106,7 +106,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(type.waitForExistence(timeout: 10))
         type.tap()
         app.buttons["Off"].tap()
-        XCTAssertTrue(row(app, "pt").waitForExistence(timeout: 5))
+        XCTAssertTrue(row(app, "pt|1").waitForExistence(timeout: 5))
         XCTAssertTrue(waitForGone(row(app, "standup")))
     }
 
@@ -221,6 +221,50 @@ final class AlarmsUITests: XCTestCase {
     private func waitFor(_ element: XCUIElement, labelContaining text: String) -> Bool {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
         return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
+    }
+
+    // MARK: Edit and delete events
+
+    func testEditingAnEventTitle() {
+        let app = launch()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        standup.tap()
+        let title = app.textFields["edit-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 12) + "Stand-up")
+        app.buttons["save-event"].tap()
+        XCTAssertTrue(waitFor(standup, labelContaining: "Stand-up"))
+    }
+
+    func testDeletingFromTheEditor() {
+        let app = launch()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        standup.tap()
+        let delete = app.buttons["delete-event"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+        let confirm = app.buttons["Delete Event"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["Delete All Events"].exists)
+        confirm.tap()
+        XCTAssertTrue(waitForGone(standup))
+    }
+
+    func testDeletingARepeatingEventAsksWhich() {
+        let app = launch()
+        let pt = row(app, "pt|1")
+        XCTAssertTrue(pt.waitForExistence(timeout: 10))
+        pt.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        let one = app.buttons["Delete This Event"]
+        XCTAssertTrue(one.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Delete All Events"].waitForExistence(timeout: 5), app.debugDescription)
+        one.tap()
+        XCTAssertTrue(waitForGone(pt))
+        XCTAssertTrue(row(app, "standup").exists)
     }
 
     // MARK: Routine alarms
