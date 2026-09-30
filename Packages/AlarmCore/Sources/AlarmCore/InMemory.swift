@@ -60,6 +60,7 @@ public actor FakeAlertsServer: HTTPTransport {
     public private(set) var requests: [String] = []
     public private(set) var acknowledgements: [String] = []
     public private(set) var typeChanges: [String] = []
+    public private(set) var routineUpdates: [Routine] = []
     /// "<token> <environment>" as the phone last registered it.
     public private(set) var pushRegistration: String?
     public private(set) var created: [NewEvent] = []
@@ -79,6 +80,24 @@ public actor FakeAlertsServer: HTTPTransport {
     public func revoke() { token = "" }
     public func failCalendarWrites(_ reason: String?) { calendarWriteFailure = reason }
     public func refuseNewEvents(_ reason: String?) { createRefusal = reason }
+
+    private func routineDraft(_ request: URLRequest) -> RoutineDraft? {
+        guard let data = request.httpBody, let draft = try? JSONDecoder().decode(RoutineDraft.self, from: data),
+            draft.problems.isEmpty
+        else { return nil }
+        return draft
+    }
+
+    private func routineIndex(_ path: String) -> Int? {
+        let id = path.split(separator: "/").last.flatMap { UUID(uuidString: String($0)) }
+        return state.routines.firstIndex { $0.id == id }
+    }
+
+    private func sortRoutines() {
+        state.routines.sort { ($0.hour, $0.minute, $0.label) < ($1.hour, $1.minute, $1.label) }
+    }
+
+    public func setRoutines(_ routines: [Routine]) { state.routines = routines }
 
     static func event(of key: String) -> Substring {
         key.split(separator: "|", maxSplits: 1).first ?? Substring(key)
@@ -119,6 +138,31 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("POST", "/api/alerts/unmute"):
             state.mutedUntil = nil
             for index in state.alerts.indices { state.alerts[index].muted = false }
+        case ("POST", "/api/alerts/routines"):
+            guard let draft = routineDraft(request) else { return respond(request, 400, Data()) }
+            guard state.routines.count < RoutineDraft.maxRoutines else {
+                return respond(request, 409, Data(#"{"detail":"At most 50 routine alarms."}"#.utf8))
+            }
+            state.routines.append(
+                Routine(
+                    id: UUID(), label: draft.sentLabel, hour: draft.hour, minute: draft.minute, days: draft.days,
+                    enabled: draft.enabled, snoozeMinutes: draft.snoozeMinutes))
+            sortRoutines()
+            return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
+        case ("PUT", _) where path.hasPrefix("/api/alerts/routines/"):
+            guard let index = routineIndex(path) else { return respond(request, 404, Data()) }
+            guard let draft = routineDraft(request) else { return respond(request, 400, Data()) }
+            state.routines[index].label = draft.sentLabel
+            state.routines[index].hour = draft.hour
+            state.routines[index].minute = draft.minute
+            state.routines[index].days = draft.days
+            state.routines[index].enabled = draft.enabled
+            state.routines[index].snoozeMinutes = draft.snoozeMinutes
+            routineUpdates.append(state.routines[index])
+            sortRoutines()
+        case ("DELETE", _) where path.hasPrefix("/api/alerts/routines/"):
+            guard let index = routineIndex(path) else { return respond(request, 404, Data()) }
+            state.routines.remove(at: index)
         case ("PUT", "/api/alerts/devices/me/push"):
             guard let token = body["apnsToken"], PushToken.isValid(token),
                 let environment = body["environment"], PushEnvironment(rawValue: environment) != nil

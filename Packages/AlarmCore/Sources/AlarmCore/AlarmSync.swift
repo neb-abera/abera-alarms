@@ -85,6 +85,7 @@ public actor AlarmSync {
         }
         try? await credentials.remove()
         try? await documents.remove(Self.pendingName)
+        try? await documents.remove(Self.pendingOffName)
         _ = await apply(AlertsState(configured: false))
         try? await documents.remove(Self.stateName)
     }
@@ -113,8 +114,26 @@ public actor AlarmSync {
             }
         }
 
+        if let system = try? await alarms.scheduledIDs() {
+            await noteRungOnce(ledger: await loadLedger(), system: system, at: now())
+        }
+
         do {
-            let state = try await client.status()
+            var state = try await client.status()
+            // A ring-once routine that rang is switched off on abera.tech, as
+            // the Clock app switches off a one-time alarm.
+            for id in await pendingOff() {
+                if let routine = state.routines.first(where: { $0.id == id }), routine.enabled, !routine.repeats {
+                    var off = routine.draft
+                    off.enabled = false
+                    do {
+                        state = try await client.updateRoutine(id: id, off)
+                    } catch .notFound {
+                        // Deleted meanwhile: nothing to switch off.
+                    }
+                }
+                await removePendingOff(id)
+            }
             return await apply(state)
         } catch .unpaired {
             return await unpaired()
@@ -155,14 +174,19 @@ public actor AlarmSync {
 
     private func apply(_ state: AlertsState) async -> SyncReport {
         let at = now()
-        let desired = Reconciler.desired(from: state, now: at, acknowledgedHere: Set(await pending()))
         let ledger = await loadLedger()
         let system: Set<UUID>
         do {
             system = try await alarms.scheduledIDs()
         } catch {
+            let desired = Reconciler.desired(from: state, now: at, acknowledgedHere: Set(await pending()))
             return report(error: nil, state: state, refused: desired.map(\.key))
         }
+
+        await noteRungOnce(ledger: ledger, system: system, at: at)
+        let off = Set(await pendingOff())
+        let desired = Reconciler.desired(from: state, now: at, acknowledgedHere: Set(await pending()))
+            .filter { !off.contains($0.id) }
 
         let changes = Reconciler.changes(desired: desired, ledger: ledger, system: system)
         var held = ledger.filter { system.contains($0.key) }
@@ -222,6 +246,40 @@ public actor AlarmSync {
         let list = ledger.values.sorted { $0.id.uuidString < $1.id.uuidString }
         if let data = try? ServerDates.encoder().encode(list) {
             try? await documents.save(data, as: Self.ledgerName)
+        }
+    }
+
+    static let pendingOffName = "pending-routines-off.json"
+
+    /// A ring-once routine the phone held that is gone from the alarm system
+    /// and whose time has passed has rung. It is not set again for tomorrow,
+    /// and a sync switches it off on abera.tech.
+    private func noteRungOnce(ledger: [UUID: DesiredAlarm], system: Set<UUID>, at: Date) async {
+        for alarm in ledger.values where alarm.routine?.days.isEmpty == true {
+            if alarm.fireAt <= at, !system.contains(alarm.id) { await addPendingOff(alarm.id) }
+        }
+    }
+
+    func pendingOff() async -> [UUID] {
+        guard let data = try? await documents.load(Self.pendingOffName),
+            let ids = try? JSONDecoder().decode([UUID].self, from: data)
+        else { return [] }
+        return ids
+    }
+
+    private func addPendingOff(_ id: UUID) async {
+        var ids = await pendingOff()
+        guard !ids.contains(id) else { return }
+        ids.append(id)
+        if let data = try? JSONEncoder().encode(Array(ids.suffix(Self.maxPending))) {
+            try? await documents.save(data, as: Self.pendingOffName)
+        }
+    }
+
+    private func removePendingOff(_ id: UUID) async {
+        let ids = await pendingOff().filter { $0 != id }
+        if let data = try? JSONEncoder().encode(ids) {
+            try? await documents.save(data, as: Self.pendingOffName)
         }
     }
 

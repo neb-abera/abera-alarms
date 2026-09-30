@@ -10,7 +10,14 @@ struct RootView: View {
             if !model.started {
                 ProgressView()
             } else if model.paired {
-                AlarmsView(model: model)
+                TabView {
+                    Tab("Alarms", systemImage: "alarm") {
+                        RoutinesView(model: model)
+                    }
+                    Tab("Calendar", systemImage: "calendar") {
+                        AlarmsView(model: model)
+                    }
+                }
             } else {
                 PairView(model: model)
             }
@@ -98,7 +105,7 @@ struct AlarmsView: View {
                     Footer(model: model)
                 }
             }
-            .navigationTitle("Alarms")
+            .navigationTitle("Calendar")
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

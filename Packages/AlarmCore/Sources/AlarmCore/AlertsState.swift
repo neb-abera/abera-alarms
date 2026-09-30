@@ -16,6 +16,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
     /// Null when it did, or when nothing was written.
     public var calendarWrite: String?
     public var alerts: [PlannedAlert]
+    /// The Clock-style alarms, on or off.
+    public var routines: [Routine]
 
     public init(
         configured: Bool = true,
@@ -25,7 +27,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastFetchError: String? = nil,
         lastSuccessAt: Date? = nil,
         calendarWrite: String? = nil,
-        alerts: [PlannedAlert] = []
+        alerts: [PlannedAlert] = [],
+        routines: [Routine] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -35,6 +38,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.lastSuccessAt = lastSuccessAt
         self.calendarWrite = calendarWrite
         self.alerts = alerts
+        self.routines = routines
     }
 
     public init(from decoder: any Decoder) throws {
@@ -47,6 +51,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastSuccessAt = try container.decodeIfPresent(Date.self, forKey: .lastSuccessAt)
         calendarWrite = try container.decodeIfPresent(String.self, forKey: .calendarWrite)
         alerts = try container.decodeIfPresent([PlannedAlert].self, forKey: .alerts) ?? []
+        routines = try container.decodeIfPresent([Routine].self, forKey: .routines) ?? []
     }
 }
 

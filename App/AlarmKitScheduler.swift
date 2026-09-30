@@ -5,11 +5,6 @@ import AppIntents
 import Foundation
 import SwiftUI
 
-/// What an alarm carries back to the app when it rings.
-struct AlarmInfo: AlarmMetadata {
-    var key: String
-}
-
 /// The phone's alarm system: AlarmKit. An alarm scheduled here rings at its
 /// time through the silent switch and Focus, with or without a connection.
 struct AlarmKitScheduler: AlarmScheduling {
@@ -18,6 +13,10 @@ struct AlarmKitScheduler: AlarmScheduling {
     }
 
     func schedule(_ alarm: DesiredAlarm) async throws {
+        if let routine = alarm.routine {
+            try await scheduleRoutine(alarm, routine)
+            return
+        }
         let alert = AlarmPresentation.Alert(
             title: "\(AlarmText.title(for: alarm))", secondaryButton: nil, secondaryButtonBehavior: nil)
         let attributes = AlarmAttributes<AlarmInfo>(
@@ -31,6 +30,45 @@ struct AlarmKitScheduler: AlarmScheduling {
             secondaryIntent: nil,
             sound: .default)
         _ = try await AlarmManager.shared.schedule(id: alarm.id, configuration: configuration)
+    }
+
+    /// A Clock-style alarm: the time of day, the weekdays it repeats on, and
+    /// Snooze, which counts down on the Lock Screen and rings again.
+    private func scheduleRoutine(_ alarm: DesiredAlarm, _ routine: RoutineSchedule) async throws {
+        let snooze = AlarmButton(text: "Snooze", textColor: .white, systemImageName: "zzz")
+        let alert = AlarmPresentation.Alert(
+            title: "\(alarm.title)", secondaryButton: snooze, secondaryButtonBehavior: .countdown)
+        let countdown = AlarmPresentation.Countdown(title: "\(alarm.title), snoozing", pauseButton: nil)
+        let attributes = AlarmAttributes<AlarmInfo>(
+            presentation: AlarmPresentation(alert: alert, countdown: countdown, paused: nil),
+            metadata: AlarmInfo(key: alarm.key),
+            tintColor: .accentColor)
+        let repeats: Alarm.Schedule.Relative.Recurrence =
+            routine.days.isEmpty ? .never : .weekly(routine.days.compactMap(Self.weekday))
+        let schedule = Alarm.Schedule.relative(
+            .init(time: .init(hour: routine.hour, minute: routine.minute), repeats: repeats))
+        let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>(
+            countdownDuration: .init(preAlert: nil, postAlert: TimeInterval(routine.snoozeMinutes * 60)),
+            schedule: schedule,
+            attributes: attributes,
+            stopIntent: nil,
+            secondaryIntent: nil,
+            sound: .default)
+        _ = try await AlarmManager.shared.schedule(id: alarm.id, configuration: configuration)
+    }
+
+    /// ISO weekday, Monday 1 to Sunday 7.
+    static func weekday(_ iso: Int) -> Locale.Weekday? {
+        switch iso {
+        case 1: .monday
+        case 2: .tuesday
+        case 3: .wednesday
+        case 4: .thursday
+        case 5: .friday
+        case 6: .saturday
+        case 7: .sunday
+        default: nil
+        }
     }
 
     func cancel(_ id: UUID) async throws {
