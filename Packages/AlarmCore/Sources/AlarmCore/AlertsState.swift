@@ -71,12 +71,24 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
     /// Where the type came from: "set" on the page or phone, "critical"
     /// from the calendar, "default" from the settings.
     public var typeFrom: String?
+    /// Part of a repeating series: an edit or a delete asks which.
+    public var recurring: Bool
+    /// Null when the feed gives no end.
+    public var endsAt: Date?
     public var acknowledged: Bool
     public var acknowledgedAt: Date?
     /// "phone" or "browser".
     public var acknowledgedVia: String?
 
     public var id: String { key }
+
+    /// Minutes from start to end, when the feed gives an end.
+    public var durationMinutes: Int? {
+        endsAt.map { Int(($0.timeIntervalSince(startsAt) / 60).rounded()) }
+    }
+
+    /// Minutes from the alert to the start.
+    public var leadMinutes: Int { max(0, Int((startsAt.timeIntervalSince(alertAt) / 60).rounded())) }
 
     public var isAlarm: Bool { type == AlertType.alarm }
 
@@ -90,6 +102,8 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         muted: Bool = false,
         type: String = AlertType.alarm,
         typeFrom: String? = nil,
+        recurring: Bool = false,
+        endsAt: Date? = nil,
         acknowledged: Bool = false,
         acknowledgedAt: Date? = nil,
         acknowledgedVia: String? = nil
@@ -103,6 +117,8 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         self.muted = muted
         self.type = type
         self.typeFrom = typeFrom
+        self.recurring = recurring
+        self.endsAt = endsAt
         self.acknowledged = acknowledged
         self.acknowledgedAt = acknowledgedAt
         self.acknowledgedVia = acknowledgedVia
@@ -119,6 +135,8 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         muted = try container.decodeIfPresent(Bool.self, forKey: .muted) ?? false
         type = try container.decodeIfPresent(String.self, forKey: .type) ?? AlertType.alarm
         typeFrom = try container.decodeIfPresent(String.self, forKey: .typeFrom)
+        recurring = try container.decodeIfPresent(Bool.self, forKey: .recurring) ?? false
+        endsAt = try container.decodeIfPresent(Date.self, forKey: .endsAt)
         acknowledged = try container.decodeIfPresent(Bool.self, forKey: .acknowledged) ?? false
         acknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .acknowledgedAt)
         acknowledgedVia = try container.decodeIfPresent(String.self, forKey: .acknowledgedVia)

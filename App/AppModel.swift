@@ -142,6 +142,29 @@ final class AppModel {
 
     func clearRoutineError() { routineError = nil }
 
+    /// True when abera.tech changed the event.
+    func updateEvent(_ edit: EventEdit) async -> Bool {
+        eventError = nil
+        await perform { client throws(APIError) in try await client.updateEvent(edit) }
+        if let error = report?.error {
+            eventError = Self.describe(error)
+            return false
+        }
+        return true
+    }
+
+    /// True when abera.tech deleted the event.
+    func deleteEvent(_ alert: PlannedAlert, scope: EditScope) async -> Bool {
+        eventError = nil
+        let key = alert.key
+        await perform { client throws(APIError) in try await client.deleteEvent(key: key, scope: scope) }
+        if let error = report?.error {
+            eventError = Self.describe(error)
+            return false
+        }
+        return true
+    }
+
     /// Adds a routine, or replaces the one with this id. True when abera.tech took it.
     func saveRoutine(id: UUID?, _ draft: RoutineDraft) async -> Bool {
         routineError = nil

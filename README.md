@@ -14,7 +14,8 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 - Tap the icon beside any event to choose Ring until stopped, Ring once or Off, for every occurrence. Ring until stopped is a phone alarm and repeating Pushover sounds. Ring once is one Pushover sound. abera.tech writes Ring until stopped back to Google Calendar as #critical in the event's description.
 - The + button needs only a time. The title is optional and defaults to "Alarm", and the alarm rings at that time until stopped. Advanced holds the type, how long before the start it rings, the event's length in the calendar and a location. abera.tech adds the event to Google Calendar, and the alarm is set on the phone at once.
 - The list is grouped by day. It shows the alarms, or every event.
-- Swipe to skip one day, mute for an hour or until morning, unpair.
+- Tap an event to change its title, start, length, location or alert, or to delete it. For a repeating event, choose This event or All events. abera.tech makes the change in Google Calendar. A deleted event stays in Google Calendar's trash for 30 days. Google refuses changes to an invitation someone else organizes, and the app shows why.
+- Swipe to delete, skip one day, mute for an hour or until morning, unpair.
 - abera.tech sends a silent push when anything changes what the phone should hold: a type change, a new event, a skip, a mute, an acknowledgement elsewhere or a calendar change. The push carries no content. It wakes the app, which syncs.
 - The phone also syncs on launch, on pull to refresh, after every action and when iOS grants a background refresh. iOS rations silent pushes and drops them for an app force-quit from the app switcher, so these stay.
 
