@@ -81,6 +81,18 @@ public struct AlertsClient: Sendable {
         try await call("POST", "events", body: event)
     }
 
+    public func createRoutine(_ draft: RoutineDraft) async throws(APIError) -> AlertsState {
+        try await call("POST", "routines", body: draft.body)
+    }
+
+    public func updateRoutine(id: UUID, _ draft: RoutineDraft) async throws(APIError) -> AlertsState {
+        try await call("PUT", "routines/\(id.uuidString.lowercased())", body: draft.body)
+    }
+
+    public func deleteRoutine(id: UUID) async throws(APIError) -> AlertsState {
+        try await call("DELETE", "routines/\(id.uuidString.lowercased())", body: nil)
+    }
+
     /// Where abera.tech sends a push when this phone's alarms change.
     public func registerPush(token: String, environment: PushEnvironment) async throws(APIError) {
         try await callNoContent(

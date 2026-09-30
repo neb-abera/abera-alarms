@@ -20,12 +20,12 @@ coverage: test
 	$(RUN) ../../scripts/coverage.sh $(COVERAGE_FLOOR)
 
 format: image
-	$(RUN) swift format --in-place --recursive Sources Tests ../../App ../../AppUITests
+	$(RUN) swift format --in-place --recursive Sources Tests ../../App ../../AppUITests ../../AlarmsWidget
 
 LINT_IMAGE = $(shell sed -n 's|^FROM \(rhysd/actionlint:[^ ]*\) AS actionlint$$|\1|p' Dockerfile)
 
 lint: image
-	$(RUN) swift format lint --strict --recursive Sources Tests ../../App ../../AppUITests
+	$(RUN) swift format lint --strict --recursive Sources Tests ../../App ../../AppUITests ../../AlarmsWidget
 	@test -n "$(LINT_IMAGE)" || { echo "error: no 'FROM rhysd/actionlint:... AS actionlint' stage in the Dockerfile" >&2; exit 1; }
 	docker run --rm --user $(HOST_UID):$(HOST_GID) -v $(CURDIR):/repo:ro -w /repo --entrypoint actionlint $(LINT_IMAGE) -color
 	docker run --rm --user $(HOST_UID):$(HOST_GID) -v $(CURDIR):/repo:ro -w /repo --entrypoint shellcheck $(LINT_IMAGE) scripts/*.sh

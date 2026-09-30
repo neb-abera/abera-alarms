@@ -35,6 +35,41 @@ enum Fixtures {
         let sync: AlarmSync
     }
 
+    /// A clock a test can move.
+    final class TestClock: @unchecked Sendable {
+        private let lock = NSLock()
+        private var value: Date
+
+        init(_ start: Date = Fixtures.now) { value = start }
+
+        var now: Date {
+            lock.lock()
+            defer { lock.unlock() }
+            return value
+        }
+
+        func advance(minutes: Double) {
+            lock.lock()
+            value = value.addingTimeInterval(minutes * 60)
+            lock.unlock()
+        }
+    }
+
+    static func rig(
+        _ alerts: [PlannedAlert], routines: [Routine], clock: TestClock, paired: Bool = true
+    ) -> Rig {
+        var initial = state(alerts)
+        initial.routines = routines
+        let server = FakeAlertsServer(state: initial, token: token)
+        let alarms = MemoryAlarms()
+        let documents = MemoryDocuments()
+        let credentials = MemoryCredentials(paired ? pairing : nil)
+        let sync = AlarmSync(
+            credentials: credentials, transport: server, alarms: alarms, documents: documents,
+            now: { clock.now })
+        return Rig(server: server, alarms: alarms, documents: documents, credentials: credentials, sync: sync)
+    }
+
     static func rig(_ alerts: [PlannedAlert], paired: Bool = true) -> Rig {
         let server = FakeAlertsServer(state: state(alerts), token: token)
         let alarms = MemoryAlarms()

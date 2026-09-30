@@ -12,11 +12,16 @@
 		5EE8C24CEB42BE45177F402B /* AlarmKitScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */; };
 		6B7962F1731E152BBCED7696 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD10358D4297D739F6D33457 /* Assets.xcassets */; };
 		7928AA7FE04A07B473533544 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */; };
+		837E22D7B1C8370B971B9B36 /* AlarmsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */; };
+		AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B571278D349722D70FF8D3E /* RoutinesView.swift */; };
+		AE552238CA0A61409E1CD5D0 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
 		BAD1171ACB15FA680E814E50 /* AberaAlarmsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */; };
 		DB15419C87DF8B5D7C88D72E /* AlarmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5C1DB0A5BDFD4210EC59B6A7 /* AlarmCore */; };
+		E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E414D4650C857B71B2B474A /* AlarmsWidget.swift */; };
 		EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA375A6D175B012E7A00735A /* PushDelegate.swift */; };
 		EE865A5050DC3D50560C7919 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = A783C0B2E1BA54C7B72F43B0 /* Views.swift */; };
+		FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,11 +32,37 @@
 			remoteGlobalIDString = C6F3E11EDBFABEF87FF2210D;
 			remoteInfo = AberaAlarms;
 		};
+		F84D6222DED89E3199F0B1B0 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = EE6FD6363B61CE90E81F3A26 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = B43497F8755A63906AB997C6;
+			remoteInfo = AlarmsWidget;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		B0BFA3D5159386F1251C2E21 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				837E22D7B1C8370B971B9B36 /* AlarmsWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmKitScheduler.swift; sourceTree = "<group>"; };
+		1B571278D349722D70FF8D3E /* RoutinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutinesView.swift; sourceTree = "<group>"; };
+		1E414D4650C857B71B2B474A /* AlarmsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmsWidget.swift; sourceTree = "<group>"; };
+		23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AlarmsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		23FD542C36135ED632A687A1 /* AlarmInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmInfo.swift; sourceTree = "<group>"; };
+		2BB38860B8B6E179D39318BB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		41A62A1C2210F5E236DC124A /* AlarmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlarmCore; path = Packages/AlarmCore; sourceTree = SOURCE_ROOT; };
 		68D589961DE69EA2F1B8E08D /* AberaAlarmsUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AberaAlarmsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -58,9 +89,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		461318740AA1E8D80A04530A /* AlarmsWidget */ = {
+			isa = PBXGroup;
+			children = (
+				1E414D4650C857B71B2B474A /* AlarmsWidget.swift */,
+				2BB38860B8B6E179D39318BB /* Info.plist */,
+			);
+			path = AlarmsWidget;
+			sourceTree = "<group>";
+		};
 		4E0B97C1CC6F29848BEDBCA3 = {
 			isa = PBXGroup;
 			children = (
+				461318740AA1E8D80A04530A /* AlarmsWidget */,
 				6AA06B9EB7C95B939E055BB3 /* App */,
 				FBF46A4B9A05CB30FB924CFF /* AppUITests */,
 				78E9CF79BA1B11F92AF240AD /* Packages */,
@@ -73,6 +114,7 @@
 			children = (
 				CF1B80F6CA8CFDF72AEFA15E /* AberaAlarms.app */,
 				68D589961DE69EA2F1B8E08D /* AberaAlarmsUITests.xctest */,
+				23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -89,7 +131,9 @@
 				87A83F32AF14C10AA49161F6 /* Dependencies.swift */,
 				3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */,
 				CA375A6D175B012E7A00735A /* PushDelegate.swift */,
+				1B571278D349722D70FF8D3E /* RoutinesView.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
+				B46E6ACFE84102C4B90EAC6A /* Shared */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -100,6 +144,14 @@
 				41A62A1C2210F5E236DC124A /* AlarmCore */,
 			);
 			path = Packages;
+			sourceTree = "<group>";
+		};
+		B46E6ACFE84102C4B90EAC6A /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				23FD542C36135ED632A687A1 /* AlarmInfo.swift */,
+			);
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		FBF46A4B9A05CB30FB924CFF /* AppUITests */ = {
@@ -131,6 +183,23 @@
 			productReference = 68D589961DE69EA2F1B8E08D /* AberaAlarmsUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		B43497F8755A63906AB997C6 /* AlarmsWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C4728C023C4D925FDEDA60E9 /* Build configuration list for PBXNativeTarget "AlarmsWidget" */;
+			buildPhases = (
+				A4CB1BDFD2C66088B08182CD /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AlarmsWidget;
+			packageProductDependencies = (
+			);
+			productName = AlarmsWidget;
+			productReference = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		C6F3E11EDBFABEF87FF2210D /* AberaAlarms */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 06A57212B805B701ED578DCD /* Build configuration list for PBXNativeTarget "AberaAlarms" */;
@@ -138,10 +207,12 @@
 				73923D80A05E6396094D973C /* Sources */,
 				846C360985D9EAB55F35CDFC /* Resources */,
 				55AD1FC520F86E03AC2E2910 /* Frameworks */,
+				B0BFA3D5159386F1251C2E21 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				B4DEF1E1DDCDAA22DF903CF0 /* PBXTargetDependency */,
 			);
 			name = AberaAlarms;
 			packageProductDependencies = (
@@ -163,6 +234,9 @@
 					822F60F08EF77217D5E5660A = {
 						ProvisioningStyle = Automatic;
 						TestTargetID = C6F3E11EDBFABEF87FF2210D;
+					};
+					B43497F8755A63906AB997C6 = {
+						ProvisioningStyle = Automatic;
 					};
 					C6F3E11EDBFABEF87FF2210D = {
 						ProvisioningStyle = Automatic;
@@ -187,6 +261,7 @@
 			projectRoot = "";
 			targets = (
 				C6F3E11EDBFABEF87FF2210D /* AberaAlarms */,
+				B43497F8755A63906AB997C6 /* AlarmsWidget */,
 				822F60F08EF77217D5E5660A /* AberaAlarmsUITests */,
 			);
 		};
@@ -217,12 +292,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				BAD1171ACB15FA680E814E50 /* AberaAlarmsApp.swift in Sources */,
+				AE552238CA0A61409E1CD5D0 /* AlarmInfo.swift in Sources */,
 				5EE8C24CEB42BE45177F402B /* AlarmKitScheduler.swift in Sources */,
 				85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */,
 				7928AA7FE04A07B473533544 /* Demo.swift in Sources */,
 				0B44891BF6F5A9AAD4B3E7CF /* Dependencies.swift in Sources */,
 				EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */,
+				AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A4CB1BDFD2C66088B08182CD /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */,
+				E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -234,9 +320,30 @@
 			target = C6F3E11EDBFABEF87FF2210D /* AberaAlarms */;
 			targetProxy = DB1AB753E0381AEAA33446D3 /* PBXContainerItemProxy */;
 		};
+		B4DEF1E1DDCDAA22DF903CF0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = B43497F8755A63906AB997C6 /* AlarmsWidget */;
+			targetProxy = F84D6222DED89E3199F0B1B0 /* PBXContainerItemProxy */;
+		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
+		07E9F1C21F8E4967E5C5BD70 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = AlarmsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.abera.alarms.widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
 		3DB2AE1D974CD74A6CD9E640 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -444,6 +551,22 @@
 			};
 			name = Debug;
 		};
+		FF30783AF7AA9FFC74922932 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				INFOPLIST_FILE = AlarmsWidget/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = tech.abera.alarms.widget;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -470,6 +593,15 @@
 			buildConfigurations = (
 				F53DCD826DA419B636851F68 /* Debug */,
 				3DB2AE1D974CD74A6CD9E640 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C4728C023C4D925FDEDA60E9 /* Build configuration list for PBXNativeTarget "AlarmsWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				07E9F1C21F8E4967E5C5BD70 /* Debug */,
+				FF30783AF7AA9FFC74922932 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

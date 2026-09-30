@@ -14,15 +14,35 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
     public var location: String?
     public var fireAt: Date
     public var startsAt: Date
+    /// Set for a routine: the alarm repeats on its days, or rings once at
+    /// the next hour:minute, in whatever zone the phone is in. Nil for a
+    /// calendar alert, which rings once at fireAt.
+    public var routine: RoutineSchedule?
 
-    public init(id: UUID, key: String, title: String, location: String?, fireAt: Date, startsAt: Date) {
+    public init(
+        id: UUID, key: String, title: String, location: String?, fireAt: Date, startsAt: Date,
+        routine: RoutineSchedule? = nil
+    ) {
         self.id = id
         self.key = key
         self.title = title
         self.location = location
         self.fireAt = fireAt
         self.startsAt = startsAt
+        self.routine = routine
     }
+
+    /// The same alarm to the alarm system. A routine's next fire time moves
+    /// every day while its schedule stays the same, so it is compared by
+    /// schedule and title.
+    func sameAlarm(as other: DesiredAlarm) -> Bool {
+        guard let routine else { return self == other }
+        return routine == other.routine && title == other.title && key == other.key
+    }
+
+    public static let routinePrefix = "routine:"
+
+    public var isRoutine: Bool { routine != nil }
 }
 
 /// What to change on the phone to match the server.
@@ -56,8 +76,29 @@ public enum Reconciler {
     /// when its type is alarm, it is not skipped, muted or acknowledged
     /// anywhere, nobody acknowledged it on this phone while offline, and its
     /// time is still ahead.
-    public static func desired(from state: AlertsState, now: Date, acknowledgedHere: Set<String>) -> [DesiredAlarm] {
+    public static func desired(
+        from state: AlertsState, now: Date, acknowledgedHere: Set<String>, calendar: Calendar = .current
+    ) -> [DesiredAlarm] {
         guard state.configured else { return [] }
+        return alerts(from: state, now: now, acknowledgedHere: acknowledgedHere)
+            + routines(from: state, now: now, calendar: calendar)
+    }
+
+    /// Every switched-on routine. The abera.tech mute does not touch them,
+    /// as the Clock app's alarms are not touched by a notification mute.
+    static func routines(from state: AlertsState, now: Date, calendar: Calendar) -> [DesiredAlarm] {
+        state.routines
+            .filter(\.enabled)
+            .compactMap { routine in
+                guard let next = routine.nextFire(after: now, calendar: calendar) else { return nil }
+                return DesiredAlarm(
+                    id: routine.id, key: DesiredAlarm.routinePrefix + routine.id.uuidString.lowercased(),
+                    title: routine.label, location: nil, fireAt: next, startsAt: next, routine: routine.schedule)
+            }
+            .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
+    }
+
+    static func alerts(from state: AlertsState, now: Date, acknowledgedHere: Set<String>) -> [DesiredAlarm] {
         var seen = Set<UUID>()
         return state.alerts
             .filter { alert in
@@ -91,7 +132,7 @@ public enum Reconciler {
 
         for alarm in desired {
             let held = system.contains(alarm.id)
-            if held, ledger[alarm.id] == alarm { continue }
+            if held, let known = ledger[alarm.id], known.sameAlarm(as: alarm) { continue }
             if held { cancel.insert(alarm.id) }
             schedule.append(alarm)
         }
