@@ -288,8 +288,11 @@ final class AlarmsUITests: XCTestCase {
         app.buttons["add-routine"].tap()
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        let note = app.staticTexts["repeat-note"]
+        XCTAssertTrue(note.label.hasPrefix("No repeat."), note.label)
         app.buttons["day-2"].tap()
         app.buttons["day-4"].tap()
+        XCTAssertEqual(note.label, "Repeats: Tue Thu. It rings until you stop it.")
         save.tap()
         let added = routine(app, "Alarm")
         XCTAssertTrue(added.waitForExistence(timeout: 10))
