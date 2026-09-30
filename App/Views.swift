@@ -543,6 +543,7 @@ struct StatusSection: View {
                     .accessibilityIdentifier("muted")
                     Spacer()
                     Button("Unmute") { Task { await model.unmute() } }
+                        .accessibilityIdentifier("unmute")
                 }
             }
         }
