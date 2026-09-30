@@ -81,8 +81,8 @@ final class AlarmsUITests: XCTestCase {
         let type = app.buttons["type-dinner"]
         XCTAssertTrue(type.waitForExistence(timeout: 5))
         type.tap()
-        app.buttons["Alarm"].tap()
-        XCTAssertTrue(waitFor(type, labelContaining: "Alarm"))
+        app.buttons["Ring until stopped"].tap()
+        XCTAssertTrue(waitFor(type, labelContaining: "Ring until stopped"))
 
         app.buttons["Alarms"].tap()
         let dinner = row(app, "dinner")
@@ -95,7 +95,7 @@ final class AlarmsUITests: XCTestCase {
         let type = app.buttons["type-standup"]
         XCTAssertTrue(type.waitForExistence(timeout: 10))
         type.tap()
-        app.buttons["None"].tap()
+        app.buttons["Off"].tap()
         XCTAssertTrue(row(app, "pt").waitForExistence(timeout: 5))
         XCTAssertTrue(waitForGone(row(app, "standup")))
     }
@@ -119,13 +119,30 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(dentist, labelContaining: "Set on this phone"), dentist.label)
     }
 
-    func testTheNewEventFormNeedsATitle() {
+    func testANewAlarmNeedsOnlyATime() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         app.buttons["new-event"].tap()
         let add = app.buttons["add-event"]
         XCTAssertTrue(add.waitForExistence(timeout: 5))
-        XCTAssertFalse(add.isEnabled)
+        XCTAssertTrue(add.isEnabled)
+        add.tap()
+
+        let made = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Alarm'")
+        ).firstMatch
+        XCTAssertTrue(made.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(waitFor(made, labelContaining: "Set on this phone"), made.label)
+    }
+
+    func testAdvancedOptionsStartClosed() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["new-event"].tap()
+        XCTAssertTrue(app.buttons["add-event"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Rings at the start"].exists)
+        app.buttons["Advanced"].tap()
+        XCTAssertTrue(app.staticTexts["Rings at the start"].waitForExistence(timeout: 5))
     }
 
     func testAnAlarmAcknowledgedInABrowserSaysSo() {
