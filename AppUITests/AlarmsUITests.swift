@@ -188,7 +188,8 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(muted.waitForExistence(timeout: 5))
         XCTAssertTrue(waitFor(row(app, "standup"), labelContaining: "Muted"))
 
-        app.buttons["Unmute"].firstMatch.tap()
+        // The banner's button. The closed menu holds another "Unmute".
+        app.buttons["unmute"].tap()
         XCTAssertTrue(waitFor(row(app, "standup"), labelContaining: "Set on this phone"))
         XCTAssertFalse(muted.exists)
     }
