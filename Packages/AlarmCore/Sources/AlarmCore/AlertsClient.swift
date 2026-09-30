@@ -81,6 +81,16 @@ public struct AlertsClient: Sendable {
         try await call("POST", "events", body: event)
     }
 
+    /// Changes the event in Google Calendar through abera.tech.
+    public func updateEvent(_ edit: EventEdit) async throws(APIError) -> AlertsState {
+        try await call("PUT", "events", body: edit)
+    }
+
+    /// Deletes this occurrence, or the whole series, from Google Calendar.
+    public func deleteEvent(key: String, scope: EditScope) async throws(APIError) -> AlertsState {
+        try await call("POST", "events/delete", body: ["key": key, "scope": scope.rawValue])
+    }
+
     public func createRoutine(_ draft: RoutineDraft) async throws(APIError) -> AlertsState {
         try await call("POST", "routines", body: draft.body)
     }
@@ -198,6 +208,54 @@ public enum PushToken {
     public static func isValid(_ text: String) -> Bool {
         (64...200).contains(text.utf8.count)
             && text.utf8.allSatisfy { (0x30...0x39).contains($0) || (0x61...0x66).contains($0) }
+    }
+}
+
+/// Which part of a repeating event a change covers.
+public enum EditScope: String, Codable, Sendable, CaseIterable {
+    case occurrence
+    case series
+}
+
+/// What the phone sends to change an event.
+public struct EventEdit: Codable, Equatable, Sendable {
+    public var key: String
+    public var scope: EditScope
+    public var title: String
+    public var startsAt: Date
+    /// Nil keeps the event's length.
+    public var durationMinutes: Int?
+    public var location: String?
+    public var leadMinutes: Int?
+
+    public init(
+        key: String, scope: EditScope, title: String, startsAt: Date, durationMinutes: Int?, location: String?,
+        leadMinutes: Int?
+    ) {
+        self.key = key
+        self.scope = scope
+        self.title = title
+        self.startsAt = startsAt
+        self.durationMinutes = durationMinutes
+        self.location = location
+        self.leadMinutes = leadMinutes
+    }
+
+    /// The bounds the server checks, so the editor can say what is wrong first.
+    public func problems(now: Date) -> [String] {
+        var problems: [String] = []
+        let title = self.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if title.isEmpty { problems.append("Give the event a title.") }
+        if title.count > 200 { problems.append("The title is longer than 200 characters.") }
+        if startsAt <= now { problems.append("The start is in the past.") }
+        if let durationMinutes, !(5...1440).contains(durationMinutes) {
+            problems.append("The length must be 5 minutes to 24 hours.")
+        }
+        if let location, location.count > 200 { problems.append("The location is longer than 200 characters.") }
+        if let leadMinutes, !(0...1440).contains(leadMinutes) {
+            problems.append("The alert must be 0 to 1440 minutes before the start.")
+        }
+        return problems
     }
 }
 
