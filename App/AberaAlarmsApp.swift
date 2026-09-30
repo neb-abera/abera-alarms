@@ -1,11 +1,21 @@
 import AlarmCore
 import SwiftUI
+import UIKit
 
 @main
 struct AberaAlarmsApp: App {
     @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @State private var model = AppModel()
     @Environment(\.scenePhase) private var phase
+
+    init() {
+        #if DEBUG
+            // The UI tests run in -demo mode. With animations on, iOS 27 never
+            // reports a menu over the tab bar as settled, and every step
+            // after it waits 60 s for the app to idle.
+            if ProcessInfo.processInfo.arguments.contains("-demo") { UIView.setAnimationsEnabled(false) }
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
