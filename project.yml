@@ -31,6 +31,7 @@ targets:
       - App
     dependencies:
       - package: AlarmCore
+      - target: AlarmsWidget
     entitlements:
       path: App/AberaAlarms.entitlements
       properties:
@@ -59,6 +60,7 @@ targets:
             CFBundleURLSchemes:
               - aberaalarms
         ITSAppUsesNonExemptEncryption: false
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: tech.abera.alarms
@@ -66,6 +68,25 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
         ENABLE_PREVIEWS: YES
+  AlarmsWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - AlarmsWidget
+      - App/Shared
+    info:
+      path: AlarmsWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Alarms
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: tech.abera.alarms.widget
+        TARGETED_DEVICE_FAMILY: "1"
+        SKIP_INSTALL: YES
   AberaAlarmsUITests:
     type: bundle.ui-testing
     platform: iOS

@@ -46,6 +46,14 @@
                     PlannedAlert(
                         key: "dinner", title: "Dinner", startsAt: at(400), alertAt: at(390), type: AlertType.none,
                         typeFrom: "default"),
+                ],
+                routines: [
+                    Routine(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000001")!, label: "Wake", hour: 5,
+                        minute: 30, days: [1, 2, 3, 4, 5]),
+                    Routine(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!, label: "Weekend", hour: 8,
+                        minute: 0, days: [6, 7], enabled: false),
                 ])
         }
     }
