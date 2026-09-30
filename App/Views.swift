@@ -105,7 +105,7 @@ struct AlarmsView: View {
                     Button {
                         addingEvent = true
                     } label: {
-                        Label("New event", systemImage: "plus")
+                        Label("New alarm", systemImage: "plus")
                     }
                     .accessibilityIdentifier("new-event")
                 }
@@ -207,17 +207,17 @@ struct TypeMenu: View {
             Button {
                 Task { await model.setType(alert, AlertType.alarm) }
             } label: {
-                Label("Alarm", systemImage: "alarm")
+                Label(TypeMenu.name(AlertType.alarm), systemImage: "alarm")
             }
             Button {
                 Task { await model.setType(alert, AlertType.notification) }
             } label: {
-                Label("Notification", systemImage: "bell")
+                Label(TypeMenu.name(AlertType.notification), systemImage: "bell")
             }
             Button {
                 Task { await model.setType(alert, AlertType.none) }
             } label: {
-                Label("None", systemImage: "bell.slash")
+                Label(TypeMenu.name(AlertType.none), systemImage: "bell.slash")
             }
             if alert.typeFrom == "set" {
                 Button("Follow the calendar and the default") {
@@ -237,9 +237,9 @@ struct TypeMenu: View {
 
     static func name(_ type: String) -> String {
         switch type {
-        case AlertType.alarm: "Alarm"
-        case AlertType.notification: "Notification"
-        default: "None"
+        case AlertType.alarm: "Ring until stopped"
+        case AlertType.notification: "Ring once"
+        default: "Off"
         }
     }
 
@@ -255,41 +255,49 @@ struct TypeMenu: View {
 // MARK: New event
 
 struct NewEventView: View {
+    /// The title when the field is left empty.
+    static let defaultTitle = "Alarm"
+
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
     @State private var startsAt = NewEventView.nextHalfHour()
-    @State private var durationMinutes = 30
+    @State private var advanced = false
+    @State private var durationMinutes = 5
     @State private var location = ""
     @State private var type = AlertType.alarm
-    @State private var leadMinutes = 10
+    @State private var leadMinutes = 0
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Title", text: $title)
-                        .accessibilityIdentifier("event-title")
-                    DatePicker("Starts", selection: $startsAt, in: Date()...)
+                    DatePicker("Rings at", selection: $startsAt, in: Date()...)
                         .accessibilityIdentifier("event-start")
-                    Stepper("Length: \(durationMinutes) min", value: $durationMinutes, in: 5...1440, step: 5)
-                    TextField("Location (optional)", text: $location)
+                    TextField("Title (optional)", text: $title, prompt: Text(Self.defaultTitle))
+                        .accessibilityIdentifier("event-title")
+                } footer: {
+                    Text("Rings until stopped at this time. abera.tech adds it to your Google Calendar with #critical.")
                 }
                 Section {
-                    Picker("Type", selection: $type) {
-                        Text("Alarm").tag(AlertType.alarm)
-                        Text("Notification").tag(AlertType.notification)
-                        Text("None").tag(AlertType.none)
+                    DisclosureGroup("Advanced", isExpanded: $advanced) {
+                        Picker("Type", selection: $type) {
+                            Text(TypeMenu.name(AlertType.alarm)).tag(AlertType.alarm)
+                            Text(TypeMenu.name(AlertType.notification)).tag(AlertType.notification)
+                            Text(TypeMenu.name(AlertType.none)).tag(AlertType.none)
+                        }
+                        .accessibilityIdentifier("event-type")
+                        if type != AlertType.none {
+                            Stepper(
+                                leadMinutes == 0 ? "Rings at the start" : "Rings \(leadMinutes) min before the start",
+                                value: $leadMinutes, in: 0...1440, step: 5)
+                        }
+                        Stepper(
+                            "Length in the calendar: \(durationMinutes) min", value: $durationMinutes, in: 5...1440,
+                            step: 5)
+                        TextField("Location", text: $location)
                     }
-                    .pickerStyle(.segmented)
-                    .accessibilityIdentifier("event-type")
-                    if type != AlertType.none {
-                        Stepper("Alert \(leadMinutes) min before", value: $leadMinutes, in: 0...1440, step: 5)
-                    }
-                } footer: {
-                    Text(
-                        "abera.tech adds the event to your Google Calendar. An alarm gets #critical in its description."
-                    )
+                    .accessibilityIdentifier("advanced")
                 }
                 ForEach(problems, id: \.self) { problem in
                     Text(problem).foregroundStyle(.red)
@@ -303,7 +311,7 @@ struct NewEventView: View {
                     }
                 }
             }
-            .navigationTitle("New event")
+            .navigationTitle("New alarm")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -315,7 +323,7 @@ struct NewEventView: View {
                             if await model.createEvent(event) { dismiss() }
                         }
                     }
-                    .disabled(title.trimmingCharacters(in: .whitespaces).isEmpty || !problems.isEmpty || model.busy)
+                    .disabled(!problems.isEmpty || model.busy)
                     .accessibilityIdentifier("add-event")
                 }
             }
@@ -324,19 +332,19 @@ struct NewEventView: View {
     }
 
     private var event: NewEvent {
-        NewEvent(
-            title: title.trimmingCharacters(in: .whitespacesAndNewlines), startsAt: startsAt,
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return NewEvent(
+            title: trimmed.isEmpty ? Self.defaultTitle : trimmed, startsAt: startsAt,
             durationMinutes: durationMinutes,
             location: location.isEmpty ? nil : location, type: type,
             leadMinutes: type == AlertType.none ? nil : leadMinutes)
     }
 
     private var problems: [String] {
-        title.isEmpty ? [] : event.problems(now: Date())
+        event.problems(now: Date())
     }
 
-    /// The first half hour at least 20 minutes away, so a default alert of 10
-    /// minutes before is still ahead.
+    /// The first half hour at least 20 minutes away.
     static func nextHalfHour(after now: Date = Date()) -> Date {
         let now = now.addingTimeInterval(20 * 60)
         let seconds = now.timeIntervalSinceReferenceDate
@@ -445,7 +453,9 @@ struct Footer: View {
             if model.notificationCount > 0 {
                 Text("\(model.notificationCount) notification(s) go through Pushover only.")
             }
-            Text("Tap the icon beside an event to make it an alarm. Swipe to skip one day. Pull down to sync.")
+            Text(
+                "Tap the icon beside an event to choose Ring until stopped, Ring once or Off. Swipe to skip one day. Pull down to sync."
+            )
         }
     }
 }

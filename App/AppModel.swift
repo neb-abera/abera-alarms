@@ -47,7 +47,7 @@ final class AppModel {
         if showAll { return "No events in the next 48 hours. Tap + to add one." }
         let others = (state?.alerts ?? []).filter { !$0.isAlarm && $0.startsAt > Date() }.count
         let hint =
-            "Show All events and tap the icon beside one to make it an alarm, or add #critical to it in Google Calendar."
+            "Show All events and set one to Ring until stopped with the icon beside it, add #critical to it in Google Calendar, or tap + for a new alarm."
         return others == 0
             ? "No alarms in the next 48 hours."
             : "No alarms in the next 48 hours. \(others) other event(s) are not alarms. \(hint)"
