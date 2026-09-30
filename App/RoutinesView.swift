@@ -129,7 +129,12 @@ struct RoutineEditor: View {
                 } header: {
                     Text("Repeat")
                 } footer: {
-                    Text(days.isEmpty ? "Rings once, then switches off." : Routine.daysText(Array(days)))
+                    Text(
+                        days.isEmpty
+                            ? "No repeat. It rings on the next day at this time until you stop it, then switches off."
+                            : "Repeats: \(Routine.daysText(Array(days))). It rings until you stop it."
+                    )
+                    .accessibilityIdentifier("repeat-note")
                 }
                 Section {
                     TextField("Label", text: $label, prompt: Text(RoutineDraft.defaultLabel))

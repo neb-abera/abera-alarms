@@ -33,7 +33,7 @@ import Testing
     // MARK: Days and times
 
     @Test(arguments: [
-        ([Int](), "Once"), (Array(1...7), "Every day"), ([1, 2, 3, 4, 5], "Weekdays"), ([6, 7], "Weekends"),
+        ([Int](), "No repeat"), (Array(1...7), "Every day"), ([1, 2, 3, 4, 5], "Weekdays"), ([6, 7], "Weekends"),
         ([5, 1, 3], "Mon Wed Fri"), ([7], "Sun"),
     ])
     func daysReadAsTheClockAppSaysThem(days: [Int], text: String) {
