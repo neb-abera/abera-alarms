@@ -54,13 +54,13 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         schedule.nextFire(after: now, calendar: calendar)
     }
 
-    /// "Once", "Every day", "Weekdays", "Weekends", or the short day names.
+    /// "No repeat", "Every day", "Weekdays", "Weekends", or the short day names.
     public var daysText: String { Self.daysText(days) }
 
     public static func daysText(_ days: [Int]) -> String {
         let set = Set(days)
         switch set {
-        case []: return "Once"
+        case []: return "No repeat"
         case Set(1...7): return "Every day"
         case Set(1...5): return "Weekdays"
         case [6, 7]: return "Weekends"
