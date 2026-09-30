@@ -41,6 +41,8 @@
 	<true/>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Rings the alarms you set on abera.tech/alerts, with or without a connection.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

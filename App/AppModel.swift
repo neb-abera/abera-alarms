@@ -27,6 +27,10 @@ final class AppModel {
     /// All events, or only the ones that ring on this phone.
     var showAll = false
     private(set) var eventError: String?
+    private(set) var routineError: String?
+
+    /// The Clock-style alarms, as abera.tech holds them.
+    var routines: [Routine] { state?.routines ?? [] }
 
     /// The events still ahead: every one, or the alarms alone.
     var events: [PlannedAlert] {
@@ -135,6 +139,36 @@ final class AppModel {
     }
 
     func clearEventError() { eventError = nil }
+
+    func clearRoutineError() { routineError = nil }
+
+    /// Adds a routine, or replaces the one with this id. True when abera.tech took it.
+    func saveRoutine(id: UUID?, _ draft: RoutineDraft) async -> Bool {
+        routineError = nil
+        if let id {
+            await perform { client throws(APIError) in try await client.updateRoutine(id: id, draft) }
+        } else {
+            await perform { client throws(APIError) in try await client.createRoutine(draft) }
+        }
+        if let error = report?.error {
+            routineError = Self.describe(error)
+            return false
+        }
+        return true
+    }
+
+    func setRoutine(_ routine: Routine, enabled: Bool) async {
+        var draft = routine.draft
+        draft.enabled = enabled
+        _ = await saveRoutine(id: routine.id, draft)
+    }
+
+    func deleteRoutine(_ routine: Routine) async {
+        routineError = nil
+        let id = routine.id
+        await perform { client throws(APIError) in try await client.deleteRoutine(id: id) }
+        if let error = report?.error { routineError = Self.describe(error) }
+    }
 
     func mute(_ length: AlertsClient.MuteLength) async {
         await perform { client throws(APIError) in try await client.mute(length) }

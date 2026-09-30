@@ -6,12 +6,21 @@ import XCTest
 final class AlarmsUITests: XCTestCase {
     static let link = "aberaalarms://pair#token=aat_" + String(repeating: "D", count: 43)
 
-    private func launch(_ arguments: String...) -> XCUIApplication {
+    /// Starts the app in -demo mode. A paired start opens the Calendar tab
+    /// unless `tab` names another one, or nil to stay on Alarms.
+    private func launch(_ arguments: String..., tab: String? = "Calendar") -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
         app.launchArguments = ["-demo"] + arguments
         app.launch()
+        if let tab, !arguments.contains("-demo-unpaired") { open(tab, in: app) }
         return app
+    }
+
+    private func open(_ tab: String, in app: XCUIApplication) {
+        let button = app.tabBars.buttons[tab]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
     }
 
     private func row(_ app: XCUIApplication, _ key: String) -> XCUIElement {
@@ -28,6 +37,7 @@ final class AlarmsUITests: XCTestCase {
         field.tap()
         field.typeText(Self.link)
         app.buttons["pair"].tap()
+        open("Calendar", in: app)
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["Set on this phone"].firstMatch.exists)
     }
@@ -67,7 +77,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertFalse(row(app, "dinner").exists)
         XCTAssertTrue(app.staticTexts["1 notification(s) go through Pushover only."].exists)
 
-        app.buttons["All events"].tap()
+        app.segmentedControls.buttons["All events"].tap()
         XCTAssertTrue(row(app, "lunch").waitForExistence(timeout: 5))
         XCTAssertTrue(row(app, "dinner").exists)
     }
@@ -77,14 +87,14 @@ final class AlarmsUITests: XCTestCase {
     func testMakingAnEventAnAlarmSetsItOnThePhone() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
-        app.buttons["All events"].tap()
+        app.segmentedControls.buttons["All events"].tap()
         let type = app.buttons["type-dinner"]
         XCTAssertTrue(type.waitForExistence(timeout: 5))
         type.tap()
         app.buttons["Ring until stopped"].tap()
         XCTAssertTrue(waitFor(type, labelContaining: "Ring until stopped"))
 
-        app.buttons["Alarms"].tap()
+        app.segmentedControls.buttons["Alarms"].tap()
         let dinner = row(app, "dinner")
         XCTAssertTrue(dinner.waitForExistence(timeout: 5))
         XCTAssertTrue(waitFor(dinner, labelContaining: "Set on this phone"))
@@ -210,6 +220,72 @@ final class AlarmsUITests: XCTestCase {
 
     private func waitFor(_ element: XCUIElement, labelContaining text: String) -> Bool {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
+        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
+    }
+
+    // MARK: Routine alarms
+
+    private func routine(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        app.descendants(matching: .any)["routine-\(label)"].firstMatch
+    }
+
+    func testTheAlarmsTabListsRoutinesWithTheirDays() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        XCTAssertTrue(wake.label.contains("Wake, Weekdays"), wake.label)
+        XCTAssertTrue(routine(app, "Weekend").label.contains("Weekends"))
+    }
+
+    func testAddingARoutineWithDays() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.buttons["day-2"].tap()
+        app.buttons["day-4"].tap()
+        save.tap()
+        let added = routine(app, "Alarm")
+        XCTAssertTrue(added.waitForExistence(timeout: 10))
+        XCTAssertTrue(added.label.contains("Tue Thu"), added.label)
+    }
+
+    func testSwitchingARoutineOffAndOn() {
+        let app = launch(tab: nil)
+        let toggle = app.switches["routine-switch-Wake"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        XCTAssertEqual(toggle.value as? String, "1")
+        toggle.switches.firstMatch.tap()
+        XCTAssertTrue(waitFor(toggle, value: "0"))
+        toggle.switches.firstMatch.tap()
+        XCTAssertTrue(waitFor(toggle, value: "1"))
+    }
+
+    func testEditingThenDeletingARoutine() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        wake.tap()
+        let label = app.textFields["routine-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.press(forDuration: 1)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
+        label.typeText("Gym")
+        app.buttons["save-routine"].tap()
+        let gym = routine(app, "Gym")
+        XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
+
+        gym.tap()
+        let delete = app.buttons["delete-routine"]
+        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        delete.tap()
+        XCTAssertTrue(waitForGone(routine(app, "Gym")))
+    }
+
+    private func waitFor(_ element: XCUIElement, value: String) -> Bool {
+        let predicate = NSPredicate(format: "value == %@", value)
         return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
     }
 }
