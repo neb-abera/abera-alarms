@@ -27,7 +27,9 @@ BUILD="${BUILD_NUMBER:-${GITHUB_RUN_NUMBER:-$(date -u +%s)}}"
 mkdir -p build
 
 key_args=()
-cleanup() { [ -n "${KEY_FILE:-}" ] && rm -f "$KEY_FILE"; }
+# An if, so the trap ends 0 when there is no key file: the trap's last
+# status becomes the script's.
+cleanup() { if [ -n "${KEY_FILE:-}" ]; then rm -f "$KEY_FILE"; fi; }
 trap cleanup EXIT
 if [ -n "${ASC_KEY_P8:-}" ]; then
   : "${ASC_KEY_ID:?ASC_KEY_ID is required with ASC_KEY_P8}" "${ASC_ISSUER_ID:?ASC_ISSUER_ID is required with ASC_KEY_P8}"
