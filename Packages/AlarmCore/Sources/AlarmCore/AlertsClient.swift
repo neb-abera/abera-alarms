@@ -91,6 +91,11 @@ public struct AlertsClient: Sendable {
         try await call("POST", "events/delete", body: ["key": key, "scope": scope.rawValue])
     }
 
+    /// The sound every alarm plays and the calendar alarms' snooze.
+    public func updatePhoneSettings(_ settings: PhoneSettings) async throws(APIError) -> AlertsState {
+        try await call("PUT", "phone-settings", body: settings.body)
+    }
+
     public func createRoutine(_ draft: RoutineDraft) async throws(APIError) -> AlertsState {
         try await call("POST", "routines", body: draft.body)
     }

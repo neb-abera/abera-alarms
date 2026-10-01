@@ -112,7 +112,7 @@ struct AlarmsView: View {
                     Button {
                         addingEvent = true
                     } label: {
-                        Label("New alarm", systemImage: "plus")
+                        Label("New calendar event", systemImage: "calendar.badge.plus")
                     }
                     .accessibilityIdentifier("new-event")
                 }
@@ -466,7 +466,7 @@ struct NewEventView: View {
                     }
                 }
             }
-            .navigationTitle("New alarm")
+            .navigationTitle("New Calendar Event")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
