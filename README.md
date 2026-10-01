@@ -4,7 +4,7 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 
 ## Features
 
-- The Alarms tab replaces the Clock app's alarms: a time, the weekdays it repeats on (or no repeat), a label, an on/off switch and a snooze length. Snooze counts down on the Lock Screen and in the Dynamic Island, then rings again. An alarm with no repeat rings until stopped on the next day at its time, then switches itself off. These alarms are kept on abera.tech, where they can be edited from a computer, and stay out of Google Calendar and Pushover. They ring offline once set.
+- The Alarms tab replaces the Clock app's alarms: a time, the weekdays it repeats on (or no repeat), a label, an on/off switch and a snooze length. Snooze counts down on the Lock Screen and in the Dynamic Island, then rings again. An alarm with no repeat rings until stopped on the next day at its time, then switches itself off. These alarms are kept on abera.tech, where they can be edited from a computer, and stay out of Google Calendar and Pushover. They ring offline once set, and adding, editing, switching or deleting one works offline too: the phone applies it at once and sends it to abera.tech when the connection returns.
 - The Calendar tab holds the events abera.tech plans from the calendar:
 
 - abera.tech reads the calendar and decides what rings and when. The phone schedules an alarm for every alert whose type is alarm and that is not skipped, muted or acknowledged, up to the server's look-ahead (48 hours by default).
