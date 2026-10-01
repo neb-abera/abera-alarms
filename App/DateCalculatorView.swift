@@ -15,10 +15,10 @@ struct DateCalculatorView: View {
     @State private var end = Self.today
     @State private var includeEnd = false
     @State private var base = Self.today
-    @State private var years = "0"
-    @State private var months = "0"
-    @State private var weeks = "0"
-    @State private var days = "0"
+    @State private var years = ""
+    @State private var months = ""
+    @State private var weeks = ""
+    @State private var days = ""
 
     static var today: String { CivilDate(Date(), in: .current).iso }
 
@@ -78,7 +78,9 @@ struct DateCalculatorView: View {
             NumberField(title: "Weeks", text: $weeks, id: "calc-weeks-in")
             NumberField(title: "Days", text: $days, id: "calc-days")
         } footer: {
-            Text("A minus sign subtracts. Years, then months, then weeks and days are applied in that order.")
+            Text(
+                "A blank field is 0. A minus sign subtracts. Years, then months, then weeks and days are applied in that order."
+            )
         }
         Section("Result") {
             if let date = CivilDate(iso: base) {
