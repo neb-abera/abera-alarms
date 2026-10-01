@@ -78,6 +78,7 @@ struct AlarmsView: View {
     @Bindable var model: AppModel
     @State private var confirmingUnpair = false
     @State private var addingEvent = false
+    @State private var onScreen = false
 
     var body: some View {
         NavigationStack {
@@ -102,7 +103,7 @@ struct AlarmsView: View {
                 ForEach(model.days, id: \.day) { group in
                     Section(DayHeading.text(for: group.day)) {
                         ForEach(group.alerts) { alert in
-                            EventRow(model: model, alert: alert)
+                            EventRow(model: model, alert: alert, ticking: onScreen)
                         }
                     }
                 }
@@ -112,6 +113,7 @@ struct AlarmsView: View {
                 }
             }
             .navigationTitle("Calendar")
+            .tickingWhileOnScreen($onScreen)
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -161,6 +163,7 @@ enum DayHeading {
 struct EventRow: View {
     @Bindable var model: AppModel
     let alert: PlannedAlert
+    var ticking = true
     @State private var editing = false
     @State private var confirmingDelete = false
 
@@ -179,7 +182,7 @@ struct EventRow: View {
                     Text(status).font(.caption).foregroundStyle(statusColor)
                     let held = model.isHeld(alert)
                     if held {
-                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                        TimelineView(Ticking.schedule(ticking)) { context in
                             if let clock = RingClock.text(for: alert, held: held, at: context.date) {
                                 Text(clock).font(.caption.monospacedDigit())
                             }
