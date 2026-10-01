@@ -11,6 +11,8 @@ public struct SyncReport: Equatable, Sendable {
     public var error: APIError?
     /// An alarm the system refused to schedule, with its key.
     public var refused: [String]
+    /// Routine changes made on the phone that abera.tech has not taken yet.
+    public var waitingRoutineChanges: Int = 0
 }
 
 /// The one path from the server's state to the phone's alarms. The app's
@@ -86,6 +88,7 @@ public actor AlarmSync {
         try? await credentials.remove()
         try? await documents.remove(Self.pendingName)
         try? await documents.remove(Self.pendingOffName)
+        try? await documents.remove(Self.routineChangesName)
         _ = await apply(AlertsState(configured: false))
         try? await documents.remove(Self.stateName)
     }
@@ -120,6 +123,10 @@ public actor AlarmSync {
 
         do {
             var state = try await client.status()
+            // Routine changes made on the phone, in order, then the answer
+            // to the last one is the state.
+            var refusal: APIError?
+            (state, refusal) = await flushRoutineChanges(client, from: state)
             // A ring-once routine that rang is switched off on abera.tech, as
             // the Clock app switches off a one-time alarm.
             for id in await pendingOff() {
@@ -134,7 +141,9 @@ public actor AlarmSync {
                 }
                 await removePendingOff(id)
             }
-            return await apply(state)
+            var report = await apply(state)
+            if report.error == nil { report.error = refusal }
+            return report
         } catch .unpaired {
             return await unpaired()
         } catch {
@@ -164,16 +173,91 @@ public actor AlarmSync {
         }
     }
 
-    /// The last state the server sent, for the screen before the first sync.
+    /// The last state the server sent, with the routine changes still
+    /// waiting to reach it, for the screen before the first sync and offline.
     public func lastState() async -> AlertsState? {
+        let changes = await routineChanges()
+        // A phone that has never reached abera.tech still shows the alarms
+        // made on it.
+        guard let raw = await lastServerState() ?? (changes.isEmpty ? nil : AlertsState()) else { return nil }
+        return RoutineChange.overlay(raw, changes)
+    }
+
+    private func lastServerState() async -> AlertsState? {
         guard let data = try? await documents.load(Self.stateName) else { return nil }
         return try? ServerDates.decoder().decode(AlertsState.self, from: data)
     }
 
+    // MARK: Routine changes
+
+    static let routineChangesName = "pending-routine-changes.json"
+
+    /// Adds, changes, switches or deletes a routine alarm. The phone applies
+    /// it to its own copy and its alarms at once, offline too, then sends it.
+    /// A change abera.tech has not taken yet waits, in order, for the next sync.
+    public func changeRoutine(_ change: RoutineChange) async -> SyncReport {
+        guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
+        await saveRoutineChanges(RoutineChange.coalesce(await routineChanges() + [change]))
+        _ = await apply(await lastServerState() ?? AlertsState(), keep: false)
+        return await sync()
+    }
+
+    public func routineChanges() async -> [RoutineChange] {
+        guard let data = try? await documents.load(Self.routineChangesName),
+            let changes = try? JSONDecoder().decode([RoutineChange].self, from: data)
+        else { return [] }
+        return changes
+    }
+
+    private func saveRoutineChanges(_ changes: [RoutineChange]) async {
+        if let data = try? JSONEncoder().encode(Array(changes.suffix(Self.maxPending))) {
+            try? await documents.save(data, as: Self.routineChangesName)
+        }
+    }
+
+    /// Sends the waiting routine changes in order. Stops at the first that
+    /// cannot reach abera.tech, which waits for the next sync. A change
+    /// abera.tech refuses is dropped and its reason returned.
+    private func flushRoutineChanges(_ client: AlertsClient, from start: AlertsState) async -> (AlertsState, APIError?)
+    {
+        var state = start
+        var refusal: APIError?
+        var ids: [UUID: UUID] = [:]
+        var changes = await routineChanges()
+        while let change = changes.first {
+            do {
+                switch change {
+                case .create(let local, let draft):
+                    let known = Set(state.routines.map(\.id))
+                    state = try await client.createRoutine(draft)
+                    if let made = state.routines.first(where: { !known.contains($0.id) }) { ids[local] = made.id }
+                case .update(let id, let draft):
+                    state = try await client.updateRoutine(id: ids[id] ?? id, draft)
+                case .delete(let id):
+                    state = try await client.deleteRoutine(id: ids[id] ?? id)
+                }
+            } catch .notFound {
+                // Deleted elsewhere: nothing left to change.
+            } catch .refused(let reason) {
+                refusal = .refused(reason)
+            } catch {
+                break
+            }
+            changes.removeFirst()
+            // Later changes to a routine made offline name its server id now.
+            changes = changes.map { $0.renaming(ids) }
+            await saveRoutineChanges(changes)
+        }
+        return (state, refusal)
+    }
+
     // MARK: Applying
 
-    private func apply(_ state: AlertsState) async -> SyncReport {
+    /// `keep` false applies a state without storing it as the server's: the
+    /// empty one a phone that never synced starts from.
+    private func apply(_ server: AlertsState, keep: Bool = true) async -> SyncReport {
         let at = now()
+        let state = RoutineChange.overlay(server, await routineChanges())
         let ledger = await loadLedger()
         let system: Set<UUID>
         do {
@@ -210,14 +294,17 @@ public actor AlarmSync {
         }
 
         await saveLedger(held)
-        if let data = try? ServerDates.encoder().encode(state) {
+        // The server's own state is kept. The waiting changes are laid over
+        // it again on every read, so none is applied twice.
+        if keep, server.configured, let data = try? ServerDates.encoder().encode(server) {
             try? await documents.save(data, as: Self.stateName)
         }
 
         return SyncReport(
             at: at, state: state, scheduled: scheduled, cancelled: cancelled,
             held: held.values.sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) },
-            waitingAcknowledgements: await pending().count, error: nil, refused: refused)
+            waitingAcknowledgements: await pending().count, error: nil, refused: refused,
+            waitingRoutineChanges: await routineChanges().count)
     }
 
     private func unpaired() async -> SyncReport {
