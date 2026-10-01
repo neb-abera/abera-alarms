@@ -101,10 +101,13 @@ import Testing
         #expect(result.weekdayName == c.weekday)
     }
 
-    @Test func yearsAndMonthsAreClampedOneAfterTheOther() {
-        // 2024-02-29 plus a year is 2025-02-28, and a month later 2025-03-28.
-        #expect(
-            DateShift.apply(to: Self.day("2024-02-29"), years: 1, months: 1, weeks: 0, days: 0)?.iso == "2025-03-28")
+    /// Years and months are one step of years × 12 + months, clamped once,
+    /// as on the site (and Java's LocalDate.plus(Period)).
+    @Test(arguments: [
+        ("2024-02-29", 1, 1, "2025-03-29"), ("2024-02-29", 1, 0, "2025-02-28"), ("2026-01-31", 0, 13, "2027-02-28"),
+    ])
+    func yearsAndMonthsAreOneStep(date: String, years: Int, months: Int, result: String) {
+        #expect(DateShift.apply(to: Self.day(date), years: years, months: months, weeks: 0, days: 0)?.iso == result)
     }
 
     @Test func aShiftOutsideTheCalendarIsNoDate() {
@@ -113,6 +116,7 @@ import Testing
         #expect(DateShift.apply(to: Self.day("2026-10-01"), years: Int.max, months: 0, weeks: 0, days: 0) == nil)
         #expect(DateShift.apply(to: Self.day("2026-10-01"), years: 0, months: Int.min, weeks: 0, days: 0) == nil)
         #expect(DateShift.apply(to: Self.day("2026-10-01"), years: 0, months: Int.max, weeks: 0, days: 0) == nil)
+        #expect(DateShift.apply(to: Self.day("2026-10-01"), years: 1, months: Int.max, weeks: 0, days: 0) == nil)
         #expect(DateShift.apply(to: Self.day("2026-10-01"), years: 0, months: 0, weeks: Int.max, days: 0) == nil)
         #expect(DateShift.apply(to: Self.day("2026-10-01"), years: 0, months: 0, weeks: 1, days: Int.max) == nil)
     }

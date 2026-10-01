@@ -79,7 +79,7 @@ struct DateCalculatorView: View {
             NumberField(title: "Days", text: $days, id: "calc-days")
         } footer: {
             Text(
-                "A blank field is 0. A minus sign subtracts. Years, then months, then weeks and days are applied in that order."
+                "A blank field is 0. A minus sign subtracts. Years and months first, held to the month's last day, then weeks and days."
             )
         }
         Section("Result") {
