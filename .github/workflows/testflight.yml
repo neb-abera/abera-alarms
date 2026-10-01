@@ -1,0 +1,52 @@
+name: TestFlight
+
+# Every pull request builds the Release archive, unsigned, so a change that
+# breaks the Release build is caught before it merges. Every merge to main
+# signs that archive with the App Store Connect API key and uploads it, and
+# TestFlight offers it on Neb's iPhone once Apple has processed it.
+on:
+  pull_request:
+  merge_group:
+  push:
+    branches: [main]
+
+# Outside a pull request each commit gets its own group. See ci.yml.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: release (archive, and upload from main)
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      # harden-runner supports Linux runners only.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: select Xcode
+        env:
+          # The newest GA Xcode on the GA image. App Store Connect refuses
+          # uploads built with a preview Xcode.
+          XCODE_VERSION: "26.6"
+        run: scripts/select-xcode.sh
+
+      - name: archive the Release build (signed on main)
+        env:
+          ASC_KEY_ID: ${{ github.event_name != 'pull_request' && secrets.ASC_KEY_ID || '' }}
+          ASC_ISSUER_ID: ${{ github.event_name != 'pull_request' && secrets.ASC_ISSUER_ID || '' }}
+          ASC_KEY_P8: ${{ github.event_name != 'pull_request' && secrets.ASC_KEY_P8 || '' }}
+        run: scripts/release.sh archive
+
+      - name: upload to TestFlight
+        if: github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: scripts/release.sh upload

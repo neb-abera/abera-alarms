@@ -43,6 +43,10 @@ The app never reads the calendar itself. abera.tech is the one planner, so the p
 
 To pair from a computer, copy the link and paste it into the app's Pairing link field.
 
+### Install from TestFlight
+
+Every merge to main builds the app on GitHub's Macs, signs it with the App Store Connect API key (secrets `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8`) and uploads it to TestFlight (`.github/workflows/testflight.yml`, `scripts/release.sh`). The TestFlight app on the iPhone installs and updates it. The version is the date, and the build number is the run number.
+
 ### Build the app
 
 Needs a Mac with Xcode 27 (`.xcode-version`) and an iPhone on iOS 26.1 or later.
