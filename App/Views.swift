@@ -177,6 +177,14 @@ struct EventRow: View {
                 }
                 if alert.isAlarm {
                     Text(status).font(.caption).foregroundStyle(statusColor)
+                    let held = model.isHeld(alert)
+                    if held {
+                        TimelineView(.periodic(from: .now, by: 1)) { context in
+                            if let clock = RingClock.text(for: alert, held: held, at: context.date) {
+                                Text(clock).font(.caption.monospacedDigit())
+                            }
+                        }
+                    }
                 }
             }
             .accessibilityElement(children: .combine)
