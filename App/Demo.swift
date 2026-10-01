@@ -5,7 +5,8 @@
     /// The app with abera.tech and AlarmKit in memory, for the UI tests and
     /// for trying the screens in the simulator. Debug builds only.
     ///
-    /// `-demo` starts paired with four events. `-demo-unpaired` starts on
+    /// `-demo` starts paired with four events, two routines and two
+    /// countdowns, one passed. `-demo-unpaired` starts on
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
@@ -57,6 +58,14 @@
                     Routine(
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000002")!, label: "Weekend", hour: 8,
                         minute: 0, days: [6, 7], enabled: false),
+                ],
+                countdowns: [
+                    Countdown(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000011")!, label: "Arrived",
+                        targetAt: now.addingTimeInterval(-3 * 86_400), timeZone: "America/New_York"),
+                    Countdown(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000012")!, label: "Home",
+                        targetAt: now.addingTimeInterval(41 * 86_400 + 5 * 3600), timeZone: "Asia/Amman"),
                 ])
         }
     }
