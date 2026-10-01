@@ -5,6 +5,8 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 ## Features
 
 - The Alarms tab replaces the Clock app's alarms: a time, the weekdays it repeats on (or no repeat), a label, an on/off switch and a snooze length. Snooze counts down on the Lock Screen and in the Dynamic Island, then rings again. An alarm with no repeat rings until stopped on the next day at its time, then switches itself off. These alarms are kept on abera.tech, where they can be edited from a computer, and stay out of Google Calendar and Pushover. They ring offline once set, and adding, editing, switching or deleting one works offline too: the phone applies it at once and sends it to abera.tech when the connection returns.
+- The Countdowns tab shows the countdowns kept on abera.tech/alerts, each with a clock that ticks every second: days and hh:mm:ss to go, or the time since a date that has passed. Under it is the target date and time in the countdown's own time zone, with the zone named. Tap + to add one, tap one to edit it, swipe to delete. A new countdown starts in the phone's zone. Changing the zone keeps the time on the clock. A countdown set on abera.tech appears on the phone at the next sync, and abera.tech pushes the phone when one changes. Adding, editing and deleting need a connection: the app says so and keeps nothing to send later. The clocks keep ticking offline.
+- The Dates tab is the date calculator from abera.tech. Between dates gives the total days (and whether the end is before the start), years, months and days, weeks and days, the weekdays Monday to Friday, and the total in hours, minutes and seconds, with a switch to include the end date. Add or subtract moves a date by years and months first, held to the month's last day (2024-02-29 plus 1 year 1 month is 2025-03-29), then by weeks and days, and gives the weekday. The arithmetic is the site's, in `DateCalc.swift`, tested against the site's table. It needs no connection.
 - The Calendar tab holds the events abera.tech plans from the calendar:
 
 - abera.tech reads the calendar and decides what rings and when. The phone schedules an alarm for every alert whose type is alarm and that is not skipped, muted or acknowledged, up to the server's look-ahead (48 hours by default).
@@ -59,7 +61,7 @@ With a free Apple account the app stops opening after 7 days and needs Run again
 
 ### Try it without a server
 
-Run the AberaAlarms scheme in a simulator with the launch argument `-demo`. abera.tech and AlarmKit are replaced by memory. `-demo-unpaired` starts on the pairing screen and `-demo-offline` starts with no connection. Debug builds only.
+Run the AberaAlarms scheme in a simulator with the launch argument `-demo`. abera.tech and AlarmKit are replaced by memory, with events, routines and two countdowns. `-demo-unpaired` starts on the pairing screen and `-demo-offline` starts with no connection. Debug builds only.
 
 ## Project layout
 
@@ -67,7 +69,8 @@ Run the AberaAlarms scheme in a simulator with the launch argument `-demo`. aber
 App/                    SwiftUI app, AlarmKit, Keychain, the Stop button intent
 AppUITests/             UI tests for every screen and button, in -demo mode
 Packages/AlarmCore/     Sync logic with no Apple-only framework: API client,
-                        pairing link, reconciler, offline acknowledgements
+                        pairing link, reconciler, offline acknowledgements,
+                        countdowns and the date calculator
 project.yml             XcodeGen spec for AberaAlarms.xcodeproj
 scripts/                Gates: coverage, version, concurrency, required checks,
                         prose, attribution, XcodeGen, Xcode selection

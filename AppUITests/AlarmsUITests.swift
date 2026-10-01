@@ -367,6 +367,174 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(routine(app, "Gym")))
     }
 
+    // MARK: Countdowns
+
+    private func countdown(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        app.descendants(matching: .any)["countdown-\(label)"].firstMatch
+    }
+
+    /// True once the element's label is no longer `old`.
+    private func waitForChange(_ element: XCUIElement, from old: String, timeout: TimeInterval = 5) -> Bool {
+        let predicate = NSPredicate(format: "label != %@", old)
+        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout)
+            == .completed
+    }
+
+    func testAPassedCountdownSaysSoAndAFutureOneShowsItsZone() {
+        let app = launch(tab: "Countdowns")
+        let home = countdown(app, "Home")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        XCTAssertTrue(home.label.contains("41 days 0"), home.label)
+        XCTAssertTrue(home.label.contains("Asia/Amman"), home.label)
+        let arrived = countdown(app, "Arrived")
+        XCTAssertTrue(arrived.label.contains("Passed 3 days"), arrived.label)
+        XCTAssertTrue(arrived.label.contains("America/New_York"), arrived.label)
+    }
+
+    func testAddingACountdownShowsItTicking() {
+        let app = launch(tab: "Countdowns")
+        XCTAssertTrue(countdown(app, "Home").waitForExistence(timeout: 10))
+        app.buttons["add-countdown"].tap()
+        let label = app.textFields["countdown-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.typeText("Leave")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["countdown-zone"].firstMatch.label.contains(
+                TimeZone.current.identifier))
+        app.buttons["save-countdown"].tap()
+        let leave = countdown(app, "Leave")
+        XCTAssertTrue(leave.waitForExistence(timeout: 10), app.debugDescription)
+        let first = leave.label
+        XCTAssertTrue(first.contains("0 days 23:59:") || first.contains("1 day 00:00:"), first)
+        XCTAssertTrue(waitForChange(leave, from: first), "the clock did not tick: \(first)")
+    }
+
+    func testEditingACountdownKeepsItsZone() {
+        let app = launch(tab: "Countdowns")
+        let home = countdown(app, "Home")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        home.tap()
+        let label = app.textFields["countdown-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["countdown-zone"].firstMatch.label.contains("Asia/Amman"))
+        replace(label, with: "Flight", in: app)
+        app.buttons["save-countdown"].tap()
+        let flight = countdown(app, "Flight")
+        XCTAssertTrue(flight.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(flight.label.contains("Asia/Amman"), flight.label)
+        XCTAssertFalse(countdown(app, "Home").exists)
+    }
+
+    func testDeletingACountdownAsksFirst() {
+        let app = launch(tab: "Countdowns")
+        let home = countdown(app, "Home")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        home.swipeLeft()
+        app.buttons["Delete"].firstMatch.tap()
+        let confirm = app.buttons["confirm-delete-countdown"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        XCTAssertTrue(home.exists)
+        confirm.tap()
+        XCTAssertTrue(waitForGone(countdown(app, "Home")))
+        XCTAssertTrue(countdown(app, "Arrived").exists)
+    }
+
+    func testACountdownChangeOfflineSaysItNeedsAConnection() {
+        let app = launch("-demo-offline", tab: "Countdowns")
+        app.buttons["add-countdown"].tap()
+        let save = app.buttons["save-countdown"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        let error = app.staticTexts["countdown-editor-error"]
+        XCTAssertTrue(error.waitForExistence(timeout: 10))
+        XCTAssertTrue(error.label.contains("No connection"), error.label)
+    }
+
+    // MARK: Date calculator
+
+    /// Clears a text field and types into it.
+    private func replace(_ field: XCUIElement, with text: String, in app: XCUIApplication) {
+        field.tap()
+        field.press(forDuration: 1)
+        if app.menuItems["Select All"].waitForExistence(timeout: 2) {
+            app.menuItems["Select All"].tap()
+            field.typeText(text)
+        } else {
+            let old = (field.value as? String) ?? ""
+            field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count + 2) + text)
+        }
+    }
+
+    private func result(_ app: XCUIApplication, _ id: String) -> XCUIElement {
+        app.descendants(matching: .any)[id].firstMatch
+    }
+
+    func testDaysBetweenTwoDates() {
+        let app = launch(tab: "Dates")
+        let start = app.textFields["calc-start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        replace(start, with: "2026-10-01", in: app)
+        replace(app.textFields["calc-end"], with: "2026-11-15", in: app)
+        let total = result(app, "calc-total")
+        XCTAssertTrue(waitFor(total, labelContaining: "45 days"), total.label)
+        XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 1 month, 14 days"))
+        XCTAssertTrue(result(app, "calc-weeks").label.contains("6 weeks, 3 days"))
+        XCTAssertTrue(result(app, "calc-weekdays").label.contains("32"))
+        XCTAssertTrue(result(app, "calc-hours").label.contains("1,080"), result(app, "calc-hours").label)
+
+        app.switches["calc-include-end"].switches.firstMatch.tap()
+        XCTAssertTrue(waitFor(total, labelContaining: "46 days"), total.label)
+        XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 1 month, 15 days"))
+        XCTAssertTrue(result(app, "calc-weeks").label.contains("6 weeks, 4 days"))
+    }
+
+    func testAnEndBeforeTheStartSaysSo() {
+        let app = launch(tab: "Dates")
+        let start = app.textFields["calc-start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
+        replace(start, with: "2026-12-25", in: app)
+        replace(app.textFields["calc-end"], with: "2026-10-01", in: app)
+        let total = result(app, "calc-total")
+        XCTAssertTrue(waitFor(total, labelContaining: "85 days before the start"), total.label)
+        XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 2 months, 24 days"))
+        XCTAssertTrue(result(app, "calc-weekdays").label.contains("61"))
+    }
+
+    /// The Add or subtract mode with the date set. The number fields start blank.
+    private func addMode(_ app: XCUIApplication, date: String) {
+        let mode = app.segmentedControls["calc-mode"].buttons["Add or subtract"]
+        XCTAssertTrue(mode.waitForExistence(timeout: 10))
+        mode.tap()
+        let base = app.textFields["calc-base"]
+        XCTAssertTrue(base.waitForExistence(timeout: 5))
+        replace(base, with: date, in: app)
+    }
+
+    private func type(_ text: String, into id: String, in app: XCUIApplication) {
+        let field = app.textFields[id]
+        field.tap()
+        field.typeText(text)
+    }
+
+    func testAddingWeeksAndDaysToADate() {
+        let app = launch(tab: "Dates")
+        addMode(app, date: "2026-10-01")
+        type("6", into: "calc-weeks-in", in: app)
+        type("3", into: "calc-days", in: app)
+        let shifted = result(app, "calc-shifted")
+        XCTAssertTrue(waitFor(shifted, labelContaining: "Sun 2026-11-15"), shifted.label)
+    }
+
+    func testSubtractingAMonthAndADay() {
+        let app = launch(tab: "Dates")
+        addMode(app, date: "2026-10-01")
+        type("-1", into: "calc-months", in: app)
+        type("-1", into: "calc-days", in: app)
+        let shifted = result(app, "calc-shifted")
+        XCTAssertTrue(waitFor(shifted, labelContaining: "Mon 2026-08-31"), shifted.label)
+    }
+
     private func waitFor(_ element: XCUIElement, value: String) -> Bool {
         let predicate = NSPredicate(format: "value == %@", value)
         return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed

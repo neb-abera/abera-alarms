@@ -18,6 +18,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var alerts: [PlannedAlert]
     /// The Clock-style alarms, on or off.
     public var routines: [Routine]
+    /// Dates counted down to, sorted by target then label. An older server
+    /// sends none.
+    public var countdowns: [Countdown]
     /// The sound and snooze every alarm on the phone uses.
     public var phone: PhoneSettings
 
@@ -31,6 +34,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         calendarWrite: String? = nil,
         alerts: [PlannedAlert] = [],
         routines: [Routine] = [],
+        countdowns: [Countdown] = [],
         phone: PhoneSettings = PhoneSettings()
     ) {
         self.configured = configured
@@ -42,12 +46,13 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.calendarWrite = calendarWrite
         self.alerts = alerts
         self.routines = routines
+        self.countdowns = countdowns
         self.phone = phone
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
-            routines, phone, settings
+            routines, countdowns, phone, settings
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -61,6 +66,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encodeIfPresent(calendarWrite, forKey: .calendarWrite)
         try container.encode(alerts, forKey: .alerts)
         try container.encode(routines, forKey: .routines)
+        try container.encode(countdowns, forKey: .countdowns)
         try container.encode(phone, forKey: .phone)
     }
 
@@ -75,6 +81,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         calendarWrite = try container.decodeIfPresent(String.self, forKey: .calendarWrite)
         alerts = try container.decodeIfPresent([PlannedAlert].self, forKey: .alerts) ?? []
         routines = try container.decodeIfPresent([Routine].self, forKey: .routines) ?? []
+        countdowns = try container.decodeIfPresent([Countdown].self, forKey: .countdowns) ?? []
         // The server sends these inside `settings`. The phone keeps them as
         // `phone` in its own copy of the state.
         if let saved = try container.decodeIfPresent(PhoneSettings.self, forKey: .phone) {
