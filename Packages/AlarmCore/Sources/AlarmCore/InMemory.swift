@@ -101,6 +101,28 @@ public actor FakeAlertsServer: HTTPTransport {
 
     public func setRoutines(_ routines: [Routine]) { state.routines = routines }
 
+    /// A countdown body checked as abera.tech checks it: nil and a 400 problem
+    /// keyed by field when it is refused.
+    private func countdownDraft(_ request: URLRequest) -> (CountdownDraft?, Data) {
+        guard let data = request.httpBody,
+            let draft = try? ServerDates.decoder().decode(CountdownDraft.self, from: data)
+        else { return (nil, Data(#"{"title":"Not a countdown."}"#.utf8)) }
+        if let problem = draft.problems.first {
+            let field = problem.contains("zone") ? "timeZone" : problem.contains("date") ? "targetAt" : "label"
+            return (nil, Data(#"{"errors":{"\#(field)":["\#(problem)"]}}"#.utf8))
+        }
+        return (draft, Data())
+    }
+
+    private func countdownIndex(_ path: String) -> Int? {
+        let id = path.split(separator: "/").last.flatMap { UUID(uuidString: String($0)) }
+        return state.countdowns.firstIndex { $0.id == id }
+    }
+
+    private func sortCountdowns() {
+        state.countdowns.sort { ($0.targetAt, $0.label) < ($1.targetAt, $1.label) }
+    }
+
     static func event(of key: String) -> Substring {
         key.split(separator: "|", maxSplits: 1).first ?? Substring(key)
     }
@@ -208,6 +230,30 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("DELETE", _) where path.hasPrefix("/api/alerts/routines/"):
             guard let index = routineIndex(path) else { return respond(request, 404, Data()) }
             state.routines.remove(at: index)
+        case ("POST", "/api/alerts/countdowns"):
+            let (draft, problem) = countdownDraft(request)
+            guard let draft else { return respond(request, 400, problem) }
+            guard state.countdowns.count < CountdownDraft.maxCountdowns else {
+                return respond(request, 409, Data(#"{"detail":"At most 50 countdowns."}"#.utf8))
+            }
+            state.countdowns.append(
+                Countdown(
+                    id: UUID(), label: draft.sentLabel, targetAt: draft.targetAt, timeZone: draft.timeZone,
+                    updatedAt: Date()))
+            sortCountdowns()
+            return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
+        case ("PUT", _) where path.hasPrefix("/api/alerts/countdowns/"):
+            guard let index = countdownIndex(path) else { return respond(request, 404, Data()) }
+            let (draft, problem) = countdownDraft(request)
+            guard let draft else { return respond(request, 400, problem) }
+            state.countdowns[index].label = draft.sentLabel
+            state.countdowns[index].targetAt = draft.targetAt
+            state.countdowns[index].timeZone = draft.timeZone
+            state.countdowns[index].updatedAt = Date()
+            sortCountdowns()
+        case ("DELETE", _) where path.hasPrefix("/api/alerts/countdowns/"):
+            guard let index = countdownIndex(path) else { return respond(request, 404, Data()) }
+            state.countdowns.remove(at: index)
         case ("PUT", "/api/alerts/devices/me/push"):
             guard let token = body["apnsToken"], PushToken.isValid(token),
                 let environment = body["environment"], PushEnvironment(rawValue: environment) != nil

@@ -17,6 +17,12 @@ struct RootView: View {
                     Tab("Calendar", systemImage: "calendar") {
                         AlarmsView(model: model)
                     }
+                    Tab("Countdowns", systemImage: "hourglass") {
+                        CountdownsView(model: model)
+                    }
+                    Tab("Dates", systemImage: "calendar.badge.clock") {
+                        DateCalculatorView()
+                    }
                 }
             } else {
                 PairView(model: model)
