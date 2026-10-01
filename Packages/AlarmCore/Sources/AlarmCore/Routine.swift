@@ -85,6 +85,10 @@ public struct RoutineSchedule: Codable, Equatable, Hashable, Sendable {
         self.snoozeMinutes = snoozeMinutes
     }
 
+    /// The next ring strictly after `now`, in the calendar's zone. A time the
+    /// clocks skip (02:30 when they go from 02:00 to 03:00) rings when the
+    /// clock reaches the next time that exists. A time the clocks pass twice
+    /// (01:30 when they go from 02:00 back to 01:00) rings at the first.
     public func nextFire(after now: Date, calendar: Calendar = .current) -> Date? {
         var best: Date?
         let weekdays: [Int?] = days.isEmpty ? [nil] : days.map { Optional($0) }
@@ -92,13 +96,33 @@ public struct RoutineSchedule: Codable, Equatable, Hashable, Sendable {
             var components = DateComponents(hour: hour, minute: minute, second: 0)
             // Calendar weekdays run Sunday 1 to Saturday 7. ISO runs Monday 1 to Sunday 7.
             if let iso { components.weekday = iso % 7 + 1 }
-            guard
-                let next = calendar.nextDate(
-                    after: now, matching: components, matchingPolicy: .nextTime, direction: .forward)
-            else { continue }
-            if best == nil || next < best! { best = next }
+            var after = now
+            var found: Date?
+            // Two tries: the second skips the repeat of an hour the clocks passed twice.
+            for _ in 0..<2 {
+                guard
+                    let next = calendar.nextDate(
+                        after: after, matching: components, matchingPolicy: .nextTime, direction: .forward)
+                else { break }
+                if isRepeat(next, calendar: calendar) {
+                    after = next
+                    continue
+                }
+                found = next
+                break
+            }
+            if let found, best == nil || found < best! { best = found }
         }
         return best
+    }
+
+    /// True for the second pass of a wall-clock time, when the same time
+    /// read on the clock one hour earlier.
+    private func isRepeat(_ date: Date, calendar: Calendar) -> Bool {
+        let earlier = date.addingTimeInterval(-3600)
+        let now = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let then = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: earlier)
+        return now == then
     }
 }
 

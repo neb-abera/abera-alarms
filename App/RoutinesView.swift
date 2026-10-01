@@ -91,6 +91,15 @@ struct RoutineRow: View {
                     .font(.system(size: 44, weight: .light).monospacedDigit())
                 Text("\(routine.label), \(routine.daysText)")
                     .font(.subheadline)
+                if routine.enabled {
+                    TimelineView(.periodic(from: .now, by: 1)) { context in
+                        if let clock = RingClock.text(for: routine, at: context.date) {
+                            Text(clock)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("routine-\(routine.label)")

@@ -451,6 +451,32 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(error.label.contains("No connection"), error.label)
     }
 
+    // MARK: Ring clocks
+
+    func testAnAlarmThatIsOnCountsDownToItsRing() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitFor(wake, labelContaining: "Rings in "), wake.label)
+        let first = wake.label
+        XCTAssertTrue(waitForChange(wake, from: first), "the clock did not tick: \(first)")
+        let weekend = routine(app, "Weekend")
+        XCTAssertFalse(weekend.label.contains("Rings in"), weekend.label)
+    }
+
+    func testACalendarAlarmCountsDownToItsAlert() {
+        let app = launch()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        // The alert is an hour after launch.
+        XCTAssertTrue(waitFor(standup, labelContaining: "Rings in 0 days 0"), standup.label)
+        let first = standup.label
+        XCTAssertTrue(waitForChange(standup, from: first), "the clock did not tick: \(first)")
+        let brief = row(app, "brief")
+        XCTAssertTrue(brief.label.contains("Acknowledged in a browser"), brief.label)
+        XCTAssertFalse(brief.label.contains("Rings in"), brief.label)
+    }
+
     // MARK: Date calculator
 
     /// Clears a text field and types into it.
