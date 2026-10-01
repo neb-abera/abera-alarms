@@ -7,6 +7,7 @@ struct RoutinesView: View {
     @Bindable var model: AppModel
     @State private var adding = false
     @State private var editing: Routine?
+    @State private var settings = false
 
     var body: some View {
         NavigationStack {
@@ -39,6 +40,14 @@ struct RoutinesView: View {
             .navigationTitle("Alarms")
             .refreshable { await model.sync() }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        settings = true
+                    } label: {
+                        Label("Sound & Snooze", systemImage: "speaker.wave.2")
+                    }
+                    .accessibilityIdentifier("sound-settings")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
                         adding = true
@@ -50,6 +59,9 @@ struct RoutinesView: View {
             }
             .sheet(isPresented: $adding) {
                 RoutineEditor(model: model, routine: nil)
+            }
+            .sheet(isPresented: $settings) {
+                SoundSettingsView(model: model)
             }
             .sheet(item: $editing) { routine in
                 RoutineEditor(model: model, routine: routine)
