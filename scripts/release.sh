@@ -52,8 +52,13 @@ case "${1:-}" in
       MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
       ${key_args[@]+"${key_args[@]}"} "${signing[@]}" \
       | grep -E '(error|warning):|\*\* ARCHIVE' || true
-    [ -d "$ARCHIVE/Products/Applications/AberaAlarms.app" ] \
-      || { echo "error: no app in $ARCHIVE" >&2; exit 1; }
+    app="$(find "$ARCHIVE/Products" -maxdepth 3 -name 'AberaAlarms.app' -type d | head -1)"
+    if [ -z "$app" ]; then
+      echo "error: no AberaAlarms.app in $ARCHIVE. It holds:" >&2
+      find "$ARCHIVE" -maxdepth 4 >&2 || true
+      exit 1
+    fi
+    echo "Archived $app"
     ;;
   upload)
     [ ${#key_args[@]} -gt 0 ] || { echo "error: upload needs ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8" >&2; exit 1; }
