@@ -487,31 +487,51 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(total, labelContaining: "46 days"), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 1 month, 15 days"))
         XCTAssertTrue(result(app, "calc-weeks").label.contains("6 weeks, 4 days"))
+    }
 
-        app.switches["calc-include-end"].switches.firstMatch.tap()
+    func testAnEndBeforeTheStartSaysSo() {
+        let app = launch(tab: "Dates")
+        let start = app.textFields["calc-start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10))
         replace(start, with: "2026-12-25", in: app)
         replace(app.textFields["calc-end"], with: "2026-10-01", in: app)
+        let total = result(app, "calc-total")
         XCTAssertTrue(waitFor(total, labelContaining: "85 days before the start"), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 2 months, 24 days"))
         XCTAssertTrue(result(app, "calc-weekdays").label.contains("61"))
     }
 
-    func testAddingToADate() {
-        let app = launch(tab: "Dates")
+    /// The Add or subtract mode with the date set. The number fields start blank.
+    private func addMode(_ app: XCUIApplication, date: String) {
         let mode = app.segmentedControls["calc-mode"].buttons["Add or subtract"]
         XCTAssertTrue(mode.waitForExistence(timeout: 10))
         mode.tap()
         let base = app.textFields["calc-base"]
         XCTAssertTrue(base.waitForExistence(timeout: 5))
-        replace(base, with: "2026-10-01", in: app)
-        replace(app.textFields["calc-weeks-in"], with: "6", in: app)
-        replace(app.textFields["calc-days"], with: "3", in: app)
+        replace(base, with: date, in: app)
+    }
+
+    private func type(_ text: String, into id: String, in app: XCUIApplication) {
+        let field = app.textFields[id]
+        field.tap()
+        field.typeText(text)
+    }
+
+    func testAddingWeeksAndDaysToADate() {
+        let app = launch(tab: "Dates")
+        addMode(app, date: "2026-10-01")
+        type("6", into: "calc-weeks-in", in: app)
+        type("3", into: "calc-days", in: app)
         let shifted = result(app, "calc-shifted")
         XCTAssertTrue(waitFor(shifted, labelContaining: "Sun 2026-11-15"), shifted.label)
+    }
 
-        replace(app.textFields["calc-weeks-in"], with: "0", in: app)
-        replace(app.textFields["calc-days"], with: "-1", in: app)
-        replace(app.textFields["calc-months"], with: "-1", in: app)
+    func testSubtractingAMonthAndADay() {
+        let app = launch(tab: "Dates")
+        addMode(app, date: "2026-10-01")
+        type("-1", into: "calc-months", in: app)
+        type("-1", into: "calc-days", in: app)
+        let shifted = result(app, "calc-shifted")
         XCTAssertTrue(waitFor(shifted, labelContaining: "Mon 2026-08-31"), shifted.label)
     }
 
