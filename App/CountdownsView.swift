@@ -8,6 +8,7 @@ struct CountdownsView: View {
     @State private var adding = false
     @State private var editing: Countdown?
     @State private var deleting: Countdown?
+    @State private var onScreen = false
 
     var body: some View {
         NavigationStack {
@@ -26,7 +27,7 @@ struct CountdownsView: View {
                         .accessibilityIdentifier("no-countdowns")
                 }
                 ForEach(model.countdowns) { countdown in
-                    CountdownRow(countdown: countdown)
+                    CountdownRow(countdown: countdown, ticking: onScreen)
                         .contentShape(Rectangle())
                         .onTapGesture { editing = countdown }
                         .swipeActions {
@@ -35,6 +36,7 @@ struct CountdownsView: View {
                 }
             }
             .navigationTitle("Countdowns")
+            .tickingWhileOnScreen($onScreen)
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -81,11 +83,27 @@ extension View {
     }
 }
 
+/// The clocks on a list tick once a second while its tab is on screen. A
+/// tab out of sight keeps its views, so its clocks wait a day instead.
+enum Ticking {
+    static func schedule(_ onScreen: Bool) -> PeriodicTimelineSchedule {
+        .periodic(from: .now, by: onScreen ? 1 : 86_400)
+    }
+}
+
+extension View {
+    func tickingWhileOnScreen(_ onScreen: Binding<Bool>) -> some View {
+        onAppear { onScreen.wrappedValue = true }
+            .onDisappear { onScreen.wrappedValue = false }
+    }
+}
+
 struct CountdownRow: View {
     let countdown: Countdown
+    var ticking = true
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(Ticking.schedule(ticking)) { context in
             let remaining = countdown.remaining(at: context.date)
             VStack(alignment: .leading, spacing: 2) {
                 Text(countdown.label)
