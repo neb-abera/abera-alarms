@@ -319,6 +319,21 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(added.label.contains("Tue Thu"), added.label)
     }
 
+    func testAddingARoutineOfflineSetsItAndSaysItWaits() {
+        let app = launch("-demo-offline", tab: nil)
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.buttons["day-6"].tap()
+        save.tap()
+        let added = routine(app, "Alarm")
+        XCTAssertTrue(added.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(added.label.contains("Sat"), added.label)
+        let waiting = app.descendants(matching: .any)["routines-waiting"].firstMatch
+        XCTAssertTrue(waiting.waitForExistence(timeout: 5))
+        XCTAssertTrue(waiting.label.contains("1 change(s)"), waiting.label)
+    }
+
     func testSwitchingARoutineOffAndOn() {
         let app = launch(tab: nil)
         let toggle = app.switches["routine-switch-Wake"]

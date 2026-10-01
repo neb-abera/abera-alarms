@@ -175,19 +175,15 @@ final class AppModel {
         return true
     }
 
-    /// Adds a routine, or replaces the one with this id. True when abera.tech took it.
+    /// Routine changes waiting for a connection to reach abera.tech.
+    private(set) var waitingRoutineChanges = 0
+
+    /// Adds a routine, or replaces the one with this id. It is set on the
+    /// phone at once, with or without a connection, and reaches abera.tech
+    /// when it can. False only when abera.tech refused it.
     func saveRoutine(id: UUID?, _ draft: RoutineDraft) async -> Bool {
-        routineError = nil
-        if let id {
-            await perform { client throws(APIError) in try await client.updateRoutine(id: id, draft) }
-        } else {
-            await perform { client throws(APIError) in try await client.createRoutine(draft) }
-        }
-        if let error = report?.error {
-            routineError = Self.describe(error)
-            return false
-        }
-        return true
+        let change: RoutineChange = id.map { .update(id: $0, draft: draft) } ?? .create(local: UUID(), draft: draft)
+        return await changeRoutine(change)
     }
 
     func setRoutine(_ routine: Routine, enabled: Bool) async {
@@ -197,10 +193,23 @@ final class AppModel {
     }
 
     func deleteRoutine(_ routine: Routine) async {
+        _ = await changeRoutine(.delete(id: routine.id))
+    }
+
+    private func changeRoutine(_ change: RoutineChange) async -> Bool {
         routineError = nil
-        let id = routine.id
-        await perform { client throws(APIError) in try await client.deleteRoutine(id: id) }
-        if let error = report?.error { routineError = Self.describe(error) }
+        await run { await self.dependencies.sync.changeRoutine(change) }
+        switch report?.error {
+        case .refused(let reason)?:
+            routineError = reason
+            return false
+        case .unpaired?:
+            routineError = Self.describe(APIError.unpaired)
+            return false
+        default:
+            // Offline or a server error: the change is on the phone and waits.
+            return true
+        }
     }
 
     func mute(_ length: AlertsClient.MuteLength) async {
@@ -238,6 +247,7 @@ final class AppModel {
         report = result
         if let state = result.state { self.state = state }
         if result.error == .unpaired, await dependencies.sync.pairing() == nil { paired = false }
+        waitingRoutineChanges = await dependencies.sync.routineChanges().count
         busy = false
     }
 
