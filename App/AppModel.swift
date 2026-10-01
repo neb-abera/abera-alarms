@@ -142,6 +142,16 @@ final class AppModel {
 
     func clearRoutineError() { routineError = nil }
 
+    /// The sound and snooze abera.tech holds for this phone.
+    var phone: PhoneSettings { state?.phone ?? PhoneSettings() }
+    private(set) var settingsError: String?
+
+    func savePhoneSettings(_ settings: PhoneSettings) async {
+        settingsError = nil
+        await perform { client throws(APIError) in try await client.updatePhoneSettings(settings) }
+        if let error = report?.error { settingsError = Self.describe(error) }
+    }
+
     /// True when abera.tech changed the event.
     func updateEvent(_ edit: EventEdit) async -> Bool {
         eventError = nil

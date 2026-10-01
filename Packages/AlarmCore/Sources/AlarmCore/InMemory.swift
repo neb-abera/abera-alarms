@@ -140,6 +140,13 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("POST", "/api/alerts/unmute"):
             state.mutedUntil = nil
             for index in state.alerts.indices { state.alerts[index].muted = false }
+        case ("PUT", "/api/alerts/phone-settings"):
+            guard let data = request.httpBody,
+                let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                let sound = raw["sound"] as? String, PhoneSettings.sounds.contains(where: { $0.value == sound }),
+                let snooze = raw["snoozeMinutes"] as? Int, (1...30).contains(snooze)
+            else { return respond(request, 400, Data()) }
+            state.phone = PhoneSettings(sound: sound, snoozeMinutes: snooze)
         case ("PUT", "/api/alerts/events"):
             guard let data = request.httpBody, let edit = try? ServerDates.decoder().decode(EventEdit.self, from: data)
             else { return respond(request, 400, Data()) }

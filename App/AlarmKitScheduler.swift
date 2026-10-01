@@ -17,27 +17,38 @@ struct AlarmKitScheduler: AlarmScheduling {
             try await scheduleRoutine(alarm, routine)
             return
         }
+        let snoozeMinutes = alarm.snoozeMinutes ?? 9
         let alert = AlarmPresentation.Alert(
-            title: "\(AlarmText.title(for: alarm))", secondaryButton: nil, secondaryButtonBehavior: nil)
+            title: "\(AlarmText.title(for: alarm))", secondaryButton: Self.snoozeButton,
+            secondaryButtonBehavior: .countdown)
+        let countdown = AlarmPresentation.Countdown(title: "\(alarm.title), snoozing", pauseButton: nil)
         let attributes = AlarmAttributes<AlarmInfo>(
-            presentation: AlarmPresentation(alert: alert, countdown: nil, paused: nil),
+            presentation: AlarmPresentation(alert: alert, countdown: countdown, paused: nil),
             metadata: AlarmInfo(key: alarm.key),
             tintColor: .accentColor)
-        let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>.alarm(
+        // Snooze rings again after the countdown. Only Stop acknowledges.
+        let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>(
+            countdownDuration: .init(preAlert: nil, postAlert: TimeInterval(snoozeMinutes * 60)),
             schedule: .fixed(alarm.fireAt),
             attributes: attributes,
             stopIntent: AcknowledgeAlarmIntent(key: alarm.key),
             secondaryIntent: nil,
-            sound: .default)
+            sound: Self.sound(alarm.sound))
         _ = try await AlarmManager.shared.schedule(id: alarm.id, configuration: configuration)
+    }
+
+    static let snoozeButton = AlarmButton(text: "Snooze", textColor: .white, systemImageName: "zzz")
+
+    /// A bundled sound, or the iPhone's own.
+    static func sound(_ name: String) -> AlertConfiguration.AlertSound {
+        name == "default" ? .default : .named("\(name).caf")
     }
 
     /// A Clock-style alarm: the time of day, the weekdays it repeats on, and
     /// Snooze, which counts down on the Lock Screen and rings again.
     private func scheduleRoutine(_ alarm: DesiredAlarm, _ routine: RoutineSchedule) async throws {
-        let snooze = AlarmButton(text: "Snooze", textColor: .white, systemImageName: "zzz")
         let alert = AlarmPresentation.Alert(
-            title: "\(alarm.title)", secondaryButton: snooze, secondaryButtonBehavior: .countdown)
+            title: "\(alarm.title)", secondaryButton: Self.snoozeButton, secondaryButtonBehavior: .countdown)
         let countdown = AlarmPresentation.Countdown(title: "\(alarm.title), snoozing", pauseButton: nil)
         let attributes = AlarmAttributes<AlarmInfo>(
             presentation: AlarmPresentation(alert: alert, countdown: countdown, paused: nil),
@@ -53,7 +64,7 @@ struct AlarmKitScheduler: AlarmScheduling {
             attributes: attributes,
             stopIntent: nil,
             secondaryIntent: nil,
-            sound: .default)
+            sound: Self.sound(alarm.sound))
         _ = try await AlarmManager.shared.schedule(id: alarm.id, configuration: configuration)
     }
 

@@ -268,6 +268,26 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(row(app, "standup").exists)
     }
 
+    // MARK: Sound and snooze
+
+    func testChoosingTheAlarmSoundAndSnooze() {
+        let app = launch(tab: nil)
+        let open = app.buttons["sound-settings"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let chime = app.buttons["Chime"]
+        XCTAssertTrue(chime.waitForExistence(timeout: 5))
+        chime.tap()
+        app.steppers["snooze-stepper"].buttons.element(boundBy: 0).tap()
+        app.buttons["save-sound"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 5))
+
+        open.tap()
+        XCTAssertTrue(app.buttons["Chime"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["Chime"].isSelected)
+        XCTAssertTrue(app.staticTexts["Snooze: 8 min"].exists)
+    }
+
     // MARK: Routine alarms
 
     private func routine(_ app: XCUIApplication, _ label: String) -> XCUIElement {
