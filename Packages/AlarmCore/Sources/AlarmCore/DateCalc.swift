@@ -161,17 +161,19 @@ public struct DateSpan: Equatable, Sendable {
 }
 
 /// Adding to or subtracting from a date, as abera.tech's calculator does it:
-/// years, then months (each clamped to the month's last day), then
-/// weeks × 7 + days.
+/// years and months first, as one step of years × 12 + months months held
+/// to the month's last day, then weeks × 7 + days. 2024-02-29 plus 1 year
+/// 1 month is 2025-03-29.
 public enum DateShift {
     /// Nil when the result is outside years 1 to 9999.
     public static func apply(to date: CivilDate, years: Int, months: Int, weeks: Int, days: Int) -> CivilDate? {
         let (yearMonths, overflowYears) = years.multipliedReportingOverflow(by: 12)
         let (weekDays, overflowWeeks) = weeks.multipliedReportingOverflow(by: 7)
         guard !overflowYears, !overflowWeeks else { return nil }
+        let (allMonths, overflowMonths) = yearMonths.addingReportingOverflow(months)
         let (allDays, overflowDays) = weekDays.addingReportingOverflow(days)
-        guard !overflowDays else { return nil }
-        return date.adding(months: yearMonths)?.adding(months: months)?.adding(days: allDays)
+        guard !overflowMonths, !overflowDays else { return nil }
+        return date.adding(months: allMonths)?.adding(days: allDays)
     }
 }
 
