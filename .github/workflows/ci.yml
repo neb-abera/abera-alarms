@@ -62,7 +62,7 @@ jobs:
   app:
     name: app (build and UI tests, Xcode ${{ matrix.xcode }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +90,9 @@ jobs:
         run: swift test --package-path Packages/AlarmCore
 
       - name: build, then run the UI tests in the simulator
-        timeout-minutes: 30
+        # 23 UI tests took 29 minutes with the build on the xcode-27 runner
+        # on 2026-10-01. Each test is still capped at two minutes.
+        timeout-minutes: 50
         run: scripts/test-app.sh
 
       - name: test results
