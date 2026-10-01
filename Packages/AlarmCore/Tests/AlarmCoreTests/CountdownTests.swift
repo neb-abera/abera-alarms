@@ -3,6 +3,10 @@ import Testing
 
 @testable import AlarmCore
 
+#if canImport(FoundationNetworking)
+    import FoundationNetworking
+#endif
+
 /// Countdowns: kept on abera.tech, shown ticking on the phone.
 @Suite struct CountdownTests {
     func at(_ text: String) -> Date { ServerDates.parse(text)! }
