@@ -18,6 +18,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var alerts: [PlannedAlert]
     /// The Clock-style alarms, on or off.
     public var routines: [Routine]
+    /// The sound and snooze every alarm on the phone uses.
+    public var phone: PhoneSettings
 
     public init(
         configured: Bool = true,
@@ -28,7 +30,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         lastSuccessAt: Date? = nil,
         calendarWrite: String? = nil,
         alerts: [PlannedAlert] = [],
-        routines: [Routine] = []
+        routines: [Routine] = [],
+        phone: PhoneSettings = PhoneSettings()
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -39,6 +42,26 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.calendarWrite = calendarWrite
         self.alerts = alerts
         self.routines = routines
+        self.phone = phone
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
+            routines, phone, settings
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(configured, forKey: .configured)
+        try container.encodeIfPresent(timeZone, forKey: .timeZone)
+        try container.encodeIfPresent(mutedUntil, forKey: .mutedUntil)
+        try container.encodeIfPresent(lastFetchAt, forKey: .lastFetchAt)
+        try container.encodeIfPresent(lastFetchError, forKey: .lastFetchError)
+        try container.encodeIfPresent(lastSuccessAt, forKey: .lastSuccessAt)
+        try container.encodeIfPresent(calendarWrite, forKey: .calendarWrite)
+        try container.encode(alerts, forKey: .alerts)
+        try container.encode(routines, forKey: .routines)
+        try container.encode(phone, forKey: .phone)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -52,6 +75,13 @@ public struct AlertsState: Codable, Equatable, Sendable {
         calendarWrite = try container.decodeIfPresent(String.self, forKey: .calendarWrite)
         alerts = try container.decodeIfPresent([PlannedAlert].self, forKey: .alerts) ?? []
         routines = try container.decodeIfPresent([Routine].self, forKey: .routines) ?? []
+        // The server sends these inside `settings`. The phone keeps them as
+        // `phone` in its own copy of the state.
+        if let saved = try container.decodeIfPresent(PhoneSettings.self, forKey: .phone) {
+            phone = saved
+        } else {
+            phone = try container.decodeIfPresent(PhoneSettings.self, forKey: .settings) ?? PhoneSettings()
+        }
     }
 }
 
@@ -140,6 +170,66 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         acknowledged = try container.decodeIfPresent(Bool.self, forKey: .acknowledged) ?? false
         acknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .acknowledgedAt)
         acknowledgedVia = try container.decodeIfPresent(String.self, forKey: .acknowledgedVia)
+    }
+}
+
+/// The sound every alarm on the phone plays, and how long Snooze waits on a
+/// calendar alarm. Saved on abera.tech, set from the page or the phone.
+public struct PhoneSettings: Codable, Equatable, Hashable, Sendable {
+    public var sound: String
+    public var snoozeMinutes: Int
+
+    /// The sounds the app bundles, as the server names them, with their labels.
+    public static let sounds: [(value: String, label: String)] = [
+        ("default", "iPhone default"), ("pulse", "Pulse"), ("chime", "Chime"), ("rise", "Rise"), ("siren", "Siren"),
+        ("beacon", "Beacon"),
+    ]
+
+    public init(sound: String = "default", snoozeMinutes: Int = 9) {
+        self.sound = sound
+        self.snoozeMinutes = snoozeMinutes
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case sound, snoozeMinutes, phoneSound, phoneSnoozeMinutes
+    }
+
+    /// Reads the phone's own copy ({sound, snoozeMinutes}) or the server's
+    /// settings object ({phoneSound, phoneSnoozeMinutes, ...}). A sound this
+    /// build does not bundle plays the iPhone default.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let sound =
+            try container.decodeIfPresent(String.self, forKey: .sound)
+            ?? container.decodeIfPresent(String.self, forKey: .phoneSound) ?? "default"
+        let snooze =
+            try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes)
+            ?? container.decodeIfPresent(Int.self, forKey: .phoneSnoozeMinutes) ?? 9
+        self.sound = Self.sounds.contains { $0.value == sound } ? sound : "default"
+        self.snoozeMinutes = min(30, max(1, snooze))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(sound, forKey: .sound)
+        try container.encode(snoozeMinutes, forKey: .snoozeMinutes)
+    }
+
+    /// The body PUT /api/alerts/phone-settings takes.
+    var body: [String: AnyCodableValue] { ["sound": .string(sound), "snoozeMinutes": .int(snoozeMinutes)] }
+}
+
+/// A string or an integer in a JSON body.
+enum AnyCodableValue: Encodable, Sendable {
+    case string(String)
+    case int(Int)
+
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let value): try container.encode(value)
+        case .int(let value): try container.encode(value)
+        }
     }
 }
 
