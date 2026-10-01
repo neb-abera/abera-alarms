@@ -86,7 +86,7 @@ On the dev box, in Docker:
 make check
 ```
 
-That runs the format lint, actionlint and shellcheck, the AlarmCore tests with the 95% line coverage floor, and every repository gate with its self-test.
+That runs the format lint, actionlint and shellcheck, the AlarmCore tests with the 96% line coverage floor, and every repository gate with its self-test.
 
 On a Mac with Xcode:
 
