@@ -14,3 +14,5 @@ check dependency review
 check attribution (no AI credit in commits)
 check analyze (swift)
 check analyze (actions)
+workflow .github/workflows/testflight.yml
+check release (archive, and upload from main)
