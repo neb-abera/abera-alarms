@@ -8,7 +8,7 @@ Use GitHub's private vulnerability reporting on this repository, or write to sup
 
 - A device token for abera.tech: `aat_` and 43 base64url characters, 256 bits from the server's random number generator. The server stores only its SHA-256 hash.
 - The token lives in the Keychain with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. It is readable from the first passcode entry after a restart, so the Stop button and background refresh work while the phone is locked. It is never in a backup and never on another device.
-- The last state from the server, the list of alarms scheduled, and the acknowledgements waiting for a connection, in Application Support with `completeFileProtectionUntilFirstUserAuthentication`. They hold event titles, locations and times.
+- The last state from the server, the list of alarms scheduled, and the acknowledgements waiting for a connection, in Application Support with `completeFileProtectionUntilFirstUserAuthentication`. They hold event titles, locations and times, and the countdowns' labels, dates and time zones.
 
 - An APNs device token, sent to abera.tech with `PUT /api/alerts/devices/me/push` and removed with `DELETE` on Unpair. The pushes abera.tech sends carry a plan version number and nothing else. The app answers each one with an authenticated `GET /api/alerts/status`, so no title, time or key passes through Apple.
 

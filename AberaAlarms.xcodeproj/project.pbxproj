@@ -18,6 +18,8 @@
 		820BBBAD4DFAEECC89CC1D45 /* siren.caf in Resources */ = {isa = PBXBuildFile; fileRef = D5684150D92B9CB17980975A /* siren.caf */; };
 		837E22D7B1C8370B971B9B36 /* AlarmsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */; };
+		89EA624F8A5C80A53050F8EC /* DateCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */; };
+		9EC8846156730D3AC266B10B /* CountdownsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD63EB2EC69A6237B225939 /* CountdownsView.swift */; };
 		A40157B9C05DD6765E8B519E /* rise.caf in Resources */ = {isa = PBXBuildFile; fileRef = 25BC4ED3BD714FA459CFCBA5 /* rise.caf */; };
 		AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B571278D349722D70FF8D3E /* RoutinesView.swift */; };
 		AE552238CA0A61409E1CD5D0 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
@@ -71,6 +73,7 @@
 		23FD542C36135ED632A687A1 /* AlarmInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmInfo.swift; sourceTree = "<group>"; };
 		25BC4ED3BD714FA459CFCBA5 /* rise.caf */ = {isa = PBXFileReference; path = rise.caf; sourceTree = "<group>"; };
 		2BB38860B8B6E179D39318BB /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		2CD63EB2EC69A6237B225939 /* CountdownsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CountdownsView.swift; sourceTree = "<group>"; };
 		353CC3BC76C14D96A55388B0 /* beacon.caf */ = {isa = PBXFileReference; path = beacon.caf; sourceTree = "<group>"; };
 		3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		41A62A1C2210F5E236DC124A /* AlarmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlarmCore; path = Packages/AlarmCore; sourceTree = SOURCE_ROOT; };
@@ -79,6 +82,7 @@
 		87A83F32AF14C10AA49161F6 /* Dependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dependencies.swift; sourceTree = "<group>"; };
 		A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmsUITests.swift; sourceTree = "<group>"; };
 		A783C0B2E1BA54C7B72F43B0 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
+		ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculatorView.swift; sourceTree = "<group>"; };
 		AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AberaAlarmsApp.swift; sourceTree = "<group>"; };
 		B3D757DF0CE2B28CA2EF99FC /* AberaAlarms.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AberaAlarms.entitlements; sourceTree = "<group>"; };
 		CA375A6D175B012E7A00735A /* PushDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushDelegate.swift; sourceTree = "<group>"; };
@@ -151,6 +155,8 @@
 				1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */,
 				EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */,
 				CD10358D4297D739F6D33457 /* Assets.xcassets */,
+				2CD63EB2EC69A6237B225939 /* CountdownsView.swift */,
+				ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */,
 				09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */,
 				87A83F32AF14C10AA49161F6 /* Dependencies.swift */,
 				3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */,
@@ -326,6 +332,8 @@
 				AE552238CA0A61409E1CD5D0 /* AlarmInfo.swift in Sources */,
 				5EE8C24CEB42BE45177F402B /* AlarmKitScheduler.swift in Sources */,
 				85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */,
+				9EC8846156730D3AC266B10B /* CountdownsView.swift in Sources */,
+				89EA624F8A5C80A53050F8EC /* DateCalculatorView.swift in Sources */,
 				7928AA7FE04A07B473533544 /* Demo.swift in Sources */,
 				0B44891BF6F5A9AAD4B3E7CF /* Dependencies.swift in Sources */,
 				EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */,

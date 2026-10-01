@@ -212,6 +212,53 @@ final class AppModel {
         }
     }
 
+    // MARK: Countdowns
+
+    /// The dates counted down to, as abera.tech holds them.
+    var countdowns: [Countdown] { state?.countdowns ?? [] }
+    private(set) var countdownError: String?
+
+    func clearCountdownError() { countdownError = nil }
+
+    /// Adds a countdown, or replaces the one with this id. Countdowns need a
+    /// connection: nothing is kept on the phone to send later. True when
+    /// abera.tech took it.
+    func saveCountdown(id: UUID?, _ draft: CountdownDraft) async -> Bool {
+        await changeCountdown { client throws(APIError) in
+            if let id {
+                try await client.updateCountdown(id: id, draft)
+            } else {
+                try await client.createCountdown(draft)
+            }
+        }
+    }
+
+    /// True when abera.tech deleted it, or no longer had it.
+    @discardableResult
+    func deleteCountdown(_ countdown: Countdown) async -> Bool {
+        let id = countdown.id
+        return await changeCountdown { client throws(APIError) in try await client.deleteCountdown(id: id) }
+    }
+
+    private func changeCountdown(
+        _ action: @escaping @Sendable (AlertsClient) async throws(APIError) -> AlertsState
+    ) async -> Bool {
+        countdownError = nil
+        await perform(action)
+        switch report?.error {
+        case nil:
+            return true
+        case .offline?:
+            countdownError = "No connection to abera.tech. Countdown changes need one. Try again when online."
+        case .notFound?:
+            countdownError = "abera.tech no longer has that countdown. Pull to refresh."
+            await sync()
+        case let error?:
+            countdownError = Self.describe(error)
+        }
+        return false
+    }
+
     func mute(_ length: AlertsClient.MuteLength) async {
         await perform { client throws(APIError) in try await client.mute(length) }
     }

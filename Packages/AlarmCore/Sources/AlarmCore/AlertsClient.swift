@@ -108,6 +108,18 @@ public struct AlertsClient: Sendable {
         try await call("DELETE", "routines/\(id.uuidString.lowercased())", body: nil)
     }
 
+    public func createCountdown(_ draft: CountdownDraft) async throws(APIError) -> AlertsState {
+        try await call("POST", "countdowns", body: draft.body)
+    }
+
+    public func updateCountdown(id: UUID, _ draft: CountdownDraft) async throws(APIError) -> AlertsState {
+        try await call("PUT", "countdowns/\(id.uuidString.lowercased())", body: draft.body)
+    }
+
+    public func deleteCountdown(id: UUID) async throws(APIError) -> AlertsState {
+        try await call("DELETE", "countdowns/\(id.uuidString.lowercased())", body: nil)
+    }
+
     /// Where abera.tech sends a push when this phone's alarms change.
     public func registerPush(token: String, environment: PushEnvironment) async throws(APIError) {
         try await callNoContent(
