@@ -150,3 +150,85 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         return body
     }
 }
+
+/// A routine change made on the phone that abera.tech has not taken yet.
+public enum RoutineChange: Codable, Equatable, Sendable {
+    /// A new routine, under an id the phone made until abera.tech gives its own.
+    case create(local: UUID, draft: RoutineDraft)
+    case update(id: UUID, draft: RoutineDraft)
+    case delete(id: UUID)
+
+    var id: UUID {
+        switch self {
+        case .create(let local, _): local
+        case .update(let id, _), .delete(let id): id
+        }
+    }
+
+    /// The same change, naming a routine by abera.tech's id once it has one.
+    func renaming(_ ids: [UUID: UUID]) -> RoutineChange {
+        switch self {
+        case .create: self
+        case .update(let id, let draft): .update(id: ids[id] ?? id, draft: draft)
+        case .delete(let id): .delete(id: ids[id] ?? id)
+        }
+    }
+
+    /// The fewest changes that leave abera.tech where these would. An edit
+    /// to a routine not yet sent folds into its creation, a delete of one
+    /// cancels it, and only the last edit of a routine is kept.
+    public static func coalesce(_ changes: [RoutineChange]) -> [RoutineChange] {
+        var out: [RoutineChange] = []
+        for change in changes {
+            let created = out.firstIndex { if case .create(change.id, _) = $0 { true } else { false } }
+            switch change {
+            case .create:
+                out.append(change)
+            case .update(let id, let draft):
+                if let created {
+                    out[created] = .create(local: id, draft: draft)
+                } else {
+                    out.removeAll { if case .update(id, _) = $0 { true } else { false } }
+                    out.append(change)
+                }
+            case .delete(let id):
+                if let created {
+                    out.remove(at: created)
+                } else {
+                    out.removeAll { if case .update(id, _) = $0 { true } else { false } }
+                    out.append(change)
+                }
+            }
+        }
+        return out
+    }
+
+    /// The state as it will be once abera.tech has taken these changes.
+    public static func overlay(_ state: AlertsState, _ changes: [RoutineChange]) -> AlertsState {
+        guard !changes.isEmpty else { return state }
+        var state = state
+        for change in changes {
+            switch change {
+            case .create(let local, let draft):
+                let body = draft.body
+                state.routines.append(
+                    Routine(
+                        id: local, label: body.label, hour: body.hour, minute: body.minute, days: body.days,
+                        enabled: body.enabled, snoozeMinutes: body.snoozeMinutes))
+            case .update(let id, let draft):
+                guard let index = state.routines.firstIndex(where: { $0.id == id }) else { continue }
+                let body = draft.body
+                state.routines[index].label = body.label
+                state.routines[index].hour = body.hour
+                state.routines[index].minute = body.minute
+                state.routines[index].days = body.days
+                state.routines[index].enabled = body.enabled
+                state.routines[index].snoozeMinutes = body.snoozeMinutes
+            case .delete(let id):
+                state.routines.removeAll { $0.id == id }
+            }
+        }
+        state.routines.sort { ($0.hour, $0.minute, $0.label) < ($1.hour, $1.minute, $1.label) }
+        return state
+    }
+}

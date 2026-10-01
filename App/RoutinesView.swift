@@ -21,6 +21,16 @@ struct RoutinesView: View {
                             .accessibilityIdentifier("routine-error")
                     }
                 }
+                if model.waitingRoutineChanges > 0 {
+                    Section {
+                        Label(
+                            "\(model.waitingRoutineChanges) change(s) set on this phone, waiting for a connection to reach abera.tech.",
+                            systemImage: "icloud.slash"
+                        )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("routines-waiting")
+                    }
+                }
                 if model.routines.isEmpty {
                     Text("No alarms. Tap + to add one.")
                         .foregroundStyle(.secondary)
