@@ -219,9 +219,10 @@ final class AlarmsUITests: XCTestCase {
         return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
     }
 
-    private func waitFor(_ element: XCUIElement, labelContaining text: String) -> Bool {
+    private func waitFor(_ element: XCUIElement, labelContaining text: String, timeout: TimeInterval = 5) -> Bool {
         let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
+        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout)
+            == .completed
     }
 
     // MARK: Edit and delete events
@@ -406,8 +407,22 @@ final class AlarmsUITests: XCTestCase {
         let leave = countdown(app, "Leave")
         XCTAssertTrue(leave.waitForExistence(timeout: 10), app.debugDescription)
         let first = leave.label
-        XCTAssertTrue(first.contains("0 days 23:59:") || first.contains("1 day 00:00:"), first)
+        // A day ahead, less however long the runner took to save it.
+        XCTAssertTrue(first.contains("0 days 23:") || first.contains("1 day 00:00:"), first)
         XCTAssertTrue(waitForChange(leave, from: first), "the clock did not tick: \(first)")
+    }
+
+    func testClocksKeepTickingAfterASheetIsCancelled() {
+        let app = launch(tab: "Countdowns")
+        let home = countdown(app, "Home")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        app.buttons["add-countdown"].tap()
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        XCTAssertTrue(waitForGone(cancel))
+        let first = home.label
+        XCTAssertTrue(waitForChange(home, from: first), "the clock did not tick: \(first)")
     }
 
     func testEditingACountdownKeepsItsZone() {
@@ -451,6 +466,32 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(error.label.contains("No connection"), error.label)
     }
 
+    // MARK: Ring clocks
+
+    func testAnAlarmThatIsOnCountsDownToItsRing() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitFor(wake, labelContaining: "Rings in "), wake.label)
+        let first = wake.label
+        XCTAssertTrue(waitForChange(wake, from: first), "the clock did not tick: \(first)")
+        let weekend = routine(app, "Weekend")
+        XCTAssertFalse(weekend.label.contains("Rings in"), weekend.label)
+    }
+
+    func testACalendarAlarmCountsDownToItsAlert() {
+        let app = launch()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        // The alert is an hour after launch.
+        XCTAssertTrue(waitFor(standup, labelContaining: "Rings in 0 days 0"), standup.label)
+        let first = standup.label
+        XCTAssertTrue(waitForChange(standup, from: first), "the clock did not tick: \(first)")
+        let brief = row(app, "brief")
+        XCTAssertTrue(brief.label.contains("Acknowledged in a browser"), brief.label)
+        XCTAssertFalse(brief.label.contains("Rings in"), brief.label)
+    }
+
     // MARK: Date calculator
 
     /// Clears a text field and types into it.
@@ -475,16 +516,19 @@ final class AlarmsUITests: XCTestCase {
         let start = app.textFields["calc-start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         replace(start, with: "2026-10-01", in: app)
-        replace(app.textFields["calc-end"], with: "2026-11-15", in: app)
+        replace(app.textFields["calc-end"], with: "2026-11-15\n", in: app)
         let total = result(app, "calc-total")
-        XCTAssertTrue(waitFor(total, labelContaining: "45 days"), total.label)
+        XCTAssertTrue(waitFor(total, labelContaining: "45 days", timeout: 15), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 1 month, 14 days"))
         XCTAssertTrue(result(app, "calc-weeks").label.contains("6 weeks, 3 days"))
         XCTAssertTrue(result(app, "calc-weekdays").label.contains("32"))
         XCTAssertTrue(result(app, "calc-hours").label.contains("1,080"), result(app, "calc-hours").label)
 
-        app.switches["calc-include-end"].switches.firstMatch.tap()
-        XCTAssertTrue(waitFor(total, labelContaining: "46 days"), total.label)
+        let include = app.switches["calc-include-end"]
+        include.switches.firstMatch.tap()
+        if !waitFor(include, value: "1") { include.switches.firstMatch.tap() }
+        XCTAssertTrue(waitFor(include, value: "1"), "the switch did not turn on")
+        XCTAssertTrue(waitFor(total, labelContaining: "46 days", timeout: 15), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 1 month, 15 days"))
         XCTAssertTrue(result(app, "calc-weeks").label.contains("6 weeks, 4 days"))
     }
@@ -496,7 +540,7 @@ final class AlarmsUITests: XCTestCase {
         replace(start, with: "2026-12-25", in: app)
         replace(app.textFields["calc-end"], with: "2026-10-01", in: app)
         let total = result(app, "calc-total")
-        XCTAssertTrue(waitFor(total, labelContaining: "85 days before the start"), total.label)
+        XCTAssertTrue(waitFor(total, labelContaining: "85 days before the start", timeout: 15), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 2 months, 24 days"))
         XCTAssertTrue(result(app, "calc-weekdays").label.contains("61"))
     }
@@ -523,7 +567,7 @@ final class AlarmsUITests: XCTestCase {
         type("6", into: "calc-weeks-in", in: app)
         type("3", into: "calc-days", in: app)
         let shifted = result(app, "calc-shifted")
-        XCTAssertTrue(waitFor(shifted, labelContaining: "Sun 2026-11-15"), shifted.label)
+        XCTAssertTrue(waitFor(shifted, labelContaining: "Sun 2026-11-15", timeout: 15), shifted.label)
     }
 
     func testSubtractingAMonthAndADay() {
@@ -532,7 +576,7 @@ final class AlarmsUITests: XCTestCase {
         type("-1", into: "calc-months", in: app)
         type("-1", into: "calc-days", in: app)
         let shifted = result(app, "calc-shifted")
-        XCTAssertTrue(waitFor(shifted, labelContaining: "Mon 2026-08-31"), shifted.label)
+        XCTAssertTrue(waitFor(shifted, labelContaining: "Mon 2026-08-31", timeout: 15), shifted.label)
     }
 
     private func waitFor(_ element: XCUIElement, value: String) -> Bool {

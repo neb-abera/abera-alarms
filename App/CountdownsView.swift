@@ -8,6 +8,7 @@ struct CountdownsView: View {
     @State private var adding = false
     @State private var editing: Countdown?
     @State private var deleting: Countdown?
+    var onScreen = true
 
     var body: some View {
         NavigationStack {
@@ -26,7 +27,7 @@ struct CountdownsView: View {
                         .accessibilityIdentifier("no-countdowns")
                 }
                 ForEach(model.countdowns) { countdown in
-                    CountdownRow(countdown: countdown)
+                    CountdownRow(countdown: countdown, ticking: onScreen)
                         .contentShape(Rectangle())
                         .onTapGesture { editing = countdown }
                         .swipeActions {
@@ -81,11 +82,22 @@ extension View {
     }
 }
 
+/// The clocks on a tab tick once a second while it is the selected tab. A
+/// TabView keeps the other tabs' views, so their clocks wait a day instead.
+/// The selection decides, not onAppear: on iOS 27 a sheet's appear and
+/// disappear left a visible list marked as hidden.
+enum Ticking {
+    static func schedule(_ onScreen: Bool) -> PeriodicTimelineSchedule {
+        .periodic(from: .now, by: onScreen ? 1 : 86_400)
+    }
+}
+
 struct CountdownRow: View {
     let countdown: Countdown
+    var ticking = true
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        TimelineView(Ticking.schedule(ticking)) { context in
             let remaining = countdown.remaining(at: context.date)
             VStack(alignment: .leading, spacing: 2) {
                 Text(countdown.label)
