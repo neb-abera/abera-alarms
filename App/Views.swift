@@ -2,25 +2,31 @@ import AlarmCore
 import SwiftUI
 import UIKit
 
+/// The app's tabs. The clocks on a tab tick only while it is the one selected.
+enum AppTab: Hashable {
+    case alarms, calendar, countdowns, dates
+}
+
 struct RootView: View {
     @Bindable var model: AppModel
+    @State private var tab = AppTab.alarms
 
     var body: some View {
         Group {
             if !model.started {
                 ProgressView()
             } else if model.paired {
-                TabView {
-                    Tab("Alarms", systemImage: "alarm") {
-                        RoutinesView(model: model)
+                TabView(selection: $tab) {
+                    Tab("Alarms", systemImage: "alarm", value: AppTab.alarms) {
+                        RoutinesView(model: model, onScreen: tab == .alarms)
                     }
-                    Tab("Calendar", systemImage: "calendar") {
-                        AlarmsView(model: model)
+                    Tab("Calendar", systemImage: "calendar", value: AppTab.calendar) {
+                        AlarmsView(model: model, onScreen: tab == .calendar)
                     }
-                    Tab("Countdowns", systemImage: "hourglass") {
-                        CountdownsView(model: model)
+                    Tab("Countdowns", systemImage: "hourglass", value: AppTab.countdowns) {
+                        CountdownsView(model: model, onScreen: tab == .countdowns)
                     }
-                    Tab("Dates", systemImage: "calendar.badge.clock") {
+                    Tab("Dates", systemImage: "calendar.badge.clock", value: AppTab.dates) {
                         DateCalculatorView()
                     }
                 }
@@ -78,7 +84,7 @@ struct AlarmsView: View {
     @Bindable var model: AppModel
     @State private var confirmingUnpair = false
     @State private var addingEvent = false
-    @State private var onScreen = false
+    var onScreen = true
 
     var body: some View {
         NavigationStack {
@@ -113,7 +119,6 @@ struct AlarmsView: View {
                 }
             }
             .navigationTitle("Calendar")
-            .tickingWhileOnScreen($onScreen)
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {

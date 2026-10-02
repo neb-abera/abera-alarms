@@ -8,7 +8,7 @@ struct CountdownsView: View {
     @State private var adding = false
     @State private var editing: Countdown?
     @State private var deleting: Countdown?
-    @State private var onScreen = false
+    var onScreen = true
 
     var body: some View {
         NavigationStack {
@@ -36,7 +36,6 @@ struct CountdownsView: View {
                 }
             }
             .navigationTitle("Countdowns")
-            .tickingWhileOnScreen($onScreen)
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -83,18 +82,13 @@ extension View {
     }
 }
 
-/// The clocks on a list tick once a second while its tab is on screen. A
-/// tab out of sight keeps its views, so its clocks wait a day instead.
+/// The clocks on a tab tick once a second while it is the selected tab. A
+/// TabView keeps the other tabs' views, so their clocks wait a day instead.
+/// The selection decides, not onAppear: on iOS 27 a sheet's appear and
+/// disappear left a visible list marked as hidden.
 enum Ticking {
     static func schedule(_ onScreen: Bool) -> PeriodicTimelineSchedule {
         .periodic(from: .now, by: onScreen ? 1 : 86_400)
-    }
-}
-
-extension View {
-    func tickingWhileOnScreen(_ onScreen: Binding<Bool>) -> some View {
-        onAppear { onScreen.wrappedValue = true }
-            .onDisappear { onScreen.wrappedValue = false }
     }
 }
 

@@ -411,6 +411,19 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForChange(leave, from: first), "the clock did not tick: \(first)")
     }
 
+    func testClocksKeepTickingAfterASheetIsCancelled() {
+        let app = launch(tab: "Countdowns")
+        let home = countdown(app, "Home")
+        XCTAssertTrue(home.waitForExistence(timeout: 10))
+        app.buttons["add-countdown"].tap()
+        let cancel = app.buttons["Cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        cancel.tap()
+        XCTAssertTrue(waitForGone(cancel))
+        let first = home.label
+        XCTAssertTrue(waitForChange(home, from: first), "the clock did not tick: \(first)")
+    }
+
     func testEditingACountdownKeepsItsZone() {
         let app = launch(tab: "Countdowns")
         let home = countdown(app, "Home")
