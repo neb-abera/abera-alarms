@@ -8,7 +8,7 @@ struct RoutinesView: View {
     @State private var adding = false
     @State private var editing: Routine?
     @State private var settings = false
-    @State private var onScreen = false
+    var onScreen = true
 
     var body: some View {
         NavigationStack {
@@ -49,7 +49,6 @@ struct RoutinesView: View {
                 }
             }
             .navigationTitle("Alarms")
-            .tickingWhileOnScreen($onScreen)
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
