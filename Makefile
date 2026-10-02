@@ -8,7 +8,7 @@ RUN := docker run --rm --user $(HOST_UID):$(HOST_GID) -e HOME=/tmp -v $(CURDIR):
 .PHONY: image test coverage format lint gates check prose clean
 
 # The lowest line coverage AlarmCore may report. Raise it when the number clears it.
-COVERAGE_FLOOR := 95
+COVERAGE_FLOOR := 96
 
 image:
 	docker build --target toolchain -t $(IMAGE) .

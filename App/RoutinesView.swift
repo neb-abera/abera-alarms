@@ -8,6 +8,7 @@ struct RoutinesView: View {
     @State private var adding = false
     @State private var editing: Routine?
     @State private var settings = false
+    var onScreen = true
 
     var body: some View {
         NavigationStack {
@@ -37,7 +38,7 @@ struct RoutinesView: View {
                         .accessibilityIdentifier("no-routines")
                 }
                 ForEach(model.routines) { routine in
-                    RoutineRow(model: model, routine: routine)
+                    RoutineRow(model: model, routine: routine, ticking: onScreen)
                         .contentShape(Rectangle())
                         .onTapGesture { editing = routine }
                         .swipeActions {
@@ -83,6 +84,7 @@ struct RoutinesView: View {
 struct RoutineRow: View {
     @Bindable var model: AppModel
     let routine: Routine
+    var ticking = true
 
     var body: some View {
         HStack {
@@ -91,6 +93,15 @@ struct RoutineRow: View {
                     .font(.system(size: 44, weight: .light).monospacedDigit())
                 Text("\(routine.label), \(routine.daysText)")
                     .font(.subheadline)
+                if routine.enabled {
+                    TimelineView(Ticking.schedule(ticking)) { context in
+                        if let clock = RingClock.text(for: routine, at: context.date) {
+                            Text(clock)
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("routine-\(routine.label)")
