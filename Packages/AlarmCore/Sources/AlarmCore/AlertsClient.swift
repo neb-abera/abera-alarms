@@ -34,10 +34,13 @@ public struct AlertsClient: Sendable {
 
     public let pairing: Pairing
     let transport: any HTTPTransport
+    /// The phone's zone. abera.tech plans the routine rings in it.
+    let timeZone: TimeZone
 
-    public init(pairing: Pairing, transport: any HTTPTransport) {
+    public init(pairing: Pairing, transport: any HTTPTransport, timeZone: TimeZone = .current) {
         self.pairing = pairing
         self.transport = transport
+        self.timeZone = timeZone
     }
 
     public func status() async throws(APIError) -> AlertsState {
@@ -138,6 +141,7 @@ public struct AlertsClient: Sendable {
         request.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
         request.setValue("Bearer \(pairing.token)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue(timeZone.identifier, forHTTPHeaderField: "X-Time-Zone")
         if let body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try? ServerDates.encoder().encode(body)

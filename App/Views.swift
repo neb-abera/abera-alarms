@@ -230,7 +230,7 @@ struct EventRow: View {
 
     private var status: String {
         if alert.acknowledged {
-            return alert.acknowledgedVia == "browser" ? "Acknowledged in a browser" : "Acknowledged on a phone"
+            return Acknowledgement.text(via: alert.acknowledgedVia)
         }
         if alert.skipped { return "Skipped" }
         if alert.muted { return "Muted" }

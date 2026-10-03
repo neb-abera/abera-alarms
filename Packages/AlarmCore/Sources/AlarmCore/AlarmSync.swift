@@ -13,6 +13,8 @@ public struct SyncReport: Equatable, Sendable {
     public var refused: [String]
     /// Routine changes made on the phone that abera.tech has not taken yet.
     public var waitingRoutineChanges: Int = 0
+    /// Ringing alarms silenced because they were acknowledged elsewhere.
+    public var stopped: Int = 0
 }
 
 /// The one path from the server's state to the phone's alarms. The app's
@@ -28,19 +30,28 @@ public actor AlarmSync {
     let alarms: any AlarmScheduling
     let documents: any DocumentStore
     let now: @Sendable () -> Date
+    /// The phone's calendar and zone. Routines ring in it, and every request
+    /// names its zone.
+    let calendar: Calendar
 
     public init(
         credentials: any CredentialStore,
         transport: any HTTPTransport,
         alarms: any AlarmScheduling,
         documents: any DocumentStore,
-        now: @escaping @Sendable () -> Date = Date.init
+        now: @escaping @Sendable () -> Date = Date.init,
+        calendar: Calendar = .current
     ) {
         self.credentials = credentials
         self.transport = transport
         self.alarms = alarms
         self.documents = documents
         self.now = now
+        self.calendar = calendar
+    }
+
+    private func makeClient(_ pairing: Pairing) -> AlertsClient {
+        AlertsClient(pairing: pairing, transport: transport, timeZone: calendar.timeZone)
     }
 
     // MARK: Pairing
@@ -51,7 +62,7 @@ public actor AlarmSync {
 
     /// Stores the pairing only once the server has accepted the token.
     public func pair(_ pairing: Pairing) async -> SyncReport {
-        let client = AlertsClient(pairing: pairing, transport: transport)
+        let client = makeClient(pairing)
         do {
             let state = try await client.status()
             try await credentials.save(pairing)
@@ -70,7 +81,7 @@ public actor AlarmSync {
         guard PushToken.isValid(token) else { return .badResponse }
         guard let pairing = await pairing() else { return .unpaired }
         do {
-            try await AlertsClient(pairing: pairing, transport: transport)
+            try await makeClient(pairing)
                 .registerPush(token: token, environment: environment)
             return nil
         } catch {
@@ -83,7 +94,7 @@ public actor AlarmSync {
         if let pairing = await pairing() {
             // Best effort: a phone with no signal still unpairs. Revoking the
             // phone on the page drops its push token as well.
-            try? await AlertsClient(pairing: pairing, transport: transport).unregisterPush()
+            try? await makeClient(pairing).unregisterPush()
         }
         try? await credentials.remove()
         try? await documents.remove(Self.pendingName)
@@ -100,7 +111,7 @@ public actor AlarmSync {
     /// that is the point of holding them on the phone.
     public func sync() async -> SyncReport {
         guard let pairing = await pairing() else { return report(error: .unpaired, state: nil) }
-        let client = AlertsClient(pairing: pairing, transport: transport)
+        let client = makeClient(pairing)
 
         var latest: AlertsState?
         for key in await pending() {
@@ -160,12 +171,28 @@ public actor AlarmSync {
         return await sync()
     }
 
+    /// The Stop button on a ringing routine alarm. The ring stopped is the
+    /// routine's latest scheduled ring within the stop window, snoozes
+    /// included. It is acknowledged on abera.tech as any alarm is, and the
+    /// routine stays set for its next time.
+    public func acknowledgeRoutine(id: UUID) async -> SyncReport {
+        let state = await lastState()
+        // The schedule the alarm system holds is the one that rang.
+        let schedule = await loadLedger()[id]?.routine ?? state?.routines.first { $0.id == id }?.schedule
+        let window = TimeInterval((state?.stopAfterMinutes ?? AlertsState.defaultStopAfterMinutes) * 60)
+        guard let schedule,
+            let key = RoutineRing.key(
+                routineID: id, schedule: schedule, stoppedAt: now(), window: window, calendar: calendar)
+        else { return await sync() }
+        return await acknowledge(key: key)
+    }
+
     /// Skip, unskip, mute and unmute: the server stores it, then the phone
     /// matches what the server answered.
     public func perform(_ action: @Sendable (AlertsClient) async throws(APIError) -> AlertsState) async -> SyncReport {
         guard let pairing = await pairing() else { return report(error: .unpaired, state: nil) }
         do {
-            return await apply(try await action(AlertsClient(pairing: pairing, transport: transport)))
+            return await apply(try await action(makeClient(pairing)))
         } catch .unpaired {
             return await unpaired()
         } catch {
@@ -263,23 +290,38 @@ public actor AlarmSync {
         do {
             system = try await alarms.scheduledIDs()
         } catch {
-            let desired = Reconciler.desired(from: state, now: at, acknowledgedHere: Set(await pending()))
+            let desired = Reconciler.desired(
+                from: state, now: at, acknowledgedHere: Set(await pending()), calendar: calendar)
             return report(error: nil, state: state, refused: desired.map(\.key))
         }
 
         await noteRungOnce(ledger: ledger, system: system, at: at)
         let off = Set(await pendingOff())
-        let desired = Reconciler.desired(from: state, now: at, acknowledgedHere: Set(await pending()))
-            .filter { !off.contains($0.id) }
+        let desired = Reconciler.desired(
+            from: state, now: at, acknowledgedHere: Set(await pending()), calendar: calendar
+        )
+        .filter { !off.contains($0.id) }
 
         let changes = Reconciler.changes(desired: desired, ledger: ledger, system: system)
         var held = ledger.filter { system.contains($0.key) }
+        // A phone that cannot say what is ringing stops nothing.
+        var ringing = (try? await alarms.ringingIDs()) ?? []
         var cancelled = 0
         for id in changes.cancel {
-            if (try? await alarms.cancel(id)) != nil {
+            // Stop first: AlarmKit documents cancel as removing the alarm,
+            // and says nothing of one that is ringing.
+            var silenced = false
+            if ringing.remove(id) != nil { silenced = (try? await alarms.stop(id)) != nil }
+            if (try? await alarms.cancel(id)) != nil || silenced {
                 held[id] = nil
                 cancelled += 1
             }
+        }
+        // A one-time routine stopped here is gone from the system. The next
+        // sync switches it off as one that rang.
+        var stopped = 0
+        for id in Self.acknowledgedElsewhere(state, ringing: ringing, ledger: held, at: at, calendar: calendar) {
+            if (try? await alarms.stop(id)) != nil { stopped += 1 }
         }
         var refused: [String] = []
         var scheduled = 0
@@ -304,7 +346,25 @@ public actor AlarmSync {
             at: at, state: state, scheduled: scheduled, cancelled: cancelled,
             held: held.values.sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) },
             waitingAcknowledgements: await pending().count, error: nil, refused: refused,
-            waitingRoutineChanges: await routineChanges().count)
+            waitingRoutineChanges: await routineChanges().count, stopped: stopped)
+    }
+
+    /// The ringing routine alarms whose current ring abera.tech lists as
+    /// acknowledged: in a browser, in Pushover, or on another phone.
+    static func acknowledgedElsewhere(
+        _ state: AlertsState, ringing: Set<UUID>, ledger: [UUID: DesiredAlarm], at: Date, calendar: Calendar
+    ) -> [UUID] {
+        let acknowledged = Set(state.routineRings.filter(\.acknowledged).map(\.key))
+        guard !acknowledged.isEmpty else { return [] }
+        let window = TimeInterval(state.stopAfterMinutes * 60)
+        return ringing.sorted { $0.uuidString < $1.uuidString }.filter { id in
+            guard
+                let schedule = ledger[id]?.routine ?? state.routines.first(where: { $0.id == id })?.schedule,
+                let key = RoutineRing.key(
+                    routineID: id, schedule: schedule, stoppedAt: at, window: window, calendar: calendar)
+            else { return false }
+            return acknowledged.contains(key)
+        }
     }
 
     private func unpaired() async -> SyncReport {
