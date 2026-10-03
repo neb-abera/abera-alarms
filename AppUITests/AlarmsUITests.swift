@@ -221,15 +221,25 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["pair"].waitForExistence(timeout: 5))
     }
 
+    /// Asks again every half second until `holds` is true or `timeout` runs
+    /// out. A predicate expectation is not used: on the Xcode 27 runner on
+    /// 2026-10-03 one read the calculator total once in 14 s and failed,
+    /// and the label it never read again was right.
+    private func poll(_ timeout: TimeInterval, _ holds: () -> Bool) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !holds() {
+            if Date() >= deadline { return false }
+            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        }
+        return true
+    }
+
     private func waitForGone(_ element: XCUIElement) -> Bool {
-        let predicate = NSPredicate(format: "exists == false")
-        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
+        poll(5) { !element.exists }
     }
 
     private func waitFor(_ element: XCUIElement, labelContaining text: String, timeout: TimeInterval = 5) -> Bool {
-        let predicate = NSPredicate(format: "label CONTAINS %@", text)
-        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout)
-            == .completed
+        poll(timeout) { element.exists && element.label.contains(text) }
     }
 
     // MARK: Edit and delete events
@@ -383,9 +393,7 @@ final class AlarmsUITests: XCTestCase {
 
     /// True once the element's label is no longer `old`.
     private func waitForChange(_ element: XCUIElement, from old: String, timeout: TimeInterval = 5) -> Bool {
-        let predicate = NSPredicate(format: "label != %@", old)
-        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: timeout)
-            == .completed
+        poll(timeout) { element.exists && element.label != old }
     }
 
     func testAPassedCountdownSaysSoAndAFutureOneShowsItsZone() {
@@ -545,7 +553,8 @@ final class AlarmsUITests: XCTestCase {
         let start = app.textFields["calc-start"]
         XCTAssertTrue(start.waitForExistence(timeout: 10))
         replace(start, with: "2026-12-25", in: app)
-        replace(app.textFields["calc-end"], with: "2026-10-01", in: app)
+        // Return closes the keyboard, so the result rows are on screen.
+        replace(app.textFields["calc-end"], with: "2026-10-01\n", in: app)
         let total = result(app, "calc-total")
         XCTAssertTrue(waitFor(total, labelContaining: "85 days before the start", timeout: 15), total.label)
         XCTAssertTrue(result(app, "calc-ymd").label.contains("0 years, 2 months, 24 days"))
@@ -587,7 +596,6 @@ final class AlarmsUITests: XCTestCase {
     }
 
     private func waitFor(_ element: XCUIElement, value: String) -> Bool {
-        let predicate = NSPredicate(format: "value == %@", value)
-        return XCTWaiter.wait(for: [expectation(for: predicate, evaluatedWith: element)], timeout: 5) == .completed
+        poll(5) { element.exists && element.value as? String == value }
     }
 }
