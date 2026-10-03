@@ -13,7 +13,9 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 - abera.tech reads the calendar and decides what rings and when. The phone schedules an alarm for every alert whose type is alarm and that is not skipped, muted or acknowledged, up to the server's look-ahead (48 hours by default).
 - An alarm already on the phone rings offline. Only changes need a connection: a new event, a moved event, a skip, a mute.
 - Stop on a ringing alarm acknowledges it on abera.tech, which stops the Pushover repeats for the same alert. With no signal the acknowledgement waits on the phone and goes on the next sync.
-- An alert acknowledged in a browser or skipped on abera.tech is removed from the phone on its next sync.
+- Stop on a ringing routine alarm acknowledges that ring on abera.tech too. The ring is the routine's latest time within the stop window set on abera.tech, so a snoozed ring keeps its time. A repeating routine stays set for its next day.
+- An alert acknowledged in a browser or in Pushover, or skipped on abera.tech, is removed from the phone on its next sync. If it is ringing or snoozed, it stops. A routine ring acknowledged elsewhere stops ringing and the routine stays set.
+- Every request names the phone's time zone in an `X-Time-Zone` header. abera.tech plans the routine rings in that zone.
 - Tap the icon beside any event to choose Ring until stopped, Ring once or Off, for every occurrence. Ring until stopped is a phone alarm and repeating Pushover sounds. Ring once is one Pushover sound. abera.tech writes Ring until stopped back to Google Calendar as #critical in the event's description.
 - The + button on the Calendar tab, New calendar event, needs only a time. The title is optional and defaults to "Alarm", and the alarm rings at that time until stopped. Advanced holds the type, how long before the start it rings, the event's length in the calendar and a location. abera.tech adds the event to Google Calendar, and the alarm is set on the phone at once.
 - The list is grouped by day. It shows the alarms, or every event.

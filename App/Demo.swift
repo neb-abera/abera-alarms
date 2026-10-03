@@ -5,7 +5,7 @@
     /// The app with abera.tech and AlarmKit in memory, for the UI tests and
     /// for trying the screens in the simulator. Debug builds only.
     ///
-    /// `-demo` starts paired with four events, two routines and two
+    /// `-demo` starts paired with six events, two routines and two
     /// countdowns, one passed. `-demo-unpaired` starts on
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
     enum Demo {
@@ -44,6 +44,9 @@
                     PlannedAlert(
                         key: "brief", title: "Commander's brief", startsAt: at(190), alertAt: at(180),
                         acknowledged: true, acknowledgedAt: now, acknowledgedVia: "browser"),
+                    PlannedAlert(
+                        key: "formation", title: "Formation", startsAt: at(250), alertAt: at(240),
+                        acknowledged: true, acknowledgedAt: now, acknowledgedVia: "pushover"),
                     PlannedAlert(
                         key: "pt|1", title: "PT test", location: "Track", startsAt: at(300), alertAt: at(290),
                         recurring: true, endsAt: at(360)),

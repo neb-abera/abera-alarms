@@ -41,6 +41,16 @@ actor ScriptedTransport: HTTPTransport {
         #expect(request.url?.query == nil)
     }
 
+    @Test func namesThePhonesZoneOnEveryRequest() async throws {
+        let transport = ScriptedTransport(body: okBody)
+        let amman = TimeZone(identifier: "Asia/Amman")!
+        _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport, timeZone: amman).status()
+        #expect(try #require(await transport.last).value(forHTTPHeaderField: "X-Time-Zone") == "Asia/Amman")
+        _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport).acknowledge(key: "uid|2026")
+        #expect(
+            try #require(await transport.last).value(forHTTPHeaderField: "X-Time-Zone") == TimeZone.current.identifier)
+    }
+
     @Test func acknowledgesInTheBodyNeverTheAddress() async throws {
         let transport = ScriptedTransport(body: okBody)
         _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport).acknowledge(key: "uid|2026")

@@ -162,6 +162,13 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(brief.label.contains("Acknowledged in a browser"))
     }
 
+    func testAnAlarmAcknowledgedInPushoverSaysSo() {
+        let app = launch()
+        let formation = row(app, "formation")
+        XCTAssertTrue(formation.waitForExistence(timeout: 10))
+        XCTAssertTrue(formation.label.contains("Acknowledged in Pushover"), formation.label)
+    }
+
     // MARK: Skip
 
     func testSkipAndUnskip() {

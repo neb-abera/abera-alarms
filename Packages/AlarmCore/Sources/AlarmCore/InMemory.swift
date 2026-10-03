@@ -34,17 +34,50 @@ public actor MemoryAlarms: AlarmScheduling {
     public private(set) var alarms: [UUID: DesiredAlarm] = [:]
     /// Keys the system refuses, as a full alarm list would.
     var refusing: Set<String> = []
+    /// Alarms ringing or snoozed now.
+    var ringing: Set<UUID> = []
+    /// Every stop, in order.
+    public private(set) var stops: [UUID] = []
+    var ringingUnreadable = false
+    var systemUnreadable = false
 
     public init() {}
 
-    public func scheduledIDs() -> Set<UUID> { Set(alarms.keys) }
+    public func scheduledIDs() throws -> Set<UUID> {
+        if systemUnreadable { throw AlarmSystemError() }
+        return Set(alarms.keys)
+    }
 
     public func schedule(_ alarm: DesiredAlarm) throws {
         if refusing.contains(alarm.key) { throw AlarmSystemError() }
         alarms[alarm.id] = alarm
     }
 
-    public func cancel(_ id: UUID) { alarms[id] = nil }
+    public func cancel(_ id: UUID) {
+        alarms[id] = nil
+        ringing.remove(id)
+    }
+
+    public func ringingIDs() throws -> Set<UUID> {
+        if ringingUnreadable { throw AlarmSystemError() }
+        return ringing.intersection(alarms.keys)
+    }
+
+    /// As AlarmKit's stop: a repeating routine stays set, anything else goes.
+    public func stop(_ id: UUID) throws {
+        guard alarms[id] != nil else { throw AlarmSystemError() }
+        stops.append(id)
+        ringing.remove(id)
+        if alarms[id]?.routine?.days.isEmpty != false { alarms[id] = nil }
+    }
+
+    /// The alarm's time came: it rings until stopped or snoozed.
+    public func startRinging(_ id: UUID) { ringing.insert(id) }
+
+    public func failRingingReads() { ringingUnreadable = true }
+
+    /// The alarm system cannot be read, as when the owner has not allowed alarms.
+    public func failSystemReads() { systemUnreadable = true }
 
     /// The alarm went off and the owner stopped it: the system drops it.
     public func ring(_ id: UUID) { alarms[id] = nil }
@@ -59,6 +92,8 @@ public actor FakeAlertsServer: HTTPTransport {
     public var offline = false
     public private(set) var requests: [String] = []
     public private(set) var acknowledgements: [String] = []
+    /// The X-Time-Zone of every request.
+    public private(set) var timeZones: [String] = []
     public private(set) var typeChanges: [String] = []
     public private(set) var routineUpdates: [Routine] = []
     public private(set) var edits: [EventEdit] = []
@@ -132,6 +167,7 @@ public actor FakeAlertsServer: HTTPTransport {
         let path = request.url?.path ?? ""
         let method = request.httpMethod ?? "GET"
         requests.append("\(method) \(path)")
+        timeZones.append(request.value(forHTTPHeaderField: "X-Time-Zone") ?? "")
 
         guard request.value(forHTTPHeaderField: "Authorization") == "Bearer \(token)", !token.isEmpty else {
             return respond(request, 401, Data())
@@ -144,6 +180,14 @@ public actor FakeAlertsServer: HTTPTransport {
         switch (method, path) {
         case ("GET", "/api/alerts/status"):
             break
+        case ("POST", "/api/alerts/ack") where key.hasPrefix(DesiredAlarm.routinePrefix):
+            guard let index = state.routineRings.firstIndex(where: { $0.key == key }) else {
+                return respond(request, 404, Data())
+            }
+            state.routineRings[index].acknowledged = true
+            state.routineRings[index].acknowledgedAt = Date()
+            state.routineRings[index].acknowledgedVia = body["via"]
+            acknowledgements.append(key)
         case ("POST", "/api/alerts/ack"):
             guard let index = listed else { return respond(request, 404, Data()) }
             state.alerts[index].acknowledged = true
