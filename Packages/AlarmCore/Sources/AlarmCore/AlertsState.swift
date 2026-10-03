@@ -23,6 +23,15 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var countdowns: [Countdown]
     /// The sound and snooze every alarm on the phone uses.
     public var phone: PhoneSettings
+    /// The routine rings abera.tech planned, each acknowledged or not. An
+    /// older server sends none.
+    public var routineRings: [RoutineRing]
+    /// How long an alarm rings before it gives up, the owner's setting. A
+    /// routine ring stopped later than this after its time names no ring.
+    public var stopAfterMinutes: Int
+
+    /// abera.tech's own default.
+    public static let defaultStopAfterMinutes = 180
 
     public init(
         configured: Bool = true,
@@ -35,7 +44,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
         alerts: [PlannedAlert] = [],
         routines: [Routine] = [],
         countdowns: [Countdown] = [],
-        phone: PhoneSettings = PhoneSettings()
+        phone: PhoneSettings = PhoneSettings(),
+        routineRings: [RoutineRing] = [],
+        stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -48,11 +59,17 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.routines = routines
         self.countdowns = countdowns
         self.phone = phone
+        self.routineRings = routineRings
+        self.stopAfterMinutes = stopAfterMinutes
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
-            routines, countdowns, phone, settings
+            routines, countdowns, phone, settings, routineRings, stopAfterMinutes
+    }
+
+    private struct ServerSettings: Decodable {
+        var stopAfterMinutes: Int?
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -68,6 +85,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encode(routines, forKey: .routines)
         try container.encode(countdowns, forKey: .countdowns)
         try container.encode(phone, forKey: .phone)
+        try container.encode(routineRings, forKey: .routineRings)
+        try container.encode(stopAfterMinutes, forKey: .stopAfterMinutes)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -89,6 +108,12 @@ public struct AlertsState: Codable, Equatable, Sendable {
         } else {
             phone = try container.decodeIfPresent(PhoneSettings.self, forKey: .settings) ?? PhoneSettings()
         }
+        routineRings = try container.decodeIfPresent([RoutineRing].self, forKey: .routineRings) ?? []
+        // The server sends the stop window inside `settings` too.
+        let stop =
+            try container.decodeIfPresent(Int.self, forKey: .stopAfterMinutes)
+            ?? container.decodeIfPresent(ServerSettings.self, forKey: .settings)?.stopAfterMinutes
+        stopAfterMinutes = stop.map { max(1, $0) } ?? Self.defaultStopAfterMinutes
     }
 }
 
@@ -114,7 +139,7 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
     public var endsAt: Date?
     public var acknowledged: Bool
     public var acknowledgedAt: Date?
-    /// "phone" or "browser".
+    /// "phone", "browser" or "pushover".
     public var acknowledgedVia: String?
 
     public var id: String { key }
@@ -177,6 +202,17 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
         acknowledged = try container.decodeIfPresent(Bool.self, forKey: .acknowledged) ?? false
         acknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .acknowledgedAt)
         acknowledgedVia = try container.decodeIfPresent(String.self, forKey: .acknowledgedVia)
+    }
+}
+
+/// Where an alarm was acknowledged, as the screen says it.
+public enum Acknowledgement {
+    public static func text(via: String?) -> String {
+        switch via {
+        case "browser": "Acknowledged in a browser"
+        case "pushover": "Acknowledged in Pushover"
+        default: "Acknowledged on a phone"
+        }
     }
 }
 

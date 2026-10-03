@@ -62,7 +62,7 @@ struct AlarmKitScheduler: AlarmScheduling {
             countdownDuration: .init(preAlert: nil, postAlert: TimeInterval(routine.snoozeMinutes * 60)),
             schedule: schedule,
             attributes: attributes,
-            stopIntent: nil,
+            stopIntent: AcknowledgeRoutineIntent(routineID: alarm.id.uuidString),
             secondaryIntent: nil,
             sound: Self.sound(alarm.sound))
         _ = try await AlarmManager.shared.schedule(id: alarm.id, configuration: configuration)
@@ -84,6 +84,23 @@ struct AlarmKitScheduler: AlarmScheduling {
 
     func cancel(_ id: UUID) async throws {
         try AlarmManager.shared.cancel(id: id)
+    }
+
+    func ringingIDs() async throws -> Set<UUID> {
+        Set(
+            try AlarmManager.shared.alarms.filter { alarm in
+                switch alarm.state {
+                case .alerting, .countdown, .paused: true
+                case .scheduled: false
+                @unknown default: false
+                }
+            }
+            .map(\.id))
+    }
+
+    /// A repeating alarm is set again for its next time. A one-time alarm is removed.
+    func stop(_ id: UUID) async throws {
+        try AlarmManager.shared.stop(id: id)
     }
 }
 
@@ -125,6 +142,30 @@ struct AcknowledgeAlarmIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         _ = await Dependencies.shared.sync.acknowledge(key: key)
+        return .result()
+    }
+}
+
+/// The Stop button on a ringing routine alarm. The ring stopped is worked
+/// out in AlarmCore from the routine and the time, and acknowledged on
+/// abera.tech so the browser and Pushover stop too.
+struct AcknowledgeRoutineIntent: LiveActivityIntent {
+    static let title: LocalizedStringResource = "Acknowledge routine alarm"
+    static let isDiscoverable = false
+
+    @Parameter(title: "Routine")
+    var routineID: String
+
+    init() {}
+
+    init(routineID: String) {
+        self.routineID = routineID
+    }
+
+    func perform() async throws -> some IntentResult {
+        if let id = UUID(uuidString: routineID) {
+            _ = await Dependencies.shared.sync.acknowledgeRoutine(id: id)
+        }
         return .result()
     }
 }

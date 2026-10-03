@@ -14,7 +14,15 @@ public protocol AlarmScheduling: Sendable {
     /// The ids of the alarms the system holds for this app.
     func scheduledIDs() async throws -> Set<UUID>
     func schedule(_ alarm: DesiredAlarm) async throws
+    /// Removes the alarm, a repeating one included. AlarmKit does not say
+    /// whether this silences an alarm that is ringing, so the sync stops a
+    /// ringing alarm before it cancels it.
     func cancel(_ id: UUID) async throws
+    /// The ids of the alarms ringing now or counting down a snooze.
+    func ringingIDs() async throws -> Set<UUID>
+    /// Silences a ringing or snoozed alarm. A repeating alarm stays set for
+    /// its next time. A one-time alarm is removed.
+    func stop(_ id: UUID) async throws
 }
 
 /// Small documents that must survive a restart: the ledger and the
