@@ -1,7 +1,7 @@
 # The Linux toolchain for AlarmCore: the package's logic, tests and format
 # check run here, in the same image in CI and on the dev box. The app itself
 # needs Xcode and builds on the macOS runner (.github/workflows/ci.yml).
-FROM swift:6.4.0-resolute@sha256:bb6e5d5f2a97bc07cf8022c1a3e062f8164b8fd078698327ce2ab097e02a91dc AS toolchain
+FROM swift:6.4.0-resolute@sha256:4601bf61dab9485a3e93087770b72d268737e945a5b000e2286b6cc48bb048b6 AS toolchain
 
 WORKDIR /src
 
