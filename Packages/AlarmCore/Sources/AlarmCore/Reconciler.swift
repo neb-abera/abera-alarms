@@ -22,10 +22,18 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
     public var sound: String
     /// Snooze minutes for a calendar alarm. A routine carries its own.
     public var snoozeMinutes: Int?
+    /// How the app set the alarm up in the alarm system, such as what its
+    /// Stop button does. An alarm held with an older setup is scheduled again.
+    public var setup: Int
+
+    /// 1: routine alarms had no Stop acknowledgement (build 16 and before).
+    /// 2: Stop on a routine alarm acknowledges its ring on abera.tech.
+    public static let currentSetup = 2
 
     public init(
         id: UUID, key: String, title: String, location: String?, fireAt: Date, startsAt: Date,
-        routine: RoutineSchedule? = nil, sound: String = "default", snoozeMinutes: Int? = nil
+        routine: RoutineSchedule? = nil, sound: String = "default", snoozeMinutes: Int? = nil,
+        setup: Int = DesiredAlarm.currentSetup
     ) {
         self.id = id
         self.key = key
@@ -36,13 +44,15 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
         self.routine = routine
         self.sound = sound
         self.snoozeMinutes = snoozeMinutes
+        self.setup = setup
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, key, title, location, fireAt, startsAt, routine, sound, snoozeMinutes
+        case id, key, title, location, fireAt, startsAt, routine, sound, snoozeMinutes, setup
     }
 
     /// A ledger from an older build has no sound. It reads as "default".
+    /// It has no setup either, and reads as setup 1.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(UUID.self, forKey: .id)
@@ -54,6 +64,7 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
         routine = try container.decodeIfPresent(RoutineSchedule.self, forKey: .routine)
         sound = try container.decodeIfPresent(String.self, forKey: .sound) ?? "default"
         snoozeMinutes = try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes)
+        setup = try container.decodeIfPresent(Int.self, forKey: .setup) ?? 1
     }
 
     /// The same alarm to the alarm system. A routine's next fire time moves
@@ -62,6 +73,7 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
     func sameAlarm(as other: DesiredAlarm) -> Bool {
         guard let routine else { return self == other }
         return routine == other.routine && title == other.title && key == other.key && sound == other.sound
+            && setup == other.setup
     }
 
     public static let routinePrefix = "routine:"
