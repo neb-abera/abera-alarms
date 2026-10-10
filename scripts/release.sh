@@ -10,9 +10,9 @@
 #
 # Signing and upload use an App Store Connect API key with the Admin role
 # (cloud signing refuses App Manager), from the environment: ASC_KEY_ID,
-# ASC_ISSUER_ID and ASC_KEY_P8 (the
-# .p8 file's text). Xcode's cloud-managed signing makes the distribution
-# certificate and profile, so no certificate lives in this repository.
+# ASC_ISSUER_ID and ASC_KEY_P8 (the .p8 file's text). Xcode's cloud-managed
+# signing makes the distribution certificate and profile, so no certificate
+# lives in this repository.
 #
 # The version is the date, YYYY.M.D, as the repository's date scheme tags a
 # deploy. The build number is BUILD_NUMBER, else the CI run number, else the
