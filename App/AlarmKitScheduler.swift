@@ -4,6 +4,7 @@ import AlarmKit
 import AppIntents
 import Foundation
 import SwiftUI
+import UIKit
 
 /// The phone's alarm system: AlarmKit. An alarm scheduled here rings at its
 /// time through the silent switch and Focus, with or without a connection.
@@ -141,7 +142,10 @@ struct AcknowledgeAlarmIntent: LiveActivityIntent {
     }
 
     func perform() async throws -> some IntentResult {
-        _ = await Dependencies.shared.sync.acknowledge(key: key)
+        let key = key
+        await BackgroundTime.run("Acknowledge alarm") {
+            _ = await Dependencies.shared.sync.acknowledge(key: key)
+        }
         return .result()
     }
 }
@@ -164,8 +168,29 @@ struct AcknowledgeRoutineIntent: LiveActivityIntent {
 
     func perform() async throws -> some IntentResult {
         if let id = UUID(uuidString: routineID) {
-            _ = await Dependencies.shared.sync.acknowledgeRoutine(id: id)
+            await BackgroundTime.run("Acknowledge routine alarm") {
+                _ = await Dependencies.shared.sync.acknowledgeRoutine(id: id)
+            }
         }
         return .result()
+    }
+}
+
+/// Asks iOS for time to finish Stop's work before it suspends the app. The
+/// background upload covers what this time does not.
+@MainActor final class BackgroundTime {
+    private var id = UIBackgroundTaskIdentifier.invalid
+
+    static func run(_ name: String, _ work: @Sendable () async -> Void) async {
+        let time = BackgroundTime()
+        time.id = UIApplication.shared.beginBackgroundTask(withName: name) { time.end() }
+        await work()
+        time.end()
+    }
+
+    private func end() {
+        guard id != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(id)
+        id = .invalid
     }
 }

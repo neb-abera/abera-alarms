@@ -29,6 +29,8 @@ public actor AlarmSync {
     let transport: any HTTPTransport
     let alarms: any AlarmScheduling
     let documents: any DocumentStore
+    /// The system's own sender for a Stop, when the app has one.
+    let uploads: (any BackgroundUploading)?
     let now: @Sendable () -> Date
     /// The phone's calendar and zone. Routines ring in it, and every request
     /// names its zone.
@@ -39,6 +41,7 @@ public actor AlarmSync {
         transport: any HTTPTransport,
         alarms: any AlarmScheduling,
         documents: any DocumentStore,
+        uploads: (any BackgroundUploading)? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         calendar: Calendar = .current
     ) {
@@ -46,6 +49,7 @@ public actor AlarmSync {
         self.transport = transport
         self.alarms = alarms
         self.documents = documents
+        self.uploads = uploads
         self.now = now
         self.calendar = calendar
     }
@@ -166,9 +170,25 @@ public actor AlarmSync {
     /// The Stop button on a ringing alarm. The phone remembers the key
     /// before it tries the network, so an acknowledgement made with no
     /// signal is sent on the next sync and the alarm is not scheduled again.
+    /// It also hands the acknowledgement to the system, which sends it when
+    /// iOS suspends the app before this request ends.
     public func acknowledge(key: String) async -> SyncReport {
         await addPending(key)
+        if let uploads, await pending().contains(key), let pairing = await pairing() {
+            // A refusal leaves the foreground request and the next sync.
+            try? await uploads.upload(makeClient(pairing).acknowledgeRequest(key: key), label: key)
+        }
         return await sync()
+    }
+
+    /// The system finished an acknowledgement handed to it on Stop. `status`
+    /// is nil when it gave up. An answer that settles the key ends its wait,
+    /// so the next sync does not send it again. Anything else waits for it.
+    public func uploadFinished(label key: String, status: Int?) async {
+        switch status {
+        case 200, 201, 404: await removePending(key)
+        default: break
+        }
     }
 
     /// The Stop button on a ringing routine alarm. The ring stopped is the

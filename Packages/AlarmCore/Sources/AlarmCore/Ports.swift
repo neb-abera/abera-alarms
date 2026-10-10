@@ -9,6 +9,14 @@ public protocol HTTPTransport: Sendable {
     func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse)
 }
 
+/// Hands a request to the system to send. iOS sends it after the app is
+/// suspended or ended, and retries it. The app passes a background
+/// URLSession. Tests pass a fake.
+public protocol BackgroundUploading: Sendable {
+    /// `label` comes back with the result, to `AlarmSync.uploadFinished`.
+    func upload(_ request: URLRequest, label: String) async throws
+}
+
 /// The phone's alarm system. The app passes AlarmKit. Tests pass a fake.
 public protocol AlarmScheduling: Sendable {
     /// The ids of the alarms the system holds for this app.

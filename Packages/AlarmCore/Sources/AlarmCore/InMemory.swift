@@ -85,6 +85,40 @@ public actor MemoryAlarms: AlarmScheduling {
     public func refuse(_ key: String) { refusing.insert(key) }
 }
 
+/// The system's background uploads in memory. A request waits until
+/// `deliver` sends it, as iOS sends one after the app is suspended.
+public actor MemoryUploads: BackgroundUploading {
+    public struct Upload: Sendable {
+        public let label: String
+        public let request: URLRequest
+    }
+
+    public private(set) var waiting: [Upload] = []
+    var refusing = false
+
+    public init() {}
+
+    /// The system will not take an upload, as with no disk space.
+    public func refuse() { refusing = true }
+
+    public func upload(_ request: URLRequest, label: String) throws {
+        if refusing { throw URLError(.cannotCreateFile) }
+        waiting.append(Upload(label: label, request: request))
+    }
+
+    /// Sends every waiting upload. Each label comes back with the status,
+    /// nil when there was no connection, and the upload is done.
+    public func deliver(to server: any HTTPTransport) async -> [(label: String, status: Int?)] {
+        var results: [(label: String, status: Int?)] = []
+        for upload in waiting {
+            let status = try? await server.send(upload.request).1.statusCode
+            results.append((upload.label, status))
+        }
+        waiting = []
+        return results
+    }
+}
+
 /// abera.tech's alerts API in memory: the same routes, the same answers.
 public actor FakeAlertsServer: HTTPTransport {
     public var state: AlertsState

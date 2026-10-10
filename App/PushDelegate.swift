@@ -26,6 +26,17 @@ final class PushDelegate: NSObject, UIApplicationDelegate {
         // next launch asks again.
     }
 
+    /// iOS woke the app with the result of a Stop sent in the background.
+    func application(
+        _ application: UIApplication, handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        guard identifier == AcknowledgementUploads.identifier else { return completionHandler() }
+        AcknowledgementUploads.finishEvents = completionHandler
+        // Opening the session again is what delivers its events.
+        _ = AcknowledgementUploads.shared.session
+    }
+
     func application(
         _ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]
     ) async -> UIBackgroundFetchResult {
