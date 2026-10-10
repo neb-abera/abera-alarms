@@ -27,6 +27,16 @@ final class AlarmsUITests: XCTestCase {
         app.descendants(matching: .any)["alarm-\(key)"]
     }
 
+    /// One side of the Show picker, scrolled back into view. It is the
+    /// list's top row, and a list drops a row scrolled off screen. After
+    /// 17:20 UTC the demo's dinner falls on the next day, its section
+    /// pushes the row down, and tapping it scrolls the picker away.
+    private func show(_ side: String, in app: XCUIApplication) {
+        let button = app.segmentedControls.buttons[side]
+        for _ in 0..<5 where !button.exists { app.collectionViews.firstMatch.swipeDown() }
+        button.tap()
+    }
+
     // MARK: Pairing
 
     func testPairingWithAPastedLinkShowsTheAlarms() {
@@ -77,7 +87,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertFalse(row(app, "dinner").exists)
         XCTAssertTrue(app.staticTexts["1 notification(s) go through Pushover only."].exists)
 
-        app.segmentedControls.buttons["All events"].tap()
+        show("All events", in: app)
         XCTAssertTrue(row(app, "lunch").waitForExistence(timeout: 5))
         XCTAssertTrue(row(app, "dinner").exists)
     }
@@ -87,14 +97,14 @@ final class AlarmsUITests: XCTestCase {
     func testMakingAnEventAnAlarmSetsItOnThePhone() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
-        app.segmentedControls.buttons["All events"].tap()
+        show("All events", in: app)
         let type = app.buttons["type-dinner"]
         XCTAssertTrue(type.waitForExistence(timeout: 5))
         type.tap()
         app.buttons["Ring until stopped"].tap()
         XCTAssertTrue(waitFor(type, labelContaining: "Ring until stopped"))
 
-        app.segmentedControls.buttons["Alarms"].tap()
+        show("Alarms", in: app)
         let dinner = row(app, "dinner")
         XCTAssertTrue(dinner.waitForExistence(timeout: 5))
         XCTAssertTrue(waitFor(dinner, labelContaining: "Set on this phone"))
