@@ -48,7 +48,16 @@ public struct AlertsClient: Sendable {
     }
 
     public func acknowledge(key: String) async throws(APIError) -> AlertsState {
-        try await call("POST", "ack", body: ["key": key, "via": AcknowledgedVia.phone.rawValue])
+        try await call("POST", "ack", body: Self.acknowledgement(key))
+    }
+
+    /// The same acknowledgement as a request, for the system to send.
+    public func acknowledgeRequest(key: String) -> URLRequest {
+        request("POST", "ack", body: Self.acknowledgement(key))
+    }
+
+    static func acknowledgement(_ key: String) -> [String: String] {
+        ["key": key, "via": AcknowledgedVia.phone.rawValue]
     }
 
     public func skip(key: String) async throws(APIError) -> AlertsState {
