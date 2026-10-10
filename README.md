@@ -13,6 +13,7 @@ An iPhone app that rings the alarms [abera.tech/alerts](https://abera.tech/alert
 - abera.tech reads the calendar and decides what rings and when. The phone schedules an alarm for every alert whose type is alarm and that is not skipped, muted or acknowledged, up to the server's look-ahead (48 hours by default).
 - An alarm already on the phone rings offline. Only changes need a connection: a new event, a moved event, a skip, a mute.
 - Stop on a ringing alarm acknowledges it on abera.tech, which stops the Pushover repeats for the same alert. With no signal the acknowledgement waits on the phone and goes on the next sync.
+- Snooze never delays or stops the Pushover backup. Only Stop does. A snooze is a short delay, and the deadline does not move because of it. Neb decided this on 2026-10-10.
 - Stop on a ringing routine alarm acknowledges that ring on abera.tech too. The ring is the routine's latest time within the stop window set on abera.tech, so a snoozed ring keeps its time. A repeating routine stays set for its next day.
 - An alert acknowledged in a browser or in Pushover, or skipped on abera.tech, is removed from the phone on its next sync. If it is ringing or snoozed, it stops. A routine ring acknowledged elsewhere stops ringing and the routine stays set.
 - Every request names the phone's time zone in an `X-Time-Zone` header. abera.tech plans the routine rings in that zone.
