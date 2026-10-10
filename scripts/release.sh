@@ -8,8 +8,9 @@
 #   scripts/release.sh upload    export the signed archive and upload it to
 #                                App Store Connect, which hands it to TestFlight.
 #
-# Signing and upload use an App Store Connect API key with the App Manager
-# role, from the environment: ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8 (the
+# Signing and upload use an App Store Connect API key with the Admin role
+# (cloud signing refuses App Manager), from the environment: ASC_KEY_ID,
+# ASC_ISSUER_ID and ASC_KEY_P8 (the
 # .p8 file's text). Xcode's cloud-managed signing makes the distribution
 # certificate and profile, so no certificate lives in this repository.
 #
@@ -45,7 +46,11 @@ case "${1:-}" in
     rm -rf "$ARCHIVE"
     signing=(CODE_SIGNING_ALLOWED=NO)
     if [ ${#key_args[@]} -gt 0 ]; then
-      signing=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
+      # Apple Distribution, the cloud-managed certificate the upload uses.
+      # The default, Apple Development, made a new certificate on every
+      # fresh runner. On 2026-10-10 the account reached Apple's limit and
+      # the archive failed with "Choose a certificate to revoke".
+      signing=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution")
     fi
     echo "Archiving version $VERSION, build $BUILD"
     xcodebuild archive \
