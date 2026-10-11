@@ -46,11 +46,10 @@ case "${1:-}" in
     rm -rf "$ARCHIVE"
     signing=(CODE_SIGNING_ALLOWED=NO)
     if [ ${#key_args[@]} -gt 0 ]; then
-      # Apple Distribution, the cloud-managed certificate the upload uses.
-      # The default, Apple Development, made a new certificate on every
-      # fresh runner. On 2026-10-10 the account reached Apple's limit and
-      # the archive failed with "Choose a certificate to revoke".
-      signing=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution")
+      # Automatic signing archives for development, and the export re-signs
+      # with the cloud-managed distribution certificate. Apple Distribution
+      # here is refused as "conflicting provisioning settings" (2026-10-11).
+      signing=(DEVELOPMENT_TEAM="$TEAM" CODE_SIGN_STYLE=Automatic)
     fi
     echo "Archiving version $VERSION, build $BUILD"
     xcodebuild archive \
