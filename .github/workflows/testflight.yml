@@ -36,6 +36,20 @@ jobs:
           XCODE_VERSION: "26.6"
         run: scripts/select-xcode.sh
 
+      # Signing on a fresh runner makes a development certificate, and Apple
+      # caps how many an account holds. Revoke the ones runs left behind,
+      # then note which exist, so the step after the upload revokes the one
+      # this run made. scripts/asc-certificates.mjs says how it chooses.
+      - name: revoke development certificates earlier runs left
+        if: github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          node scripts/asc-certificates.mjs clean --older-than-hours 2
+          node scripts/asc-certificates.mjs snapshot "$RUNNER_TEMP/certificates.json"
+
       - name: archive the Release build (signed on main)
         env:
           ASC_KEY_ID: ${{ github.event_name != 'pull_request' && secrets.ASC_KEY_ID || '' }}
@@ -50,3 +64,15 @@ jobs:
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: scripts/release.sh upload
+
+      - name: revoke the development certificate this run made
+        if: always() && github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          # No snapshot: the step that takes it failed, and the job is red already.
+          if [ -f "$RUNNER_TEMP/certificates.json" ]; then
+            node scripts/asc-certificates.mjs clean --not-in "$RUNNER_TEMP/certificates.json"
+          fi
