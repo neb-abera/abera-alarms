@@ -54,6 +54,23 @@ public actor AlarmSync {
         self.calendar = calendar
     }
 
+    /// The operation running now. An actor lets a second call run while the
+    /// first waits on the network, so a sync that read the server before a
+    /// change finished after it and wrote the old state back: a routine
+    /// switched off showed on again and was set to ring (2026-10-11). Every
+    /// operation that reads or writes the phone's state waits its turn here.
+    private var running: Task<Void, Never>?
+
+    private func oneAtATime<T: Sendable>(_ work: @escaping @Sendable () async -> T) async -> T {
+        let previous = running
+        let task = Task {
+            await previous?.value
+            return await work()
+        }
+        running = Task { _ = await task.value }
+        return await task.value
+    }
+
     private func makeClient(_ pairing: Pairing) -> AlertsClient {
         AlertsClient(pairing: pairing, transport: transport, timeZone: calendar.timeZone)
     }
@@ -66,6 +83,10 @@ public actor AlarmSync {
 
     /// Stores the pairing only once the server has accepted the token.
     public func pair(_ pairing: Pairing) async -> SyncReport {
+        await oneAtATime { await self.pairNow(pairing) }
+    }
+
+    private func pairNow(_ pairing: Pairing) async -> SyncReport {
         let client = makeClient(pairing)
         do {
             let state = try await client.status()
@@ -95,6 +116,10 @@ public actor AlarmSync {
 
     /// Forgets the token and removes every alarm this app holds.
     public func unpair() async {
+        await oneAtATime { await self.unpairNow() }
+    }
+
+    private func unpairNow() async {
         if let pairing = await pairing() {
             // Best effort: a phone with no signal still unpairs. Revoking the
             // phone on the page drops its push token as well.
@@ -114,6 +139,10 @@ public actor AlarmSync {
     /// the phone's alarms match. Offline, the alarms already scheduled stay:
     /// that is the point of holding them on the phone.
     public func sync() async -> SyncReport {
+        await oneAtATime { await self.syncNow() }
+    }
+
+    private func syncNow() async -> SyncReport {
         guard let pairing = await pairing() else { return report(error: .unpaired, state: nil) }
         let client = makeClient(pairing)
 
@@ -173,18 +202,26 @@ public actor AlarmSync {
     /// It also hands the acknowledgement to the system, which sends it when
     /// iOS suspends the app before this request ends.
     public func acknowledge(key: String) async -> SyncReport {
+        await oneAtATime { await self.acknowledgeNow(key: key) }
+    }
+
+    private func acknowledgeNow(key: String) async -> SyncReport {
         await addPending(key)
         if let uploads, await pending().contains(key), let pairing = await pairing() {
             // A refusal leaves the foreground request and the next sync.
             try? await uploads.upload(makeClient(pairing).acknowledgeRequest(key: key), label: key)
         }
-        return await sync()
+        return await syncNow()
     }
 
     /// The system finished an acknowledgement handed to it on Stop. `status`
     /// is nil when it gave up. An answer that settles the key ends its wait,
     /// so the next sync does not send it again. Anything else waits for it.
     public func uploadFinished(label key: String, status: Int?) async {
+        await oneAtATime { await self.uploadFinishedNow(label: key, status: status) }
+    }
+
+    private func uploadFinishedNow(label key: String, status: Int?) async {
         switch status {
         case 200, 201, 404: await removePending(key)
         default: break
@@ -196,6 +233,10 @@ public actor AlarmSync {
     /// included. It is acknowledged on abera.tech as any alarm is, and the
     /// routine stays set for its next time.
     public func acknowledgeRoutine(id: UUID) async -> SyncReport {
+        await oneAtATime { await self.acknowledgeRoutineNow(id: id) }
+    }
+
+    private func acknowledgeRoutineNow(id: UUID) async -> SyncReport {
         let state = await lastState()
         // The schedule the alarm system holds is the one that rang.
         let schedule = await loadLedger()[id]?.routine ?? state?.routines.first { $0.id == id }?.schedule
@@ -203,13 +244,21 @@ public actor AlarmSync {
         guard let schedule,
             let key = RoutineRing.key(
                 routineID: id, schedule: schedule, stoppedAt: now(), window: window, calendar: calendar)
-        else { return await sync() }
-        return await acknowledge(key: key)
+        else { return await syncNow() }
+        return await acknowledgeNow(key: key)
     }
 
     /// Skip, unskip, mute and unmute: the server stores it, then the phone
     /// matches what the server answered.
-    public func perform(_ action: @Sendable (AlertsClient) async throws(APIError) -> AlertsState) async -> SyncReport {
+    public func perform(_ action: @escaping @Sendable (AlertsClient) async throws(APIError) -> AlertsState) async
+        -> SyncReport
+    {
+        await oneAtATime { await self.performNow(action) }
+    }
+
+    private func performNow(_ action: @Sendable (AlertsClient) async throws(APIError) -> AlertsState) async
+        -> SyncReport
+    {
         guard let pairing = await pairing() else { return report(error: .unpaired, state: nil) }
         do {
             return await apply(try await action(makeClient(pairing)))
@@ -243,10 +292,14 @@ public actor AlarmSync {
     /// it to its own copy and its alarms at once, offline too, then sends it.
     /// A change abera.tech has not taken yet waits, in order, for the next sync.
     public func changeRoutine(_ change: RoutineChange) async -> SyncReport {
+        await oneAtATime { await self.changeRoutineNow(change) }
+    }
+
+    private func changeRoutineNow(_ change: RoutineChange) async -> SyncReport {
         guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
         await saveRoutineChanges(RoutineChange.coalesce(await routineChanges() + [change]))
         _ = await apply(await lastServerState() ?? AlertsState(), keep: false)
-        return await sync()
+        return await syncNow()
     }
 
     public func routineChanges() async -> [RoutineChange] {
