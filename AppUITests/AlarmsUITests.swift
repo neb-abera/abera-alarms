@@ -388,12 +388,18 @@ final class AlarmsUITests: XCTestCase {
     }
 
     func testASwitchTappedOfflineStaysAndSaysItWaits() {
+        // The offline demo never reached abera.tech, so it starts with no routines.
         let app = launch("-demo-offline", tab: nil)
-        let toggle = app.switches["routine-switch-Wake"]
-        XCTAssertTrue(toggle.waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        let toggle = app.switches["routine-switch-Alarm"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(waitFor(toggle, value: "1"))
         toggle.switches.firstMatch.tap()
         XCTAssertTrue(waitFor(toggle, value: "0"))
-        let line = app.descendants(matching: .any)["routine-sync-Wake"].firstMatch
+        let line = app.descendants(matching: .any)["routine-sync-Alarm"].firstMatch
         XCTAssertTrue(waitFor(line, labelContaining: "Sends when online"), app.debugDescription)
         XCTAssertEqual(toggle.value as? String, "0")
     }
