@@ -29,8 +29,14 @@ final class AppModel {
     private(set) var eventError: String?
     private(set) var routineError: String?
 
-    /// The Clock-style alarms, as abera.tech holds them.
-    var routines: [Routine] { state?.routines ?? [] }
+    /// The Clock-style alarms, as abera.tech holds them, with the changes
+    /// tapped on this phone already in place.
+    var routines: [Routine] { sending.shown(state)?.routines ?? [] }
+
+    /// Changes on their way to abera.tech, and the mark under each row.
+    private(set) var sending = RoutineSending()
+
+    func syncStatus(_ routine: Routine) -> RoutineSyncStatus? { sending.status[routine.id] }
 
     /// The events still ahead: every one, or the alarms alone.
     var events: [PlannedAlert] {
@@ -178,9 +184,10 @@ final class AppModel {
     /// Routine changes waiting for a connection to reach abera.tech.
     private(set) var waitingRoutineChanges = 0
 
-    /// Adds a routine, or replaces the one with this id. It is set on the
-    /// phone at once, with or without a connection, and reaches abera.tech
-    /// when it can. False only when abera.tech refused it.
+    /// Adds a routine, or replaces the one with this id. The list shows it
+    /// at once, it is set on the phone with or without a connection, and it
+    /// reaches abera.tech when it can. False only when abera.tech refused it.
+    @discardableResult
     func saveRoutine(id: UUID?, _ draft: RoutineDraft) async -> Bool {
         let change: RoutineChange = id.map { .update(id: $0, draft: draft) } ?? .create(local: UUID(), draft: draft)
         return await changeRoutine(change)
@@ -198,8 +205,12 @@ final class AppModel {
 
     private func changeRoutine(_ change: RoutineChange) async -> Bool {
         routineError = nil
-        await run { await self.dependencies.sync.changeRoutine(change) }
-        switch report?.error {
+        sending.begin(change)
+        let result = await runReturning { await self.dependencies.sync.changeRoutine(change) }
+        let waiting = Set(await dependencies.sync.routineChanges().map(\.id))
+        sending.finish(change, error: result.error, waiting: waiting)
+        clearSavedSoon(change.id)
+        switch result.error {
         case .refused(let reason)?:
             routineError = reason
             return false
@@ -289,13 +300,32 @@ final class AppModel {
     }
 
     private func run(_ work: @escaping () async -> SyncReport) async {
+        _ = await runReturning(work)
+    }
+
+    /// The report of this run. `report` may already hold a later one.
+    private func runReturning(_ work: @escaping () async -> SyncReport) async -> SyncReport {
         busy = true
         let result = await work()
         report = result
         if let state = result.state { self.state = state }
         if result.error == .unpaired, await dependencies.sync.pairing() == nil { paired = false }
-        waitingRoutineChanges = await dependencies.sync.routineChanges().count
+        let waiting = await dependencies.sync.routineChanges().map(\.id)
+        waitingRoutineChanges = waiting.count
+        let before = sending.status
+        sending.settle(waiting: Set(waiting))
+        for (id, status) in sending.status where status == .saved && before[id] != .saved { clearSavedSoon(id) }
         busy = false
+        return result
+    }
+
+    /// A saved mark shows for 2 s.
+    private func clearSavedSoon(_ id: UUID) {
+        guard sending.status[id] == .saved else { return }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            sending.clearSaved(id)
+        }
     }
 
     static func describe(_ error: any Error) -> String {

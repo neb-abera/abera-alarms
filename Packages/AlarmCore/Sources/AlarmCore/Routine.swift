@@ -182,7 +182,8 @@ public enum RoutineChange: Codable, Equatable, Sendable {
     case update(id: UUID, draft: RoutineDraft)
     case delete(id: UUID)
 
-    var id: UUID {
+    /// The routine it changes: the phone's own id for one not yet sent.
+    public var id: UUID {
         switch self {
         case .create(let local, _): local
         case .update(let id, _), .delete(let id): id

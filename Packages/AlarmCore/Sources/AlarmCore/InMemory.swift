@@ -124,6 +124,8 @@ public actor FakeAlertsServer: HTTPTransport {
     public var state: AlertsState
     public var token: String
     public var offline = false
+    /// How long each request takes, as on a slow or failing connection.
+    public var latency: Duration = .zero
     public private(set) var requests: [String] = []
     public private(set) var acknowledgements: [String] = []
     /// The X-Time-Zone of every request.
@@ -140,13 +142,15 @@ public actor FakeAlertsServer: HTTPTransport {
     /// A 409 detail for new events, as when no calendar has edit access.
     public var createRefusal: String?
 
-    public init(state: AlertsState, token: String, offline: Bool = false) {
+    public init(state: AlertsState, token: String, offline: Bool = false, latency: Duration = .zero) {
         self.state = state
         self.token = token
         self.offline = offline
+        self.latency = latency
     }
 
     public func setOffline(_ offline: Bool) { self.offline = offline }
+    public func setLatency(_ latency: Duration) { self.latency = latency }
     public func setState(_ state: AlertsState) { self.state = state }
     public func revoke() { token = "" }
     public func failCalendarWrites(_ reason: String?) { calendarWriteFailure = reason }
@@ -196,7 +200,8 @@ public actor FakeAlertsServer: HTTPTransport {
         key.split(separator: "|", maxSplits: 1).first ?? Substring(key)
     }
 
-    public func send(_ request: URLRequest) throws -> (Data, HTTPURLResponse) {
+    public func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if latency > .zero { try? await Task.sleep(for: latency) }
         guard !offline else { throw URLError(.notConnectedToInternet) }
         let path = request.url?.path ?? ""
         let method = request.httpMethod ?? "GET"
