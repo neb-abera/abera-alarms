@@ -8,6 +8,7 @@
     /// `-demo` starts paired with six events, two routines and two
     /// countdowns, one passed. `-demo-unpaired` starts on
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
+    /// `-demo-slow` answers every request after 8 s, as a weak signal does.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
@@ -15,7 +16,8 @@
         static func fromLaunchArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> Dependencies? {
             guard arguments.contains("-demo") else { return nil }
             let server = FakeAlertsServer(
-                state: state(now: Date()), token: token, offline: arguments.contains("-demo-offline"))
+                state: state(now: Date()), token: token, offline: arguments.contains("-demo-offline"),
+                latency: arguments.contains("-demo-slow") ? .seconds(8) : .zero)
             let pairing = Pairing(server: Pairing.production, token: token)
             return Dependencies(
                 sync: AlarmSync(

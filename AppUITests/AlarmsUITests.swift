@@ -373,6 +373,37 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(toggle, value: "1"))
     }
 
+    func testASwitchMovesAtOnceOnASlowConnection() {
+        let app = launch("-demo-slow", tab: nil)
+        let toggle = app.switches["routine-switch-Wake"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 20))
+        XCTAssertTrue(waitFor(toggle, value: "1"))
+        toggle.switches.firstMatch.tap()
+        // The demo server answers after 8 s. The switch moves well before.
+        XCTAssertTrue(poll(2) { toggle.value as? String == "0" }, "the switch waited on the server")
+        let line = app.descendants(matching: .any)["routine-sync-Wake"].firstMatch
+        XCTAssertTrue(waitFor(line, labelContaining: "Sending"), app.debugDescription)
+        XCTAssertTrue(waitFor(line, labelContaining: "Saved", timeout: 30), app.debugDescription)
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
+    func testASwitchTappedOfflineStaysAndSaysItWaits() {
+        // The offline demo never reached abera.tech, so it starts with no routines.
+        let app = launch("-demo-offline", tab: nil)
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        save.tap()
+        let toggle = app.switches["routine-switch-Alarm"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(waitFor(toggle, value: "1"))
+        toggle.switches.firstMatch.tap()
+        XCTAssertTrue(waitFor(toggle, value: "0"))
+        let line = app.descendants(matching: .any)["routine-sync-Alarm"].firstMatch
+        XCTAssertTrue(waitFor(line, labelContaining: "Sends when online"), app.debugDescription)
+        XCTAssertEqual(toggle.value as? String, "0")
+    }
+
     func testEditingThenDeletingARoutine() {
         let app = launch(tab: nil)
         let wake = routine(app, "Wake")

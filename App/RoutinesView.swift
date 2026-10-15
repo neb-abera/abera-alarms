@@ -93,7 +93,10 @@ struct RoutineRow: View {
                     .font(.system(size: 44, weight: .light).monospacedDigit())
                 Text("\(routine.label), \(routine.daysText)")
                     .font(.subheadline)
-                if routine.enabled {
+                if let status = model.syncStatus(routine) {
+                    RoutineSyncLine(status: status)
+                        .accessibilityIdentifier("routine-sync-\(routine.label)")
+                } else if routine.enabled {
                     TimelineView(Ticking.schedule(ticking)) { context in
                         if let clock = RingClock.text(for: routine, at: context.date) {
                             Text(clock)
@@ -116,6 +119,45 @@ struct RoutineRow: View {
             .accessibilityIdentifier("routine-switch-\(routine.label)")
         }
         .foregroundStyle(routine.enabled ? .primary : .secondary)
+        .animation(.easeInOut(duration: 0.2), value: model.syncStatus(routine))
+    }
+}
+
+/// One small line under a routine while its change travels to abera.tech.
+struct RoutineSyncLine: View {
+    let status: RoutineSyncStatus
+
+    var body: some View {
+        Label(text, systemImage: symbol)
+            .font(.caption)
+            .foregroundStyle(color)
+            .symbolEffect(.pulse, isActive: status == .sending)
+            .transition(.opacity)
+            .accessibilityElement(children: .combine)
+    }
+
+    private var text: String {
+        switch status {
+        case .sending: "Set on this phone. Sending to abera.tech."
+        case .waiting: "Set on this phone. Sends when online."
+        case .saved: "Saved to abera.tech."
+        }
+    }
+
+    private var symbol: String {
+        switch status {
+        case .sending: "arrow.triangle.2.circlepath.icloud"
+        case .waiting: "icloud.slash"
+        case .saved: "checkmark.icloud"
+        }
+    }
+
+    private var color: Color {
+        switch status {
+        case .sending: .secondary
+        case .waiting: .orange
+        case .saved: .green
+        }
     }
 }
 
@@ -177,10 +219,8 @@ struct RoutineEditor: View {
                 if let routine {
                     Section {
                         Button("Delete Alarm", role: .destructive) {
-                            Task {
-                                await model.deleteRoutine(routine)
-                                dismiss()
-                            }
+                            Task { await model.deleteRoutine(routine) }
+                            dismiss()
                         }
                         .accessibilityIdentifier("delete-routine")
                     }
@@ -197,11 +237,11 @@ struct RoutineEditor: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
-                        Task {
-                            if await model.saveRoutine(id: routine?.id, draft) { dismiss() }
-                        }
+                        let draft = draft
+                        Task { await model.saveRoutine(id: routine?.id, draft) }
+                        dismiss()
                     }
-                    .disabled(!draft.problems.isEmpty || model.busy)
+                    .disabled(!draft.problems.isEmpty)
                     .accessibilityIdentifier("save-routine")
                 }
             }
