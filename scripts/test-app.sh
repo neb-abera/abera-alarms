@@ -9,16 +9,27 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The newest iOS runtime, and the first iPhone on it.
-device="$(xcrun simctl list devices available --json | python3 -c '
-import json, sys
-devices = json.load(sys.stdin)["devices"]
-ios = sorted((k for k in devices if ".iOS-" in k),
-             key=lambda k: [int(p) for p in k.rsplit(".iOS-", 1)[1].split("-")])
-for runtime in reversed(ios):
-    phones = [d for d in devices[runtime] if d["name"].startswith("iPhone")]
-    if phones:
-        print(phones[0]["udid"]); break
+# The highest-numbered "iPhone N Pro" on the newest iOS that has one, among
+# the simulators the selected Xcode can run, else the newest iPhone. The
+# list goes to the log. The earlier pick read simctl. From
+# 2026-10-26 it took an iPhone Duo on the Xcode 27 runner, and six list
+# tests failed. On 2026-10-28 the same pick failed with "The iOS 27.1
+# simulator runtime is not available". The last green run, on 2026-10-19,
+# had used the iPhone 18 Pro.
+device="$(xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms 2>/dev/null | python3 -c '
+import re, sys
+found = []
+for line in sys.stdin:
+    m = re.search(r"platform:iOS Simulator,.* id:([0-9A-F-]{36}), OS:([0-9.]+), name:(iPhone[^}]*?) \}", line)
+    if m:
+        found.append((tuple(int(p) for p in m.group(2).split(".")), m.group(3), m.group(1)))
+for f in sorted(found):
+    print(".".join(map(str, f[0])), f[1], f[2], file=sys.stderr)
+pros = [(f[0], int(m.group(1)), f[2]) for f in found if (m := re.fullmatch(r"iPhone (\d+) Pro", f[1]))]
+if pros:
+    print(max(pros)[2])
+elif found:
+    print(max(found)[2])
 ')"
 [ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
 xcrun simctl list devices | grep "$device"

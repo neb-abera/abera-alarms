@@ -379,11 +379,20 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 20))
         XCTAssertTrue(waitFor(toggle, value: "1"))
         toggle.switches.firstMatch.tap()
-        // The demo server answers after 8 s. The switch moves well before.
-        XCTAssertTrue(poll(2) { toggle.value as? String == "0" }, "the switch waited on the server")
-        let line = app.descendants(matching: .any)["routine-sync-Wake"].firstMatch
-        XCTAssertTrue(waitFor(line, labelContaining: "Sending"), app.debugDescription)
-        XCTAssertTrue(waitFor(line, labelContaining: "Saved", timeout: 30), app.debugDescription)
+        // The demo server answers after 8 s. The switch reads off while the
+        // change is still sending, so it moved before the answer. A 2 s
+        // limit failed twice on 2026-10-28 on the Xcode 27 runner, where
+        // one query of an element has taken 14 s.
+        // Counted by predicate: the line can go between reading that it
+        // exists and reading its label, and that read fails the test.
+        let line = app.descendants(matching: .any).matching(identifier: "routine-sync-Wake")
+        func shows(_ text: String) -> Bool { line.matching(NSPredicate(format: "label CONTAINS %@", text)).count > 0 }
+        XCTAssertTrue(
+            poll(8) { toggle.value as? String == "0" && shows("Sending") },
+            "the switch waited on the server: \(app.debugDescription)")
+        // Saved shows for 2 s, then the line goes. A slow runner can miss it.
+        XCTAssertTrue(poll(30) { shows("Saved") || line.count == 0 }, app.debugDescription)
+        XCTAssertTrue(poll(5) { line.count == 0 }, app.debugDescription)
         XCTAssertEqual(toggle.value as? String, "0")
     }
 
