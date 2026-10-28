@@ -9,14 +9,20 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The newest iOS runtime, and the first iPhone on it.
+# The newest iOS runtime, and the highest-numbered "iPhone N Pro" on it,
+# else its first iPhone. On 2026-10-26 the Xcode 27 runner listed an
+# "iPhone Duo" first, the first-iPhone pick took it, and six list tests
+# failed on its layout. The last green run had used the iPhone 18 Pro.
 device="$(xcrun simctl list devices available --json | python3 -c '
-import json, sys
+import json, re, sys
 devices = json.load(sys.stdin)["devices"]
 ios = sorted((k for k in devices if ".iOS-" in k),
              key=lambda k: [int(p) for p in k.rsplit(".iOS-", 1)[1].split("-")])
 for runtime in reversed(ios):
     phones = [d for d in devices[runtime] if d["name"].startswith("iPhone")]
+    pros = [(int(m.group(1)), d) for d in phones if (m := re.fullmatch(r"iPhone (\d+) Pro", d["name"]))]
+    if pros:
+        print(max(pros, key=lambda p: p[0])[1]["udid"]); break
     if phones:
         print(phones[0]["udid"]); break
 ')"
