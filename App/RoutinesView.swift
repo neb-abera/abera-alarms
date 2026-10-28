@@ -38,9 +38,7 @@ struct RoutinesView: View {
                         .accessibilityIdentifier("no-routines")
                 }
                 ForEach(model.routines) { routine in
-                    RoutineRow(model: model, routine: routine, ticking: onScreen)
-                        .contentShape(Rectangle())
-                        .onTapGesture { editing = routine }
+                    RoutineRow(model: model, routine: routine, ticking: onScreen) { editing = routine }
                         .swipeActions {
                             Button("Delete", role: .destructive) {
                                 Task { await model.deleteRoutine(routine) }
@@ -85,30 +83,38 @@ struct RoutineRow: View {
     @Bindable var model: AppModel
     let routine: Routine
     var ticking = true
+    var open: () -> Void = {}
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(RoutineText.time(hour: routine.hour, minute: routine.minute))
-                    .font(.system(size: 44, weight: .light).monospacedDigit())
-                Text("\(routine.label), \(routine.daysText)")
-                    .font(.subheadline)
-                if let status = model.syncStatus(routine) {
-                    RoutineSyncLine(status: status)
-                        .accessibilityIdentifier("routine-sync-\(routine.label)")
-                } else if routine.enabled {
-                    TimelineView(Ticking.schedule(ticking)) { context in
-                        if let clock = RingClock.text(for: routine, at: context.date) {
-                            Text(clock)
-                                .font(.caption.monospacedDigit())
-                                .foregroundStyle(.secondary)
+            // The tap that opens the editor covers the text and the space
+            // beside it, never the switch. On the whole row, iOS 27 sent
+            // some taps on the switch to the editor instead.
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(RoutineText.time(hour: routine.hour, minute: routine.minute))
+                        .font(.system(size: 44, weight: .light).monospacedDigit())
+                    Text("\(routine.label), \(routine.daysText)")
+                        .font(.subheadline)
+                    if let status = model.syncStatus(routine) {
+                        RoutineSyncLine(status: status)
+                            .accessibilityIdentifier("routine-sync-\(routine.label)")
+                    } else if routine.enabled {
+                        TimelineView(Ticking.schedule(ticking)) { context in
+                            if let clock = RingClock.text(for: routine, at: context.date) {
+                                Text(clock)
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("routine-\(routine.label)")
+                Spacer()
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("routine-\(routine.label)")
-            Spacer()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: open)
             Toggle(
                 "\(routine.label) on",
                 isOn: Binding(

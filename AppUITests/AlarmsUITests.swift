@@ -369,8 +369,11 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertEqual(toggle.value as? String, "1")
         toggle.switches.firstMatch.tap()
         XCTAssertTrue(waitFor(toggle, value: "0"))
+        // A tap on the switch never opens the editor.
+        XCTAssertFalse(app.buttons["save-routine"].exists)
         toggle.switches.firstMatch.tap()
         XCTAssertTrue(waitFor(toggle, value: "1"))
+        XCTAssertFalse(app.buttons["save-routine"].exists)
     }
 
     func testASwitchMovesAtOnceOnASlowConnection() {
