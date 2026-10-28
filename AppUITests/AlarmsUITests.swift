@@ -383,11 +383,16 @@ final class AlarmsUITests: XCTestCase {
         // change is still sending, so it moved before the answer. A 2 s
         // limit failed twice on 2026-10-28 on the Xcode 27 runner, where
         // one query of an element has taken 14 s.
-        let line = app.descendants(matching: .any)["routine-sync-Wake"].firstMatch
+        // Counted by predicate: the line can go between reading that it
+        // exists and reading its label, and that read fails the test.
+        let line = app.descendants(matching: .any).matching(identifier: "routine-sync-Wake")
+        func shows(_ text: String) -> Bool { line.matching(NSPredicate(format: "label CONTAINS %@", text)).count > 0 }
         XCTAssertTrue(
-            poll(8) { toggle.value as? String == "0" && line.exists && line.label.contains("Sending") },
+            poll(8) { toggle.value as? String == "0" && shows("Sending") },
             "the switch waited on the server: \(app.debugDescription)")
-        XCTAssertTrue(waitFor(line, labelContaining: "Saved", timeout: 30), app.debugDescription)
+        // Saved shows for 2 s, then the line goes. A slow runner can miss it.
+        XCTAssertTrue(poll(30) { shows("Saved") || line.count == 0 }, app.debugDescription)
+        XCTAssertTrue(poll(5) { line.count == 0 }, app.debugDescription)
         XCTAssertEqual(toggle.value as? String, "0")
     }
 
