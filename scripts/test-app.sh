@@ -9,22 +9,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The newest iOS runtime, and the highest-numbered "iPhone N Pro" on it,
-# else its first iPhone. On 2026-10-26 the Xcode 27 runner listed an
-# "iPhone Duo" first, the first-iPhone pick took it, and six list tests
-# failed on its layout. The last green run had used the iPhone 18 Pro.
-device="$(xcrun simctl list devices available --json | python3 -c '
-import json, re, sys
-devices = json.load(sys.stdin)["devices"]
-ios = sorted((k for k in devices if ".iOS-" in k),
-             key=lambda k: [int(p) for p in k.rsplit(".iOS-", 1)[1].split("-")])
-for runtime in reversed(ios):
-    phones = [d for d in devices[runtime] if d["name"].startswith("iPhone")]
-    pros = [(int(m.group(1)), d) for d in phones if (m := re.fullmatch(r"iPhone (\d+) Pro", d["name"]))]
-    if pros:
-        print(max(pros, key=lambda p: p[0])[1]["udid"]); break
-    if phones:
-        print(phones[0]["udid"]); break
+# The newest iOS the selected Xcode can run, and the highest-numbered
+# "iPhone N Pro" on it, else its first iPhone. xcodebuild lists only the
+# simulators that Xcode can use. The earlier pick read simctl. From
+# 2026-10-26 it took an iPhone Duo on the Xcode 27 runner, and six list
+# tests failed. On 2026-10-28 the same pick failed with "The iOS 27.1
+# simulator runtime is not available". The last green run, on 2026-10-19,
+# had used the iPhone 18 Pro.
+device="$(xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms 2>/dev/null | python3 -c '
+import re, sys
+found = []
+for line in sys.stdin:
+    m = re.search(r"platform:iOS Simulator,.* id:([0-9A-F-]{36}), OS:([0-9.]+), name:(iPhone[^}]*?) \}", line)
+    if m:
+        found.append((tuple(int(p) for p in m.group(2).split(".")), m.group(3), m.group(1)))
+if found:
+    newest = max(f[0] for f in found)
+    phones = [f for f in found if f[0] == newest]
+    pros = [(int(m.group(1)), f) for f in phones if (m := re.fullmatch(r"iPhone (\d+) Pro", f[1]))]
+    print(max(pros)[1][2] if pros else phones[0][2])
 ')"
 [ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
