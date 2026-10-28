@@ -379,10 +379,14 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(toggle.waitForExistence(timeout: 20))
         XCTAssertTrue(waitFor(toggle, value: "1"))
         toggle.switches.firstMatch.tap()
-        // The demo server answers after 8 s. The switch moves well before.
-        XCTAssertTrue(poll(2) { toggle.value as? String == "0" }, "the switch waited on the server")
+        // The demo server answers after 8 s. The switch reads off while the
+        // change is still sending, so it moved before the answer. A 2 s
+        // limit failed twice on 2026-10-28 on the Xcode 27 runner, where
+        // one query of an element has taken 14 s.
         let line = app.descendants(matching: .any)["routine-sync-Wake"].firstMatch
-        XCTAssertTrue(waitFor(line, labelContaining: "Sending"), app.debugDescription)
+        XCTAssertTrue(
+            poll(8) { toggle.value as? String == "0" && line.exists && line.label.contains("Sending") },
+            "the switch waited on the server: \(app.debugDescription)")
         XCTAssertTrue(waitFor(line, labelContaining: "Saved", timeout: 30), app.debugDescription)
         XCTAssertEqual(toggle.value as? String, "0")
     }
