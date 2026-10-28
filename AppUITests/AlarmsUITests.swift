@@ -522,6 +522,53 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(error.label.contains("No connection"), error.label)
     }
 
+    // MARK: Workout timer
+
+    private func workoutClock(_ app: XCUIApplication) -> XCUIElement {
+        app.descendants(matching: .any)["workout-clock"].firstMatch
+    }
+
+    func testTheTimerCountsSetsAndTheSessionResets() {
+        let app = launch(tab: "Timer")
+        let set = app.descendants(matching: .any)["workout-set"].firstMatch
+        XCTAssertTrue(set.waitForExistence(timeout: 10))
+        XCTAssertEqual(set.label, "Set 1")
+        XCTAssertEqual(workoutClock(app).label, "0:00")
+        XCTAssertFalse(app.buttons["workout-next-set"].isEnabled)
+
+        app.buttons["workout-start"].tap()
+        XCTAssertTrue(waitForChange(workoutClock(app), from: "0:00"), "the clock did not start")
+        app.buttons["workout-next-set"].tap()
+        XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
+        let done = app.descendants(matching: .any)["workout-done-1"].firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 5))
+        XCTAssertTrue(done.label.contains("0:0"), done.label)
+
+        app.buttons["workout-start"].tap()
+        XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Resume"))
+        app.buttons["workout-reset-session"].tap()
+        let confirm = app.buttons["confirm-reset-session"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        confirm.tap()
+        XCTAssertTrue(waitFor(set, labelContaining: "Set 1"), set.label)
+        XCTAssertEqual(workoutClock(app).label, "0:00")
+        XCTAssertTrue(waitForGone(done))
+        XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Start"))
+    }
+
+    func testTheSpokenTimeCanBeSwitchedOff() {
+        let app = launch(tab: "Timer")
+        let interval = app.buttons["workout-interval"].firstMatch
+        XCTAssertTrue(interval.waitForExistence(timeout: 10))
+        XCTAssertTrue(interval.label.contains("30 s"), interval.label)
+        interval.tap()
+        let off = app.buttons["Off"].firstMatch
+        XCTAssertTrue(off.waitForExistence(timeout: 5))
+        off.tap()
+        XCTAssertTrue(app.staticTexts["The timer is silent."].waitForExistence(timeout: 5))
+        XCTAssertTrue(waitFor(interval, labelContaining: "Off"), interval.label)
+    }
+
     // MARK: Ring clocks
 
     func testAnAlarmThatIsOnCountsDownToItsRing() {

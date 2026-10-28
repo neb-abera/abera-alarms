@@ -4,11 +4,12 @@ import UIKit
 
 /// The app's tabs. The clocks on a tab tick only while it is the one selected.
 enum AppTab: Hashable {
-    case alarms, calendar, countdowns, dates
+    case alarms, timer, calendar, countdowns, dates
 }
 
 struct RootView: View {
     @Bindable var model: AppModel
+    @Bindable var timer: WorkoutModel
     @State private var tab = AppTab.alarms
 
     var body: some View {
@@ -19,6 +20,9 @@ struct RootView: View {
                 TabView(selection: $tab) {
                     Tab("Alarms", systemImage: "alarm", value: AppTab.alarms) {
                         RoutinesView(model: model, onScreen: tab == .alarms)
+                    }
+                    Tab("Timer", systemImage: "stopwatch", value: AppTab.timer) {
+                        WorkoutView(timer: timer, onScreen: tab == .timer)
                     }
                     Tab("Calendar", systemImage: "calendar", value: AppTab.calendar) {
                         AlarmsView(model: model, onScreen: tab == .calendar)
