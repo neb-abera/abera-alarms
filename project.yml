@@ -51,6 +51,8 @@ targets:
           - UIInterfaceOrientationPortrait
         NSAlarmKitUsageDescription: Rings the alarms you set on abera.tech/alerts, with or without a connection.
         UIBackgroundModes:
+          # audio: the workout timer speaks with the phone locked.
+          - audio
           - fetch
           - remote-notification
         BGTaskSchedulerPermittedIdentifiers:

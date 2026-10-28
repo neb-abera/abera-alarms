@@ -6,6 +6,7 @@ import UIKit
 struct AberaAlarmsApp: App {
     @UIApplicationDelegateAdaptor(PushDelegate.self) private var pushDelegate
     @State private var model = AppModel()
+    @State private var timer = WorkoutModel()
     @Environment(\.scenePhase) private var phase
 
     init() {
@@ -19,7 +20,7 @@ struct AberaAlarmsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView(model: model)
+            RootView(model: model, timer: timer)
                 .onOpenURL { url in
                     Task { await model.pair(link: url.absoluteString) }
                 }
