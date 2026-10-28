@@ -9,9 +9,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# The newest iOS the selected Xcode can run, and the highest-numbered
-# "iPhone N Pro" on it, else its first iPhone. xcodebuild lists only the
-# simulators that Xcode can use. The earlier pick read simctl. From
+# The highest-numbered "iPhone N Pro" on the newest iOS that has one, among
+# the simulators the selected Xcode can run, else the newest iPhone. The
+# list goes to the log. The earlier pick read simctl. From
 # 2026-10-26 it took an iPhone Duo on the Xcode 27 runner, and six list
 # tests failed. On 2026-10-28 the same pick failed with "The iOS 27.1
 # simulator runtime is not available". The last green run, on 2026-10-19,
@@ -23,11 +23,13 @@ for line in sys.stdin:
     m = re.search(r"platform:iOS Simulator,.* id:([0-9A-F-]{36}), OS:([0-9.]+), name:(iPhone[^}]*?) \}", line)
     if m:
         found.append((tuple(int(p) for p in m.group(2).split(".")), m.group(3), m.group(1)))
-if found:
-    newest = max(f[0] for f in found)
-    phones = [f for f in found if f[0] == newest]
-    pros = [(int(m.group(1)), f) for f in phones if (m := re.fullmatch(r"iPhone (\d+) Pro", f[1]))]
-    print(max(pros)[1][2] if pros else phones[0][2])
+for f in sorted(found):
+    print(".".join(map(str, f[0])), f[1], f[2], file=sys.stderr)
+pros = [(f[0], int(m.group(1)), f[2]) for f in found if (m := re.fullmatch(r"iPhone (\d+) Pro", f[1]))]
+if pros:
+    print(max(pros)[2])
+elif found:
+    print(max(found)[2])
 ')"
 [ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
