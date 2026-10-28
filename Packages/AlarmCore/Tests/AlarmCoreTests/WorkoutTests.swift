@@ -84,6 +84,35 @@ import Testing
         #expect(workout == Workout())
     }
 
+    @Test func stopRecordsTheSetAndLeavesTheClockStoppedAtZero() {
+        var workout = Workout()
+        workout.start(at: zero)
+        workout.stop(at: at(75))
+        #expect(workout.sets == [75])
+        #expect(!workout.running)
+        #expect(!workout.started)
+        #expect(workout.elapsed(at: at(500)) == 0)
+        #expect(workout.nextAnnouncement(after: at(500)) == nil)
+        workout.start(at: at(600))
+        #expect(workout.set == 2)
+        #expect(workout.elapsed(at: at(610)) == 10)
+    }
+
+    @Test func stopWhilePausedRecordsTheHeldTime() {
+        var workout = Workout()
+        workout.start(at: zero)
+        workout.pause(at: at(20))
+        workout.stop(at: at(90))
+        #expect(workout.sets == [20])
+        #expect(!workout.started)
+    }
+
+    @Test func stopBeforeTheClockStartsDoesNothing() {
+        var workout = Workout()
+        workout.stop(at: zero)
+        #expect(workout == Workout())
+    }
+
     @Test func resettingTheSessionKeepsTheInterval() {
         var workout = Workout(interval: 45)
         workout.start(at: zero)

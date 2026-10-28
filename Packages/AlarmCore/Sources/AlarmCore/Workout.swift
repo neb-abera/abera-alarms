@@ -63,6 +63,15 @@ public struct Workout: Codable, Equatable, Sendable {
         startedAt = now
     }
 
+    /// Done: records the running set and stops the clock at 0:00. Start
+    /// then times the next set. The sets done stay.
+    public mutating func stop(at now: Date) {
+        guard started else { return }
+        sets.append(elapsed(at: now))
+        held = 0
+        startedAt = nil
+    }
+
     /// Back to set 1 at 0:00, stopped. The interval stays.
     public mutating func resetSession() {
         sets = []

@@ -546,6 +546,13 @@ final class AlarmsUITests: XCTestCase {
 
         app.buttons["workout-start"].tap()
         XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Resume"))
+        app.buttons["workout-stop"].tap()
+        XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Start"))
+        XCTAssertEqual(workoutClock(app).label, "0:00")
+        XCTAssertTrue(app.descendants(matching: .any)["workout-done-2"].firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["workout-stop"].isEnabled)
+        XCTAssertFalse(app.buttons["workout-next-set"].isEnabled)
+        XCTAssertTrue(waitFor(set, labelContaining: "Set 3"), set.label)
         app.buttons["workout-reset-session"].tap()
         let confirm = app.buttons["confirm-reset-session"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))

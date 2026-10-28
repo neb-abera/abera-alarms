@@ -57,6 +57,17 @@ struct WorkoutView: View {
                         .accessibilityIdentifier("workout-next-set")
                     }
                     .padding(.horizontal)
+                    Button(role: .destructive) {
+                        timer.stop()
+                    } label: {
+                        Text("Stop")
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!workout.started)
+                    .padding(.horizontal)
+                    .accessibilityIdentifier("workout-stop")
                 }
                 .padding(.vertical)
                 List {
@@ -72,7 +83,7 @@ struct WorkoutView: View {
                         Text(
                             workout.interval == 0
                                 ? "The timer is silent."
-                                : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number."
+                                : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number. Stop ends the set and the voice."
                         )
                     }
                     if !workout.sets.isEmpty {
@@ -144,6 +155,13 @@ final class WorkoutModel {
         workout.nextSet(at: Date())
         changed()
         voice.say("Set \(workout.set)")
+    }
+
+    /// Done: the set is recorded, the clock reads 0:00, and the voice and
+    /// its audio are off.
+    func stop() {
+        workout.stop(at: Date())
+        changed()
     }
 
     func resetSession() {
