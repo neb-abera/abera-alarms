@@ -50,6 +50,13 @@ struct RestPanel: View {
                 .disabled(rest.endsAt == nil && !model.onLockScreen)
                 .accessibilityIdentifier("rest-end")
             }
+            if let problem = model.problem {
+                Text(problem)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .accessibilityIdentifier("rest-problem")
+            }
         }
         .padding(.horizontal)
     }
@@ -81,6 +88,9 @@ final class RestModel {
     private(set) var rest: Rest
     /// True while the rest is on the Lock Screen.
     private(set) var onLockScreen: Bool
+    /// Why the rest is not on the Lock Screen, when Start rest could not
+    /// put it there.
+    private(set) var problem: String?
     @ObservationIgnored private let store: UserDefaults?
     /// Off in -demo mode: the UI tests ring nothing and show nothing.
     @ObservationIgnored private let system: Bool
@@ -126,7 +136,18 @@ final class RestModel {
         if let activity = Activity<RestAttributes>.activities.first {
             await activity.update(content)
         } else if show {
-            onLockScreen = (try? Activity.request(attributes: RestAttributes(), content: content)) != nil
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+                problem =
+                    "Live Activities are off for Alarms, so the rest is not on the Lock Screen. Settings > Apps > Alarms > Live Activities."
+                return
+            }
+            do {
+                _ = try Activity.request(attributes: RestAttributes(), content: content)
+                onLockScreen = true
+                problem = nil
+            } catch {
+                problem = "The rest could not go on the Lock Screen: \(error.localizedDescription)"
+            }
         }
     }
 
