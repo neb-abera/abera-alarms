@@ -213,6 +213,9 @@ final class WorkoutVoice: NSObject, AVSpeechSynthesizerDelegate {
     private let quiet: AVAudioPCMBuffer?
     private let voice = WorkoutVoice.bestVoice()
     private var on = false
+    private var ducking = Ducking()
+    /// The next attempt to bring music up, or the backstop.
+    private var restoring: Task<Void, Never>?
 
     override init() {
         let format = AVAudioFormat(standardFormatWithSampleRate: 44_100, channels: 1)
@@ -249,6 +252,9 @@ final class WorkoutVoice: NSObject, AVSpeechSynthesizerDelegate {
     func end() {
         guard on else { return }
         on = false
+        restoring?.cancel()
+        restoring = nil
+        ducking = Ducking()
         synthesizer.stopSpeaking(at: .immediate)
         silence.stop()
         engine.stop()
@@ -257,6 +263,15 @@ final class WorkoutVoice: NSObject, AVSpeechSynthesizerDelegate {
 
     func say(_ text: String) {
         guard on else { return }
+        ducking.willSpeak()
+        // A finish iOS never reports would leave music down. The backstop
+        // brings it up once the synthesizer is quiet.
+        restoring?.cancel()
+        restoring = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(Ducking.backstop))
+            guard !Task.isCancelled, let self, !self.synthesizer.isSpeaking, self.ducking.settle() else { return }
+            self.unduck(attempt: 0)
+        }
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(
             .playback, mode: .voicePrompt, options: [.duckOthers, .interruptSpokenAudioAndMixWithOthers])
@@ -267,20 +282,42 @@ final class WorkoutVoice: NSObject, AVSpeechSynthesizerDelegate {
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.unduck() }
+        Task { @MainActor in self.finished() }
     }
 
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
-        Task { @MainActor in self.unduck() }
+        Task { @MainActor in self.finished() }
+    }
+
+    /// Counts utterances rather than asking `isSpeaking`, which can still
+    /// read true when the finish arrives.
+    private func finished() {
+        guard on, ducking.finished() else { return }
+        restoring?.cancel()
+        unduck(attempt: 0)
     }
 
     /// Music comes back up once the voice is done. Ducking ends only when
-    /// the session is switched off, so the silence stops for a moment.
-    private func unduck() {
-        guard on, !synthesizer.isSpeaking else { return }
+    /// the session is switched off, so the silence stops for a moment. iOS
+    /// refuses that while the speech audio winds down: the silence plays
+    /// again to keep the app running, and the attempt is made again.
+    private func unduck(attempt: Int) {
+        guard on, ducking.ducked else { return }
         silence.stop()
         engine.stop()
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        do {
+            try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        } catch {
+            restart()
+            guard let delay = Ducking.retryDelay(after: attempt) else { return }
+            restoring = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, let self, self.ducking.speaking == 0 else { return }
+                self.unduck(attempt: attempt + 1)
+            }
+            return
+        }
+        ducking.restored()
         mix()
     }
 
