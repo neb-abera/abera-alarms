@@ -12,11 +12,17 @@ final class AlarmsUITests: XCTestCase {
     /// launching the app with simctl beforehand did not help. On
     /// 2026-11-02 testACalendarAlarmCountsDownToItsAlert, then first, failed
     /// that way in four runs, and all 40 tests passed on retry.
+    /// The launch itself may fail here, and that failure is expected: the
+    /// tests after it run warm.
     func test0WarmUp() {
         let app = XCUIApplication()
         app.launchArguments = ["-demo"]
-        app.launch()
-        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+        let options = XCTExpectedFailure.Options()
+        options.isStrict = false
+        XCTExpectFailure("A first launch on a fresh simulator can time out", options: options) {
+            app.launch()
+            _ = app.wait(for: .runningForeground, timeout: 30)
+        }
     }
 
     /// Starts the app in -demo mode. A paired start opens the Calendar tab
