@@ -89,6 +89,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: tech.abera.alarms.widget
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: YES
+        # The Lock Screen intents in App/Shared run only in the app.
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: $(inherited) WIDGET
   AberaAlarmsUITests:
     type: bundle.ui-testing
     platform: iOS
