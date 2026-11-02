@@ -11,10 +11,12 @@
 		0B601CCCDB38AB3D38D2B73F /* chime.caf in Resources */ = {isa = PBXBuildFile; fileRef = DF0D35255B0EDDDAC1122221 /* chime.caf */; };
 		1195A46C96C80469377E9DBF /* AlarmsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */; };
 		21A0EE61A30E51A88A5E116F /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B890D84B86C41523A8B16CA1 /* WorkoutView.swift */; };
+		2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875322B8C145E438EE7839FA /* RestView.swift */; };
 		3F2C4196F064F18529EC988F /* beacon.caf in Resources */ = {isa = PBXBuildFile; fileRef = 353CC3BC76C14D96A55388B0 /* beacon.caf */; };
 		3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */; };
 		5EE8C24CEB42BE45177F402B /* AlarmKitScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */; };
 		6B7962F1731E152BBCED7696 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD10358D4297D739F6D33457 /* Assets.xcassets */; };
+		6D52A8647A8176E4DD28B934 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EC5437F55BD0851B427512 /* RestActivity.swift */; };
 		7928AA7FE04A07B473533544 /* Demo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */; };
 		820BBBAD4DFAEECC89CC1D45 /* siren.caf in Resources */ = {isa = PBXBuildFile; fileRef = D5684150D92B9CB17980975A /* siren.caf */; };
 		837E22D7B1C8370B971B9B36 /* AlarmsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -29,6 +31,7 @@
 		DB15419C87DF8B5D7C88D72E /* AlarmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5C1DB0A5BDFD4210EC59B6A7 /* AlarmCore */; };
 		E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E414D4650C857B71B2B474A /* AlarmsWidget.swift */; };
 		EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA375A6D175B012E7A00735A /* PushDelegate.swift */; };
+		EA8449C7BBDDF5BBA814EC61 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EC5437F55BD0851B427512 /* RestActivity.swift */; };
 		EE865A5050DC3D50560C7919 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = A783C0B2E1BA54C7B72F43B0 /* Views.swift */; };
 		FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
 /* End PBXBuildFile section */
@@ -80,6 +83,8 @@
 		41A62A1C2210F5E236DC124A /* AlarmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlarmCore; path = Packages/AlarmCore; sourceTree = SOURCE_ROOT; };
 		6825764355CCF69E47B68355 /* pulse.caf */ = {isa = PBXFileReference; path = pulse.caf; sourceTree = "<group>"; };
 		68D589961DE69EA2F1B8E08D /* AberaAlarmsUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AberaAlarmsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		75EC5437F55BD0851B427512 /* RestActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivity.swift; sourceTree = "<group>"; };
+		875322B8C145E438EE7839FA /* RestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestView.swift; sourceTree = "<group>"; };
 		87A83F32AF14C10AA49161F6 /* Dependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dependencies.swift; sourceTree = "<group>"; };
 		A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmsUITests.swift; sourceTree = "<group>"; };
 		A783C0B2E1BA54C7B72F43B0 /* Views.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views.swift; sourceTree = "<group>"; };
@@ -163,6 +168,7 @@
 				87A83F32AF14C10AA49161F6 /* Dependencies.swift */,
 				3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */,
 				CA375A6D175B012E7A00735A /* PushDelegate.swift */,
+				875322B8C145E438EE7839FA /* RestView.swift */,
 				1B571278D349722D70FF8D3E /* RoutinesView.swift */,
 				109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
@@ -185,6 +191,7 @@
 			isa = PBXGroup;
 			children = (
 				23FD542C36135ED632A687A1 /* AlarmInfo.swift */,
+				75EC5437F55BD0851B427512 /* RestActivity.swift */,
 			);
 			path = Shared;
 			sourceTree = "<group>";
@@ -340,6 +347,8 @@
 				7928AA7FE04A07B473533544 /* Demo.swift in Sources */,
 				0B44891BF6F5A9AAD4B3E7CF /* Dependencies.swift in Sources */,
 				EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */,
+				6D52A8647A8176E4DD28B934 /* RestActivity.swift in Sources */,
+				2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */,
 				AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */,
 				3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
@@ -353,6 +362,7 @@
 			files = (
 				FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */,
 				E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */,
+				EA8449C7BBDDF5BBA814EC61 /* RestActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -384,6 +394,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = tech.abera.alarms.widget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET";
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
@@ -607,6 +618,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = tech.abera.alarms.widget;
 				SDKROOT = iphoneos;
 				SKIP_INSTALL = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) WIDGET";
 				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;

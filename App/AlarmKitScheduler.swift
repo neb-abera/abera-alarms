@@ -9,8 +9,10 @@ import UIKit
 /// The phone's alarm system: AlarmKit. An alarm scheduled here rings at its
 /// time through the silent switch and Focus, with or without a connection.
 struct AlarmKitScheduler: AlarmScheduling {
+    /// The rest timer's alarm is the Timer tab's, not the sync's, so the
+    /// sync never sees it to cancel.
     func scheduledIDs() async throws -> Set<UUID> {
-        Set(try AlarmManager.shared.alarms.map(\.id))
+        Set(try AlarmManager.shared.alarms.map(\.id)).subtracting([RestModel.alarmID])
     }
 
     func schedule(_ alarm: DesiredAlarm) async throws {
@@ -96,7 +98,8 @@ struct AlarmKitScheduler: AlarmScheduling {
                 @unknown default: false
                 }
             }
-            .map(\.id))
+            .map(\.id)
+        ).subtracting([RestModel.alarmID])
     }
 
     /// A repeating alarm is set again for its next time. A one-time alarm is removed.
