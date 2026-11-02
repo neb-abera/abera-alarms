@@ -39,7 +39,8 @@ struct AdjustRestIntent: LiveActivityIntent {
 
 /// The Lock Screen's Restart button, and the Start rest control: counts
 /// down the full rest again, and puts it on the Lock Screen when it is not.
-struct RestartRestIntent: LiveActivityIntent, LiveActivityStartingIntent {
+/// A LiveActivityIntent may start a Live Activity from the background.
+struct RestartRestIntent: LiveActivityIntent {
     static let title: LocalizedStringResource = "Restart the rest"
     static let isDiscoverable = false
 
