@@ -588,6 +588,32 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(interval, labelContaining: "Off"), interval.label)
     }
 
+    func testTheRestCountsDownAndPlusMinusAndRestartChangeIt() {
+        let app = launch(tab: "Timer")
+        let clock = app.descendants(matching: .any)["rest-clock"].firstMatch
+        XCTAssertTrue(clock.waitForExistence(timeout: 10))
+        XCTAssertEqual(clock.label, "1:30")
+        XCTAssertFalse(app.buttons["rest-end"].isEnabled)
+
+        // While none runs, plus and minus change the rest's length.
+        app.buttons["rest-plus"].tap()
+        XCTAssertTrue(waitFor(clock, labelContaining: "1:45"), clock.label)
+        app.buttons["rest-minus"].tap()
+        app.buttons["rest-minus"].tap()
+        XCTAssertTrue(waitFor(clock, labelContaining: "1:15"), clock.label)
+
+        app.buttons["rest-restart"].tap()
+        XCTAssertTrue(waitForChange(clock, from: "1:15"), "the rest did not count down")
+        XCTAssertTrue(waitFor(app.buttons["rest-restart"], labelContaining: "Restart"))
+        // Plus adds to the running countdown: over the full length.
+        app.buttons["rest-plus"].tap()
+        XCTAssertTrue(waitFor(clock, labelContaining: "1:2"), clock.label)
+
+        app.buttons["rest-end"].tap()
+        XCTAssertTrue(waitFor(clock, labelContaining: "1:15"), clock.label)
+        XCTAssertTrue(waitFor(app.buttons["rest-restart"], labelContaining: "Start rest"))
+    }
+
     // MARK: Ring clocks
 
     func testAnAlarmThatIsOnCountsDownToItsRing() {

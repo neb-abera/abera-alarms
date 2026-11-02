@@ -3,8 +3,9 @@ import AlarmCore
 import SwiftUI
 import UIKit
 
-/// The Timer tab: the workout clock, the set it is timing, Next set, and
-/// the sets done. Every interval the phone says the time on the clock.
+/// The Timer tab: the workout clock, the set it is timing, Next set, the
+/// rest countdown, and the sets done. Every interval the phone says the
+/// time on the clock.
 struct WorkoutView: View {
     @Bindable var timer: WorkoutModel
     var onScreen = true
@@ -68,6 +69,8 @@ struct WorkoutView: View {
                     .disabled(!workout.started)
                     .padding(.horizontal)
                     .accessibilityIdentifier("workout-stop")
+                    Divider().padding(.horizontal)
+                    RestPanel(onScreen: onScreen)
                 }
                 .padding(.vertical)
                 List {
