@@ -1,5 +1,6 @@
 import ActivityKit
 import AlarmKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -10,6 +11,21 @@ struct AlarmsWidgetBundle: WidgetBundle {
     var body: some Widget {
         AlarmCountdownActivity()
         RestActivity()
+        RestControl()
+    }
+}
+
+/// Start rest as a Lock Screen or Control Center control. It counts down
+/// the full rest and puts it on the Lock Screen, without opening the app.
+struct RestControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "tech.abera.alarms.rest") {
+            ControlWidgetButton(action: RestartRestIntent()) {
+                Label("Start rest", systemImage: "timer")
+            }
+        }
+        .displayName("Start rest")
+        .description("Counts down your rest on the Lock Screen.")
     }
 }
 
