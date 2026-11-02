@@ -41,29 +41,9 @@ xcrun simctl bootstatus "$device" -b
 
 mkdir -p build
 rm -rf build/AberaAlarms.xcresult
-xcodebuild build-for-testing \
-  -project AberaAlarms.xcodeproj \
-  -scheme AberaAlarms \
-  -destination "id=$device" \
-  -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO \
-  > build/build-for-testing.log 2>&1 || { tail -80 build/build-for-testing.log >&2; exit 1; }
-
-# Install the app and launch it once, so its first launch does not land in
-# the first test's two minutes. Booting alone was not enough: on
-# 2026-11-02 testACalendarAlarmCountsDownToItsAlert, first by name, hung
-# at "Wait for tech.abera.alarms to idle" in three Xcode 27 runs, and all
-# 40 tests passed on retry.
-xcrun simctl install "$device" build/DerivedData/Build/Products/Debug-iphonesimulator/AberaAlarms.app
-start=$(date +%s)
-xcrun simctl launch "$device" tech.abera.alarms -demo
-sleep 20
-xcrun simctl terminate "$device" tech.abera.alarms || true
-echo "warm launch: $(($(date +%s) - start)) s"
-
 # Streamed, so a hung test shows where it hung. Each test gets two minutes.
 set +e +o pipefail
-xcodebuild test-without-building \
+xcodebuild test \
   -project AberaAlarms.xcodeproj \
   -scheme AberaAlarms \
   -destination "id=$device" \

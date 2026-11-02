@@ -6,6 +6,19 @@ import XCTest
 final class AlarmsUITests: XCTestCase {
     static let link = "aberaalarms://pair#token=aat_" + String(repeating: "D", count: 43)
 
+    /// Runs first, by name, and only launches. On a fresh simulator the
+    /// first launch under XCUITest took 68 s to idle and the next query
+    /// failed with kAXErrorServerNotFound. Booting the simulator and
+    /// launching the app with simctl beforehand did not help. On
+    /// 2026-11-02 testACalendarAlarmCountsDownToItsAlert, then first, failed
+    /// that way in four runs, and all 40 tests passed on retry.
+    func test0WarmUp() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo"]
+        app.launch()
+        XCTAssertTrue(app.wait(for: .runningForeground, timeout: 30))
+    }
+
     /// Starts the app in -demo mode. A paired start opens the Calendar tab
     /// unless `tab` names another one, or nil to stay on Alarms.
     private func launch(_ arguments: String..., tab: String? = "Calendar") -> XCUIApplication {
