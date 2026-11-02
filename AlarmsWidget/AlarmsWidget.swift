@@ -5,13 +5,138 @@ import SwiftUI
 import WidgetKit
 
 /// The Lock Screen and Dynamic Island: a snoozed alarm's countdown, which
-/// AlarmKit needs to show it, and the Timer tab's rest countdown.
+/// AlarmKit needs to show it, and the Timer tab's workout clock and rest
+/// countdown.
 @main
 struct AlarmsWidgetBundle: WidgetBundle {
     var body: some Widget {
         AlarmCountdownActivity()
+        WorkoutActivity()
         RestActivity()
+        WorkoutControl()
         RestControl()
+    }
+}
+
+/// Start workout as a Lock Screen or Control Center control. It starts the
+/// clock and puts it on the Lock Screen, without opening the app.
+struct WorkoutControl: ControlWidget {
+    var body: some ControlWidgetConfiguration {
+        StaticControlConfiguration(kind: "tech.abera.alarms.workout") {
+            ControlWidgetButton(action: StartWorkoutIntent()) {
+                Label("Start workout", systemImage: "stopwatch")
+            }
+        }
+        .displayName("Start workout")
+        .description("Starts the workout timer on the Lock Screen.")
+    }
+}
+
+/// The workout clock on the Lock Screen, with Pause or Resume, Next set and
+/// Stop. The buttons work with the phone locked. The clock counts up on its
+/// own, with no update from the app.
+struct WorkoutActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: WorkoutAttributes.self) { context in
+            VStack(spacing: 10) {
+                HStack {
+                    Image(systemName: "stopwatch")
+                        .font(.title2)
+                    VStack(alignment: .leading) {
+                        Text(WorkoutText.title(context.state))
+                            .font(.headline)
+                        WorkoutClock(state: context.state)
+                            .font(.largeTitle.monospacedDigit())
+                    }
+                    Spacer()
+                }
+                WorkoutButtons(state: context.state)
+            }
+            .padding()
+            .activityBackgroundTint(Color.black.opacity(0.6))
+            .activitySystemActionForegroundColor(.white)
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Text(WorkoutText.title(context.state))
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    WorkoutClock(state: context.state)
+                        .monospacedDigit()
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    WorkoutButtons(state: context.state)
+                }
+            } compactLeading: {
+                Text("S\(context.state.set)")
+            } compactTrailing: {
+                WorkoutClock(state: context.state)
+                    .monospacedDigit()
+                    .frame(maxWidth: 52)
+            } minimal: {
+                Image(systemName: "stopwatch")
+            }
+        }
+    }
+}
+
+enum WorkoutText {
+    /// "Set 3", or "Set 3 · Paused".
+    static func title(_ state: WorkoutAttributes.ContentState) -> String {
+        state.startedAt == nil ? "Set \(state.set) · Paused" : "Set \(state.set)"
+    }
+
+    /// "0:42", or "1:02:03" past an hour.
+    static func clock(_ seconds: TimeInterval) -> String {
+        let whole = Int(seconds)
+        let (hours, minutes, secs) = (whole / 3600, whole / 60 % 60, whole % 60)
+        return hours > 0
+            ? String(format: "%d:%02d:%02d", hours, minutes, secs)
+            : String(format: "%d:%02d", minutes, secs)
+    }
+}
+
+/// Counts up from the set's start while it runs. Paused, it shows the held
+/// time.
+struct WorkoutClock: View {
+    let state: WorkoutAttributes.ContentState
+
+    var body: some View {
+        if let startedAt = state.startedAt {
+            Text(startedAt, style: .timer)
+        } else {
+            Text(WorkoutText.clock(state.held))
+        }
+    }
+}
+
+struct WorkoutButtons: View {
+    let state: WorkoutAttributes.ContentState
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Button(intent: StartOrPauseWorkoutIntent()) {
+                Label(
+                    state.startedAt == nil ? "Resume" : "Pause",
+                    systemImage: state.startedAt == nil ? "play.fill" : "pause.fill"
+                )
+                .frame(maxWidth: .infinity)
+            }
+            .tint(state.startedAt == nil ? .green : .orange)
+            Button(intent: NextSetIntent()) {
+                Label("Next set", systemImage: "forward.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .tint(.blue)
+            Button(intent: StopWorkoutIntent()) {
+                Label("Stop", systemImage: "stop.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .tint(.red)
+        }
+        .buttonStyle(.borderedProminent)
+        .font(.subheadline.weight(.semibold))
+        .labelStyle(.titleOnly)
     }
 }
 

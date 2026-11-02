@@ -1,4 +1,5 @@
 import AVFoundation
+import ActivityKit
 import AlarmCore
 import SwiftUI
 import UIKit
@@ -69,6 +70,14 @@ struct WorkoutView: View {
                     .disabled(!workout.started)
                     .padding(.horizontal)
                     .accessibilityIdentifier("workout-stop")
+                    if let problem = timer.problem {
+                        Text(problem)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                            .accessibilityIdentifier("workout-problem")
+                    }
                     Divider().padding(.horizontal)
                     RestPanel(onScreen: onScreen)
                 }
@@ -122,23 +131,38 @@ struct WorkoutView: View {
 }
 
 /// The workout timer's state, kept on the phone so it survives the app
-/// being closed, and the voice that says the times.
+/// being closed, the voice that says the times, and its Live Activity. One
+/// for the app, so the Lock Screen's buttons and the Timer tab change the
+/// same workout.
 @MainActor
 @Observable
 final class WorkoutModel {
+    static let shared = WorkoutModel()
     static let key = "workout"
 
     private(set) var workout: Workout
+    /// Why the workout is not on the Lock Screen, when it could not go
+    /// there.
+    private(set) var problem: String?
     @ObservationIgnored private let store: UserDefaults?
+    /// Off in -demo mode, so the UI tests show nothing on the Lock Screen.
+    /// -demo-lock-screen turns it back on, to look at the Live Activity in a
+    /// simulator.
+    @ObservationIgnored private let system: Bool
     @ObservationIgnored private let voice = WorkoutVoice()
     @ObservationIgnored private var marks: Task<Void, Never>?
+    /// The Lock Screen's latest change. Each waits for the one before.
+    @ObservationIgnored private var showing: Task<Void, Never>?
 
     /// No store in -demo mode, so every UI test starts at set 1.
-    init(store: UserDefaults? = ProcessInfo.processInfo.arguments.contains("-demo") ? nil : .standard) {
-        self.store = store
+    private init() {
+        let demo = ProcessInfo.processInfo.arguments.contains("-demo")
+        store = demo ? nil : .standard
+        system = !demo || ProcessInfo.processInfo.arguments.contains("-demo-lock-screen")
         workout =
             store?.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(Workout.self, from: $0) } ?? Workout()
         follow()
+        show()
     }
 
     var interval: Int {
@@ -147,6 +171,12 @@ final class WorkoutModel {
             workout.interval = newValue
             changed()
         }
+    }
+
+    /// Starts or resumes the clock. A running clock keeps running.
+    func start() {
+        workout.start(at: Date())
+        changed()
     }
 
     func startOrPause() {
@@ -172,9 +202,51 @@ final class WorkoutModel {
         changed()
     }
 
+    /// Returns once the Lock Screen shows the latest change.
+    func settled() async {
+        await showing?.value
+    }
+
     private func changed() {
         if let data = try? JSONEncoder().encode(workout) { store?.set(data, forKey: Self.key) }
         follow()
+        show()
+    }
+
+    /// Keeps the workout on the Lock Screen from Start until Stop or Reset
+    /// Session.
+    private func show() {
+        guard system else { return }
+        let workout = workout
+        let previous = showing
+        showing = Task {
+            await previous?.value
+            guard workout.started else {
+                for activity in Activity<WorkoutAttributes>.activities {
+                    await activity.end(nil, dismissalPolicy: .immediate)
+                }
+                return
+            }
+            let content = ActivityContent(
+                state: WorkoutAttributes.ContentState(
+                    set: workout.set, startedAt: workout.startedAt, held: workout.held),
+                staleDate: nil)
+            if let activity = Activity<WorkoutAttributes>.activities.first {
+                await activity.update(content)
+                return
+            }
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+                problem =
+                    "Live Activities are off for Alarms, so the timer is not on the Lock Screen. Settings > Apps > Alarms > Live Activities."
+                return
+            }
+            do {
+                _ = try Activity.request(attributes: WorkoutAttributes(), content: content)
+                problem = nil
+            } catch {
+                problem = "The timer could not go on the Lock Screen: \(error.localizedDescription)"
+            }
+        }
     }
 
     /// Says each mark while the clock runs and the interval is on. A mark
