@@ -40,15 +40,41 @@ xcrun simctl boot "$device" 2>/dev/null || true
 xcrun simctl bootstatus "$device" -b
 
 mkdir -p build
-rm -rf build/AberaAlarms.xcresult
-# Streamed, so a hung test shows where it hung. Each test gets two minutes.
+rm -rf build/AberaAlarms.xcresult build/WarmUp.xcresult
+xcodebuild build-for-testing \
+  -project AberaAlarms.xcodeproj \
+  -scheme AberaAlarms \
+  -destination "id=$device" \
+  -derivedDataPath build/DerivedData \
+  CODE_SIGNING_ALLOWED=NO \
+  > build/build-for-testing.log 2>&1 || { tail -80 build/build-for-testing.log >&2; exit 1; }
+
+# The first launch under XCUITest on a fresh simulator can take minutes or
+# fail (test0WarmUp in AppUITests says when). It runs alone and its result
+# does not count. The tests then run warm without it.
 set +e +o pipefail
-xcodebuild test \
+xcodebuild test-without-building \
+  -project AberaAlarms.xcodeproj \
+  -scheme AberaAlarms \
+  -destination "id=$device" \
+  -resultBundlePath build/WarmUp.xcresult \
+  -derivedDataPath build/DerivedData \
+  -only-testing:AberaAlarmsUITests/AlarmsUITests/test0WarmUp \
+  -test-timeouts-enabled YES \
+  -default-test-execution-time-allowance 300 \
+  -maximum-test-execution-time-allowance 300 \
+  CODE_SIGNING_ALLOWED=NO \
+  > build/warm-up.log 2>&1
+echo "warm-up: xcodebuild exited $?"
+
+# Streamed, so a hung test shows where it hung. Each test gets two minutes.
+xcodebuild test-without-building \
   -project AberaAlarms.xcodeproj \
   -scheme AberaAlarms \
   -destination "id=$device" \
   -resultBundlePath build/AberaAlarms.xcresult \
   -derivedDataPath build/DerivedData \
+  -skip-testing:AberaAlarmsUITests/AlarmsUITests/test0WarmUp \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 \
   -maximum-test-execution-time-allowance 120 \
