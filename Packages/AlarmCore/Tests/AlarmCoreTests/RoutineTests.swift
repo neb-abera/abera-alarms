@@ -142,7 +142,7 @@ import Testing
         #expect(await held(rig).isEmpty)
     }
 
-    @Test func aOneTimeAlarmSwitchesItselfOffAfterItRings() async throws {
+    @Test func aOneTimeAlarmDeletesItselfAfterItRingsAndIsStopped() async throws {
         let clock = Fixtures.TestClock()
         let once = soon()
         let rig = Fixtures.rig([], routines: [once], clock: clock)
@@ -155,8 +155,9 @@ import Testing
 
         let report = await rig.sync.sync()
         #expect(report.error == nil)
-        #expect(report.state?.routines.first?.enabled == false)
-        #expect(await rig.server.routineUpdates.map(\.enabled) == [false])
+        #expect(report.state?.routines.isEmpty == true)
+        #expect(await rig.server.routineDeletes == [once.id])
+        #expect(await rig.server.routineUpdates.isEmpty)
         #expect(await held(rig)[once.id] == nil)
     }
 
@@ -176,7 +177,7 @@ import Testing
 
         await rig.server.setOffline(false)
         _ = await rig.sync.sync()
-        #expect(await rig.server.routineUpdates.map(\.id) == [once.id])
+        #expect(await rig.server.routineDeletes == [once.id])
         #expect(await held(rig)[once.id] == nil)
         #expect(await held(rig)[wake.id] != nil)
     }
@@ -190,6 +191,7 @@ import Testing
         await rig.alarms.ring(wake.id)
         _ = await rig.sync.sync()
         #expect(await rig.server.routineUpdates.isEmpty)
+        #expect(await rig.server.routineDeletes.isEmpty)
         #expect(await held(rig)[wake.id] != nil)
     }
 

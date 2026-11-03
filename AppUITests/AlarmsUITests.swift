@@ -629,6 +629,30 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertEqual(saved.value as? String, "1")
     }
 
+    func testARepeatingCountdownSaysSoAndAddingOneSendsItsRepeat() {
+        let app = launch(tab: "Countdowns")
+        let anniversary = countdown(app, "Anniversary")
+        XCTAssertTrue(anniversary.waitForExistence(timeout: 10))
+        XCTAssertTrue(anniversary.label.contains("Every year"), anniversary.label)
+        XCTAssertFalse(countdown(app, "Home").label.contains("Every"), countdown(app, "Home").label)
+
+        app.buttons["add-countdown"].tap()
+        let label = app.textFields["countdown-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.typeText("Birthday")
+        let repeats = app.buttons["countdown-repeat"].firstMatch
+        XCTAssertTrue(repeats.waitForExistence(timeout: 5))
+        repeats.tap()
+        let everyMonth = app.buttons["Every month"].firstMatch
+        XCTAssertTrue(everyMonth.waitForExistence(timeout: 5))
+        everyMonth.tap()
+        app.buttons["save-countdown"].tap()
+        let birthday = countdown(app, "Birthday")
+        XCTAssertTrue(birthday.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(birthday.label.contains("Every month"), birthday.label)
+    }
+
     func testTheZonePickerListsTheUnitedStatesFirstEastToWest() {
         let app = launch(tab: "Countdowns")
         XCTAssertTrue(countdown(app, "Home").waitForExistence(timeout: 10))

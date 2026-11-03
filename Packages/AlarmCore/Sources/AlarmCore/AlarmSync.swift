@@ -171,16 +171,16 @@ public actor AlarmSync {
             // to the last one is the state.
             var refusal: APIError?
             (state, refusal) = await flushRoutineChanges(client, from: state)
-            // A ring-once routine that rang is switched off on abera.tech, as
-            // the Clock app switches off a one-time alarm.
+            // A ring-once routine that rang is deleted on abera.tech. Neb
+            // asked on 2026-11-03 for a one-time alarm to delete itself once
+            // it goes off and is stopped. abera.tech deletes it too when the
+            // Stop reaches it, so this covers a ring stopped offline.
             for id in await pendingOff() {
                 if let routine = state.routines.first(where: { $0.id == id }), routine.enabled, !routine.repeats {
-                    var off = routine.draft
-                    off.enabled = false
                     do {
-                        state = try await client.updateRoutine(id: id, off)
+                        state = try await client.deleteRoutine(id: id)
                     } catch .notFound {
-                        // Deleted meanwhile: nothing to switch off.
+                        // Deleted meanwhile: nothing left to do.
                     }
                 }
                 await removePendingOff(id)

@@ -72,6 +72,10 @@
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000012")!, label: "Home",
                         targetAt: now.addingTimeInterval(41 * 86_400 + 5 * 3600), timeZone: "Asia/Amman",
                         alarm: true, onCalendar: true),
+                    Countdown(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000013")!, label: "Anniversary",
+                        targetAt: now.addingTimeInterval(100 * 86_400), timeZone: "America/New_York",
+                        onCalendar: true, repeats: .yearly),
                 ])
         }
     }

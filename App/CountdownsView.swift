@@ -106,9 +106,13 @@ struct CountdownRow: View {
                 Text(remaining.text)
                     .font(.title2.monospacedDigit())
                     .foregroundStyle(remaining.passed ? .secondary : .primary)
-                Text(countdown.targetText)
+                Text(countdown.targetText(at: context.date))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if countdown.repeats != .none {
+                    Label(countdown.repeats.label, systemImage: "repeat")
+                        .font(.footnote)
+                }
                 if countdown.alarm {
                     Label("Alarm at this time", systemImage: "alarm")
                         .font(.footnote)
@@ -136,6 +140,7 @@ struct CountdownEditor: View {
     @State private var target: Date
     @State private var zone: String
     @State private var alarm: Bool
+    @State private var repeats: CountdownRepeat
     @State private var deleting: Countdown?
 
     init(model: AppModel, countdown: Countdown?) {
@@ -148,9 +153,12 @@ struct CountdownEditor: View {
                 ?? Date(timeIntervalSinceReferenceDate: (tomorrow.timeIntervalSinceReferenceDate / 60).rounded() * 60))
         _zone = State(initialValue: countdown?.timeZone ?? Zones.phone())
         _alarm = State(initialValue: countdown?.alarm ?? false)
+        _repeats = State(initialValue: countdown?.repeats ?? .none)
     }
 
-    private var draft: CountdownDraft { CountdownDraft(label: label, targetAt: target, timeZone: zone, alarm: alarm) }
+    private var draft: CountdownDraft {
+        CountdownDraft(label: label, targetAt: target, timeZone: zone, alarm: alarm, repeats: repeats)
+    }
 
     var body: some View {
         NavigationStack {
@@ -176,9 +184,15 @@ struct CountdownEditor: View {
                 Section {
                     Toggle("Alarm at this time", isOn: $alarm)
                         .accessibilityIdentifier("countdown-alarm")
+                    Picker("Repeats", selection: $repeats) {
+                        ForEach(CountdownRepeat.allCases, id: \.self) { choice in
+                            Text(choice.label).tag(choice)
+                        }
+                    }
+                    .accessibilityIdentifier("countdown-repeat")
                 } footer: {
                     Text(
-                        "Rings on the phone and through Pushover until it is stopped. Every countdown is on Google Calendar."
+                        "Rings on the phone and through Pushover until it is stopped. One that does not repeat is deleted once its alarm is stopped. A repeating one moves to its next date at its time. Every countdown is on Google Calendar."
                     )
                 }
                 ForEach(draft.problems, id: \.self) { problem in

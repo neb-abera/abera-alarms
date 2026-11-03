@@ -192,7 +192,7 @@ import Testing
             try body(request)
                 == [
                     "label": "Home", "targetAt": "2026-11-13T14:00:00.000Z", "timeZone": "Asia/Amman",
-                    "alarm": "false",
+                    "alarm": "false", "repeat": "none",
                 ])
     }
 
@@ -212,7 +212,7 @@ import Testing
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.path == "/api/alerts/countdowns/6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(Fixtures.token)")
-        #expect(try body(request).keys.sorted() == ["alarm", "label", "targetAt", "timeZone"])
+        #expect(try body(request).keys.sorted() == ["alarm", "label", "repeat", "targetAt", "timeZone"])
     }
 
     @Test func deleteSendsNoBody() async throws {
