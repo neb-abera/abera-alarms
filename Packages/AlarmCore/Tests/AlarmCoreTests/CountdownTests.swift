@@ -98,9 +98,33 @@ import Testing
         #expect(newYork.targetText == "Fri 2026-11-13 09:00 America/New_York")
     }
 
-    @Test func anUnknownZoneIsWrittenInUTC() {
+    @Test func anUnknownZoneIsWrittenInNewYork() {
         let odd = Countdown(id: UUID(), label: "X", targetAt: at("2026-11-13T14:00:00Z"), timeZone: "Mars/Olympus")
-        #expect(odd.targetText == "Fri 2026-11-13 14:00 UTC")
+        #expect(odd.targetText == "Fri 2026-11-13 09:00 America/New_York")
+    }
+
+    @Test func aCountdownWithNoZoneReadsAsNewYork() throws {
+        let json = #"{"id":"6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11","targetAt":"2026-11-13T14:00:00Z"}"#
+        let countdown = try ServerDates.decoder().decode(Countdown.self, from: Data(json.utf8))
+        #expect(countdown.timeZone == "America/New_York")
+    }
+
+    @Test func theAlarmAndTheCalendarAreRead() throws {
+        let json = """
+            {"id":"6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11","label":"Flight","targetAt":"2026-11-13T14:00:00Z",
+             "timeZone":"America/New_York","alarm":true,"onCalendar":false}
+            """
+        let countdown = try ServerDates.decoder().decode(Countdown.self, from: Data(json.utf8))
+        #expect(countdown.alarm)
+        #expect(countdown.onCalendar == false)
+        #expect(countdown.draft.alarm)
+    }
+
+    @Test func anOlderServerHasNoAlarmAndSaysNothingOfTheCalendar() throws {
+        let json = #"{"id":"6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11","targetAt":"2026-11-13T14:00:00Z","timeZone":"UTC"}"#
+        let countdown = try ServerDates.decoder().decode(Countdown.self, from: Data(json.utf8))
+        #expect(!countdown.alarm)
+        #expect(countdown.onCalendar == nil)
     }
 
     @Test func aCountdownGivesTheDraftThatRecreatesIt() {
@@ -143,8 +167,17 @@ import Testing
         label: " Home ", targetAt: Date(timeIntervalSince1970: 1_794_578_400), timeZone: "Asia/Amman")
     let id = UUID(uuidString: "6F1C2C1E-3B52-4A52-9A0E-2B8F2F6B0A11")!
 
+    func sent(_ request: URLRequest) throws -> [String: Any] {
+        let data = try #require(request.httpBody)
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
     func body(_ request: URLRequest) throws -> [String: String] {
-        try JSONDecoder().decode([String: String].self, from: try #require(request.httpBody))
+        let object = try sent(request)
+        return object.mapValues { value in
+            if let flag = value as? Bool { return flag ? "true" : "false" }
+            return "\(value)"
+        }
     }
 
     @Test func createPostsTheDraft() async throws {
@@ -157,17 +190,29 @@ import Testing
         #expect(request.value(forHTTPHeaderField: "Content-Type") == "application/json")
         #expect(
             try body(request)
-                == ["label": "Home", "targetAt": "2026-11-13T14:00:00.000Z", "timeZone": "Asia/Amman"])
+                == [
+                    "label": "Home", "targetAt": "2026-11-13T14:00:00.000Z", "timeZone": "Asia/Amman",
+                    "alarm": "false",
+                ])
     }
 
-    @Test func updatePutsAllThreeFieldsToTheId() async throws {
+    @Test func theAlarmIsSentAsTrueOrFalse() async throws {
+        let transport = ScriptedTransport(status: 201, body: okBody)
+        var ringing = draft
+        ringing.alarm = true
+        _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport).createCountdown(ringing)
+        let request = try #require(await transport.last)
+        #expect(try sent(request)["alarm"] as? Bool == true)
+    }
+
+    @Test func updatePutsEveryFieldToTheId() async throws {
         let transport = ScriptedTransport(body: okBody)
         _ = try await AlertsClient(pairing: Fixtures.pairing, transport: transport).updateCountdown(id: id, draft)
         let request = try #require(await transport.last)
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.path == "/api/alerts/countdowns/6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(Fixtures.token)")
-        #expect(try body(request).keys.sorted() == ["label", "targetAt", "timeZone"])
+        #expect(try body(request).keys.sorted() == ["alarm", "label", "targetAt", "timeZone"])
     }
 
     @Test func deleteSendsNoBody() async throws {

@@ -1,7 +1,10 @@
 import Foundation
 
 /// A date to count down to, such as the day home from a deployment. Kept on
-/// abera.tech, so the page and the phone show the same one.
+/// abera.tech, so the page and the phone show the same one. abera.tech puts
+/// each on Google Calendar as an event at its target. With `alarm` on, that
+/// event rings at the target on the phone and through Pushover until it is
+/// stopped.
 public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var id: UUID
     public var label: String
@@ -9,13 +12,22 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// The IANA zone the target was set in. The target is written in it.
     public var timeZone: String
     public var updatedAt: Date?
+    /// Its calendar event rings as an alarm at the target. False from an older server.
+    public var alarm: Bool
+    /// False for a countdown abera.tech has not put on the calendar yet. Nil from an older server.
+    public var onCalendar: Bool?
 
-    public init(id: UUID, label: String, targetAt: Date, timeZone: String, updatedAt: Date? = nil) {
+    public init(
+        id: UUID, label: String, targetAt: Date, timeZone: String, updatedAt: Date? = nil, alarm: Bool = false,
+        onCalendar: Bool? = nil
+    ) {
         self.id = id
         self.label = label
         self.targetAt = targetAt
         self.timeZone = timeZone
         self.updatedAt = updatedAt
+        self.alarm = alarm
+        self.onCalendar = onCalendar
     }
 
     public init(from decoder: any Decoder) throws {
@@ -23,18 +35,22 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
         id = try container.decode(UUID.self, forKey: .id)
         label = try container.decodeIfPresent(String.self, forKey: .label) ?? CountdownDraft.defaultLabel
         targetAt = try container.decode(Date.self, forKey: .targetAt)
-        timeZone = try container.decodeIfPresent(String.self, forKey: .timeZone) ?? "UTC"
+        timeZone = try container.decodeIfPresent(String.self, forKey: .timeZone) ?? Zones.home
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        alarm = try container.decodeIfPresent(Bool.self, forKey: .alarm) ?? false
+        onCalendar = try container.decodeIfPresent(Bool.self, forKey: .onCalendar)
     }
 
     /// The draft that recreates this countdown, for an edit.
-    public var draft: CountdownDraft { CountdownDraft(label: label, targetAt: targetAt, timeZone: timeZone) }
+    public var draft: CountdownDraft {
+        CountdownDraft(label: label, targetAt: targetAt, timeZone: timeZone, alarm: alarm)
+    }
 
-    /// The zone, or UTC when this phone does not know it.
+    /// The zone, or New York when this phone does not know it.
     public var zone: TimeZone { TimeZone(identifier: zoneName)! }
 
-    /// The zone's name, or "UTC" when this phone does not know it.
-    public var zoneName: String { TimeZone(identifier: timeZone) == nil ? "UTC" : timeZone }
+    /// The zone's name, or "America/New_York" when this phone does not know it.
+    public var zoneName: String { TimeZone(identifier: timeZone) == nil ? Zones.home : timeZone }
 
     /// "Fri 2026-11-13 17:00 Asia/Amman": the target in its own zone, named.
     public var targetText: String {
@@ -89,11 +105,22 @@ public struct CountdownDraft: Codable, Equatable, Sendable {
     public var label: String
     public var targetAt: Date
     public var timeZone: String
+    /// Ring an alarm at the target, on the phone and through Pushover, until it is stopped.
+    public var alarm: Bool
 
-    public init(label: String = "", targetAt: Date, timeZone: String) {
+    public init(label: String = "", targetAt: Date, timeZone: String, alarm: Bool = false) {
         self.label = label
         self.targetAt = targetAt
         self.timeZone = timeZone
+        self.alarm = alarm
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decodeIfPresent(String.self, forKey: .label) ?? ""
+        targetAt = try container.decode(Date.self, forKey: .targetAt)
+        timeZone = try container.decode(String.self, forKey: .timeZone)
+        alarm = try container.decodeIfPresent(Bool.self, forKey: .alarm) ?? false
     }
 
     /// The label as sent: trimmed, and "Countdown" when empty.

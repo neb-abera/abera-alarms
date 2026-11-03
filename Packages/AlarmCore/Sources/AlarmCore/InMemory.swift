@@ -322,7 +322,7 @@ public actor FakeAlertsServer: HTTPTransport {
             state.countdowns.append(
                 Countdown(
                     id: UUID(), label: draft.sentLabel, targetAt: draft.targetAt, timeZone: draft.timeZone,
-                    updatedAt: Date()))
+                    updatedAt: Date(), alarm: draft.alarm, onCalendar: true))
             sortCountdowns()
             return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
         case ("PUT", _) where path.hasPrefix("/api/alerts/countdowns/"):
@@ -332,6 +332,8 @@ public actor FakeAlertsServer: HTTPTransport {
             state.countdowns[index].label = draft.sentLabel
             state.countdowns[index].targetAt = draft.targetAt
             state.countdowns[index].timeZone = draft.timeZone
+            state.countdowns[index].alarm = draft.alarm
+            state.countdowns[index].onCalendar = true
             state.countdowns[index].updatedAt = Date()
             sortCountdowns()
         case ("DELETE", _) where path.hasPrefix("/api/alerts/countdowns/"):
