@@ -99,6 +99,15 @@ struct WorkoutView: View {
                                 : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number. Stop ends the set and the voice."
                         )
                     }
+                    if !workout.sets.isEmpty {
+                        Section("Sets done") {
+                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
+                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
+                                    .monospacedDigit()
+                                    .accessibilityIdentifier("workout-done-\(index + 1)")
+                            }
+                        }
+                    }
                     Section {
                         if lockScreenLog.isEmpty {
                             Text("No Lock Screen button has reached the app yet.")
@@ -113,15 +122,6 @@ struct WorkoutView: View {
                         Text("Each press of a Lock Screen button that reaches the app, newest first.")
                     }
                     .accessibilityIdentifier("lock-screen-log")
-                    if !workout.sets.isEmpty {
-                        Section("Sets done") {
-                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
-                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
-                                    .monospacedDigit()
-                                    .accessibilityIdentifier("workout-done-\(index + 1)")
-                            }
-                        }
-                    }
                 }
                 .scrollContentBackground(.hidden)
             }
