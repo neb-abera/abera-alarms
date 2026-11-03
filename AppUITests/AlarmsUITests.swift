@@ -694,6 +694,24 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Start"))
     }
 
+    func testResetEverythingSaysTheTimeEveryThirtySecondsAgain() {
+        let app = launch(tab: "Timer")
+        let interval = app.buttons["workout-interval"].firstMatch
+        XCTAssertTrue(interval.waitForExistence(timeout: 10))
+        interval.tap()
+        let off = app.buttons["Off"].firstMatch
+        XCTAssertTrue(off.waitForExistence(timeout: 5))
+        off.tap()
+        XCTAssertTrue(waitFor(interval, labelContaining: "Off"), interval.label)
+        app.buttons["workout-start"].tap()
+        app.buttons["workout-reset-session"].tap()
+        let everything = app.buttons["confirm-reset-everything"].firstMatch
+        XCTAssertTrue(everything.waitForExistence(timeout: 5))
+        everything.tap()
+        XCTAssertTrue(waitFor(interval, labelContaining: "30 s"), interval.label)
+        XCTAssertTrue(waitFor(app.buttons["workout-start"], labelContaining: "Start"))
+    }
+
     func testTheSpokenTimeCanBeSwitchedOff() {
         let app = launch(tab: "Timer")
         let interval = app.buttons["workout-interval"].firstMatch

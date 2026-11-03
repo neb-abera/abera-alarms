@@ -114,6 +114,13 @@ final class RestModel {
         await changed(show: true)
     }
 
+    /// Ends the countdown and puts the rest back to its 1:30 default.
+    func resetToDefault() async {
+        await end()
+        rest = Rest()
+        if let data = try? JSONEncoder().encode(rest) { store?.set(data, forKey: Self.key) }
+    }
+
     /// Ends the countdown and takes it off the Lock Screen.
     func end() async {
         rest.end()

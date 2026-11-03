@@ -7,6 +7,8 @@ import Foundation
 public struct Workout: Codable, Equatable, Sendable {
     /// The choices for the spoken time, in seconds. 0 says nothing.
     public static let intervals = [0, 10, 15, 20, 30, 45, 60, 90, 120, 180, 300]
+    /// A new timer, and each fresh launch, says the time every 30 s.
+    public static let defaultInterval = 30
 
     /// Seconds on the clock between spoken times. 0 says nothing.
     public var interval: Int
@@ -17,7 +19,10 @@ public struct Workout: Codable, Equatable, Sendable {
     /// The time of each set already done, first to last.
     public var sets: [TimeInterval]
 
-    public init(interval: Int = 30, startedAt: Date? = nil, held: TimeInterval = 0, sets: [TimeInterval] = []) {
+    public init(
+        interval: Int = Workout.defaultInterval, startedAt: Date? = nil, held: TimeInterval = 0,
+        sets: [TimeInterval] = []
+    ) {
         self.interval = interval
         self.startedAt = startedAt
         self.held = held
@@ -77,6 +82,19 @@ public struct Workout: Codable, Equatable, Sendable {
         sets = []
         held = 0
         startedAt = nil
+    }
+
+    /// Back to a new timer: set 1 at 0:00, stopped, the time said every 30 s.
+    public mutating func resetEverything() {
+        self = Workout()
+    }
+
+    /// The app was launched fresh. With no workout going, the time is said
+    /// every 30 s again. A launch mid-workout keeps the chosen interval,
+    /// because iOS also launches the app to run a Lock Screen button.
+    public mutating func launched() {
+        guard !started else { return }
+        interval = Self.defaultInterval
     }
 
     /// The next time to say, strictly after `now`: the next whole multiple

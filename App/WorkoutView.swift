@@ -143,9 +143,13 @@ struct WorkoutView: View {
             }
             .confirmationDialog("Reset the session?", isPresented: $confirmingReset, titleVisibility: .visible) {
                 Button("Reset Session", role: .destructive) { timer.resetSession() }
+                Button("Reset Everything", role: .destructive) { Task { await timer.resetEverything() } }
+                    .accessibilityIdentifier("confirm-reset-everything")
                     .accessibilityIdentifier("confirm-reset-session")
             } message: {
-                Text("Back to set 1 at 0:00. The list of sets done is cleared.")
+                Text(
+                    "Reset Session goes back to set 1 at 0:00 and clears the sets done. Reset Everything also says the time every 30 s again and sets the rest to 1:30."
+                )
             }
         }
     }
@@ -194,6 +198,8 @@ final class WorkoutModel {
         system = !demo || lockScreen
         workout =
             store?.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(Workout.self, from: $0) } ?? Workout()
+        // One instance per launch: a fresh launch says the time every 30 s.
+        workout.launched()
         follow()
         show()
     }
@@ -233,6 +239,13 @@ final class WorkoutModel {
     func resetSession() {
         workout.resetSession()
         changed()
+    }
+
+    /// A new timer, and the rest back to its 1:30 default.
+    func resetEverything() async {
+        workout.resetEverything()
+        changed()
+        await RestModel.shared.resetToDefault()
     }
 
     /// Returns once the Lock Screen shows the latest change.

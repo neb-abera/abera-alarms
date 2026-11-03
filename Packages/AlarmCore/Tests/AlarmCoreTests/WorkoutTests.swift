@@ -201,4 +201,40 @@ import Testing
         #expect(Workout.intervals == Workout.intervals.sorted())
         #expect(Workout.intervals.contains(30))
     }
+
+    // MARK: Defaults (Neb, 2026-11-03)
+
+    @Test func theDefaultIsEveryThirtySeconds() {
+        #expect(Workout.defaultInterval == 30)
+        #expect(Workout().interval == Workout.defaultInterval)
+    }
+
+    @Test func aFreshLaunchWithNoWorkoutGoingSaysTheTimeEveryThirtySeconds() {
+        for chosen in [0, 45, 300] {
+            var workout = Workout(interval: chosen, sets: [40, 50])
+            workout.launched()
+            #expect(workout.interval == 30)
+            #expect(workout.sets == [40, 50])
+        }
+    }
+
+    @Test func aLaunchMidWorkoutKeepsTheChosenInterval() {
+        var running = Workout(interval: 45)
+        running.start(at: zero)
+        running.launched()
+        #expect(running.interval == 45)
+        var paused = Workout(interval: 45)
+        paused.start(at: zero)
+        paused.pause(at: at(10))
+        paused.launched()
+        #expect(paused.interval == 45)
+    }
+
+    @Test func resetEverythingGoesBackToANewTimer() {
+        var workout = Workout(interval: 0)
+        workout.start(at: zero)
+        workout.nextSet(at: at(60))
+        workout.resetEverything()
+        #expect(workout == Workout())
+    }
 }
