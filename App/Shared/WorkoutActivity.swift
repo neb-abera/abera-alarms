@@ -96,7 +96,19 @@ struct StopWorkoutIntent: LiveActivityIntent {
 enum IntentLog {
     static let logger = Logger(subsystem: "tech.abera.alarms", category: "intents")
 
+    /// The last five runs, newest first, one per line, for the Timer tab.
+    static let key = "lockScreenLog"
+
+    static let names = [
+        "StartWorkoutIntent": "Start workout", "StartOrPauseWorkoutIntent": "Pause or Resume",
+        "NextSetIntent": "Next set", "StopWorkoutIntent": "Stop", "AdjustRestIntent": "Rest minus or plus",
+        "RestartRestIntent": "Restart rest",
+    ]
+
     static func ran(_ name: String) {
         logger.notice("\(name, privacy: .public) ran in \(Bundle.main.bundleIdentifier ?? "?", privacy: .public)")
+        let line = "\(names[name] ?? name) at \(Date().formatted(date: .omitted, time: .standard))"
+        let old = UserDefaults.standard.string(forKey: key)?.split(separator: "\n").map(String.init) ?? []
+        UserDefaults.standard.set(([line] + old).prefix(5).joined(separator: "\n"), forKey: key)
     }
 }

@@ -613,8 +613,9 @@ final class AlarmsUITests: XCTestCase {
 
     private func lockScreenNextSet(closingTheApp: Bool) {
         let app = XCUIApplication()
-        app.launchArguments = ["-demo", "-demo-lock-screen"]
+        app.launchArguments = ["-demo", "-demo-lock-screen", "-reset-lock-screen"]
         app.launch()
+        app.launchArguments = ["-demo", "-demo-lock-screen"]
         open("Timer", in: app)
         let set = app.descendants(matching: .any)["workout-set"].firstMatch
         XCTAssertTrue(set.waitForExistence(timeout: 10))
@@ -640,8 +641,16 @@ final class AlarmsUITests: XCTestCase {
         }
 
         guard !closingTheApp else { return }
+        // iOS may have ended the app in the background, so activate can
+        // relaunch it on its first tab.
         app.activate()
+        if app.tabBars.buttons["Timer"].waitForExistence(timeout: 10) { app.tabBars.buttons["Timer"].tap() }
         XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
+        let last = app.descendants(matching: .any)["lock-screen-last"].firstMatch
+        guard last.waitForExistence(timeout: 5), last.label.contains("Next set at") else {
+            XCTFail("the Timer tab does not show the Lock Screen press:\n\(app.debugDescription)")
+            return
+        }
     }
 
     // MARK: Workout timer

@@ -11,6 +11,7 @@ struct WorkoutView: View {
     @Bindable var timer: WorkoutModel
     var onScreen = true
     @State private var confirmingReset = false
+    @AppStorage(IntentLog.key) private var lockScreenLog = ""
 
     private var workout: Workout { timer.workout }
 
@@ -70,6 +71,12 @@ struct WorkoutView: View {
                     .disabled(!workout.started)
                     .padding(.horizontal)
                     .accessibilityIdentifier("workout-stop")
+                    if let last = lockScreenLog.split(separator: "\n").first {
+                        Text("Last Lock Screen press: \(last)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("lock-screen-last")
+                    }
                     if let problem = timer.problem {
                         Text(problem)
                             .font(.footnote)
@@ -106,6 +113,20 @@ struct WorkoutView: View {
                                     .accessibilityIdentifier("workout-done-\(index + 1)")
                             }
                         }
+                    }
+                    Section {
+                        if lockScreenLog.isEmpty {
+                            Text("No Lock Screen button has reached the app yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(lockScreenLog)
+                                .monospacedDigit()
+                                .accessibilityIdentifier("lock-screen-log-entries")
+                        }
+                    } header: {
+                        Text("Lock Screen buttons")
+                    } footer: {
+                        Text("Each press of a Lock Screen button that reaches the app, newest first.")
                     }
                 }
                 .scrollContentBackground(.hidden)
@@ -161,7 +182,14 @@ final class WorkoutModel {
         // -demo-lock-screen keeps the workout in the app's own store, from
         // set 1, so the app iOS launches for a Lock Screen button (with no
         // arguments) finds the same workout.
-        if demo && lockScreen { UserDefaults.standard.removeObject(forKey: Self.key) }
+        // -reset-lock-screen starts that store and the Lock Screen list
+        // empty. A UI test passes it on its first launch only, because iOS
+        // can end a backgrounded app and the test's next activate relaunches
+        // it with the same arguments.
+        if demo && ProcessInfo.processInfo.arguments.contains("-reset-lock-screen") {
+            UserDefaults.standard.removeObject(forKey: Self.key)
+            UserDefaults.standard.removeObject(forKey: IntentLog.key)
+        }
         store = demo && !lockScreen ? nil : .standard
         system = !demo || lockScreen
         workout =
