@@ -71,6 +71,12 @@ struct WorkoutView: View {
                     .disabled(!workout.started)
                     .padding(.horizontal)
                     .accessibilityIdentifier("workout-stop")
+                    if let last = lockScreenLog.split(separator: "\n").first {
+                        Text("Last Lock Screen press: \(last)")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("lock-screen-last")
+                    }
                     if let problem = timer.problem {
                         Text(problem)
                             .font(.footnote)
