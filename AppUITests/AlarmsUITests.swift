@@ -601,9 +601,12 @@ final class AlarmsUITests: XCTestCase {
         guard !closingTheApp else { return }
         app.activate()
         XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
-        let log = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Next set at'")).firstMatch
+        let log = app.descendants(matching: .any)["lock-screen-log-entries"].firstMatch
         for _ in 0..<5 where !log.exists { app.collectionViews.firstMatch.swipeUp() }
-        XCTAssertTrue(log.waitForExistence(timeout: 5), "the Timer tab does not list the Lock Screen press")
+        guard log.waitForExistence(timeout: 5), log.label.hasPrefix("Next set at") else {
+            XCTFail("the Timer tab does not list the Lock Screen press:\n\(app.debugDescription)")
+            return
+        }
     }
 
     // MARK: Workout timer

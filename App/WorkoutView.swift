@@ -115,13 +115,13 @@ struct WorkoutView: View {
                         } else {
                             Text(lockScreenLog)
                                 .monospacedDigit()
+                                .accessibilityIdentifier("lock-screen-log-entries")
                         }
                     } header: {
                         Text("Lock Screen buttons")
                     } footer: {
                         Text("Each press of a Lock Screen button that reaches the app, newest first.")
                     }
-                    .accessibilityIdentifier("lock-screen-log")
                 }
                 .scrollContentBackground(.hidden)
             }
