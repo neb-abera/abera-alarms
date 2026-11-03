@@ -11,6 +11,7 @@ struct WorkoutView: View {
     @Bindable var timer: WorkoutModel
     var onScreen = true
     @State private var confirmingReset = false
+    @AppStorage(IntentLog.key) private var lockScreenLog = ""
 
     private var workout: Workout { timer.workout }
 
@@ -98,6 +99,20 @@ struct WorkoutView: View {
                                 : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number. Stop ends the set and the voice."
                         )
                     }
+                    Section {
+                        if lockScreenLog.isEmpty {
+                            Text("No Lock Screen button has reached the app yet.")
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text(lockScreenLog)
+                                .monospacedDigit()
+                        }
+                    } header: {
+                        Text("Lock Screen buttons")
+                    } footer: {
+                        Text("Each press of a Lock Screen button that reaches the app, newest first.")
+                    }
+                    .accessibilityIdentifier("lock-screen-log")
                     if !workout.sets.isEmpty {
                         Section("Sets done") {
                             ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
@@ -161,7 +176,10 @@ final class WorkoutModel {
         // -demo-lock-screen keeps the workout in the app's own store, from
         // set 1, so the app iOS launches for a Lock Screen button (with no
         // arguments) finds the same workout.
-        if demo && lockScreen { UserDefaults.standard.removeObject(forKey: Self.key) }
+        if demo && lockScreen {
+            UserDefaults.standard.removeObject(forKey: Self.key)
+            UserDefaults.standard.removeObject(forKey: IntentLog.key)
+        }
         store = demo && !lockScreen ? nil : .standard
         system = !demo || lockScreen
         workout =
