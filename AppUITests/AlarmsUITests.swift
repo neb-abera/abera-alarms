@@ -601,7 +601,7 @@ final class AlarmsUITests: XCTestCase {
         guard !closingTheApp else { return }
         app.activate()
         XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
-        let log = app.staticTexts.containing(NSPredicate(format: "label BEGINSWITH 'Next set at'")).firstMatch
+        let log = app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Next set at'")).firstMatch
         for _ in 0..<5 where !log.exists { app.swipeUp() }
         XCTAssertTrue(log.waitForExistence(timeout: 5), "the Timer tab does not list the Lock Screen press")
     }
