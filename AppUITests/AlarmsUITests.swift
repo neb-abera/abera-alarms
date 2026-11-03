@@ -606,7 +606,9 @@ final class AlarmsUITests: XCTestCase {
         if app.tabBars.buttons["Timer"].waitForExistence(timeout: 10) { app.tabBars.buttons["Timer"].tap() }
         XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
         let log = app.descendants(matching: .any)["lock-screen-log-entries"].firstMatch
-        for _ in 0..<5 where !log.exists { app.collectionViews["workout-list"].swipeUp() }
+        // A swipe on a row of the Timer tab's list scrolls that list.
+        let row = app.buttons["workout-interval"].firstMatch
+        for _ in 0..<5 where !log.exists && row.exists { row.swipeUp() }
         guard log.waitForExistence(timeout: 5), log.label.hasPrefix("Next set at") else {
             XCTFail("the Timer tab does not list the Lock Screen press:\n\(app.debugDescription)")
             return

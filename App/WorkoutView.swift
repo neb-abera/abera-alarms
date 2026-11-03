@@ -124,7 +124,6 @@ struct WorkoutView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
-                .accessibilityIdentifier("workout-list")
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Timer")
