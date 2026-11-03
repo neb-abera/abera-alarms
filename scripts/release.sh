@@ -65,6 +65,24 @@ case "${1:-}" in
       exit 1
     fi
     echo "Archived $app"
+    # iOS finds a Lock Screen button's intent through App Intents metadata in
+    # the app and in the widget. On 2026-11-03 the buttons did nothing on
+    # Neb's iPhone (TestFlight, Release) while Debug simulator tests passed.
+    missing=0
+    for bundle in "$app" "$app/PlugIns/AlarmsWidget.appex"; do
+      actions="$bundle/Metadata.appintents/extract.actionsdata"
+      echo "App Intents in ${bundle#"$ARCHIVE/"}:"
+      if [ ! -f "$actions" ]; then
+        echo "  error: no $actions" >&2
+        missing=1
+        continue
+      fi
+      for intent in StartWorkoutIntent StartOrPauseWorkoutIntent NextSetIntent StopWorkoutIntent \
+        AdjustRestIntent RestartRestIntent; do
+        if grep -q "\"$intent\"" "$actions"; then echo "  $intent"; else echo "  error: $intent missing" >&2; missing=1; fi
+      done
+    done
+    [ "$missing" -eq 0 ] || exit 1
     ;;
   upload)
     [ ${#key_args[@]} -gt 0 ] || { echo "error: upload needs ASC_KEY_ID, ASC_ISSUER_ID and ASC_KEY_P8" >&2; exit 1; }
