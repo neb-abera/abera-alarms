@@ -187,7 +187,6 @@ final class AlarmsUITests: XCTestCase {
             app.buttons["event-type"].firstMatch.label.contains("Until stopped"),
             app.buttons["event-type"].firstMatch.label)
         XCTAssertEqual(app.textFields["event-length-amount"].value as? String, "30")
-        XCTAssertEqual(app.textFields["event-lead-amount"].value as? String, "0")
         XCTAssertTrue(
             app.staticTexts["Rings at the start until you stop it, on the phone and through Pushover."].exists)
 
@@ -205,13 +204,10 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         title.tap()
         title.typeText("Flight")
-        let length = app.textFields["event-length-amount"]
-        length.tap()
-        length.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "2")
+        replace(app.textFields["event-length-amount"], with: "2", in: app)
         choose("hours", from: "event-length-unit", in: app)
         let lead = app.textFields["event-lead-amount"]
-        lead.tap()
-        lead.typeText(XCUIKeyboardKey.delete.rawValue + "3")
+        replace(lead, with: "3", in: app)
         choose("hours", from: "event-lead-unit", in: app)
         XCTAssertEqual(lead.value as? String, "3")
         XCTAssertTrue(

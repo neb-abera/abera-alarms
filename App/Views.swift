@@ -335,10 +335,14 @@ struct SpanField: View {
     var body: some View {
         LabeledContent(title) {
             HStack {
+                // Zero shows as an empty field with a grey 0, so a typed
+                // number replaces it rather than landing beside it.
                 TextField(
                     title,
                     text: Binding(
-                        get: { String(span.amount) }, set: { span.amount = TimeSpan.amount(typed: $0) })
+                        get: { span.amount == 0 ? "" : String(span.amount) },
+                        set: { span.amount = TimeSpan.amount(typed: $0) }),
+                    prompt: Text("0")
                 )
                 .keyboardType(.numberPad)
                 .multilineTextAlignment(.trailing)
