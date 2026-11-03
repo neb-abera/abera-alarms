@@ -649,7 +649,10 @@ final class AlarmsUITests: XCTestCase {
         everyWeek.tap()
         let every = app.steppers["countdown-every"].firstMatch
         XCTAssertTrue(every.waitForExistence(timeout: 5))
-        every.buttons["Increment"].tap()
+        // A Stepper holds its minus and plus buttons in that order. iOS 27
+        // gives the plus no "Increment" identifier, as iOS 26 did.
+        XCTAssertTrue(poll(5) { every.buttons.count == 2 }, every.debugDescription)
+        every.buttons.element(boundBy: 1).tap()
         XCTAssertTrue(
             poll(5) { every.label.contains("2 weeks") || every.value as? String == "2" }, every.debugDescription)
         app.buttons["save-countdown"].tap()
