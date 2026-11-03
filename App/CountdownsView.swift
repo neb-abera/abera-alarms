@@ -2,7 +2,8 @@ import AlarmCore
 import SwiftUI
 
 /// Every countdown on abera.tech, each with a clock that ticks once a
-/// second. Tap one to edit it, swipe to delete, + to add.
+/// second. abera.tech puts each on Google Calendar, and one with its alarm
+/// on rings at its target. Tap one to edit it, swipe to delete, + to add.
 struct CountdownsView: View {
     @Bindable var model: AppModel
     @State private var adding = false
@@ -108,6 +109,15 @@ struct CountdownRow: View {
                 Text(countdown.targetText)
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+                if countdown.alarm {
+                    Label("Alarm at this time", systemImage: "alarm")
+                        .font(.footnote)
+                }
+                if countdown.onCalendar == false {
+                    Text("Not on the calendar yet. Edit and save it to add it.")
+                        .font(.footnote)
+                        .foregroundStyle(.orange)
+                }
             }
             .accessibilityElement(children: .combine)
             .accessibilityIdentifier("countdown-\(countdown.label)")
@@ -115,8 +125,9 @@ struct CountdownRow: View {
     }
 }
 
-/// Add or edit a countdown: a label, a date and time, and the zone the
-/// time is in. A new one starts in the phone's zone. An edit keeps its own.
+/// Add or edit a countdown: a label, a date and time, the zone the time is
+/// in, and whether it rings. A new one starts in the phone's zone, or New
+/// York when the phone's zone has no tz database name. An edit keeps its own.
 struct CountdownEditor: View {
     @Bindable var model: AppModel
     let countdown: Countdown?
@@ -124,6 +135,7 @@ struct CountdownEditor: View {
     @State private var label: String
     @State private var target: Date
     @State private var zone: String
+    @State private var alarm: Bool
     @State private var deleting: Countdown?
 
     init(model: AppModel, countdown: Countdown?) {
@@ -134,10 +146,11 @@ struct CountdownEditor: View {
         _target = State(
             initialValue: countdown?.targetAt
                 ?? Date(timeIntervalSinceReferenceDate: (tomorrow.timeIntervalSinceReferenceDate / 60).rounded() * 60))
-        _zone = State(initialValue: countdown?.timeZone ?? TimeZone.current.identifier)
+        _zone = State(initialValue: countdown?.timeZone ?? Zones.phone())
+        _alarm = State(initialValue: countdown?.alarm ?? false)
     }
 
-    private var draft: CountdownDraft { CountdownDraft(label: label, targetAt: target, timeZone: zone) }
+    private var draft: CountdownDraft { CountdownDraft(label: label, targetAt: target, timeZone: zone, alarm: alarm) }
 
     var body: some View {
         NavigationStack {
@@ -159,6 +172,14 @@ struct CountdownEditor: View {
                         Countdown(id: UUID(), label: draft.sentLabel, targetAt: target, timeZone: zone).targetText
                     )
                     .accessibilityIdentifier("countdown-target-text")
+                }
+                Section {
+                    Toggle("Alarm at this time", isOn: $alarm)
+                        .accessibilityIdentifier("countdown-alarm")
+                } footer: {
+                    Text(
+                        "Rings on the phone and through Pushover until it is stopped. Every countdown is on Google Calendar."
+                    )
                 }
                 ForEach(draft.problems, id: \.self) { problem in
                     Text(problem).foregroundStyle(.red)
@@ -198,34 +219,40 @@ struct CountdownEditor: View {
     }
 }
 
-/// Every zone the tz database knows, searchable by name.
+/// Every zone the tz database knows, searchable by name, the United States
+/// first, east to west.
 struct ZonePicker: View {
     @Binding var zone: String
     @Environment(\.dismiss) private var dismiss
     @State private var search = ""
 
-    private var zones: [String] {
-        let all = TimeZone.knownTimeZoneIdentifiers
-        guard !search.isEmpty else { return all }
-        let words = search.replacingOccurrences(of: " ", with: "_")
-        return all.filter { $0.localizedCaseInsensitiveContains(words) }
-    }
+    private var zones: [String] { Zones.matching(search) }
 
     var body: some View {
-        List(zones, id: \.self) { name in
-            Button {
-                zone = name
-                dismiss()
-            } label: {
-                HStack {
-                    Text(name).foregroundStyle(.primary)
-                    Spacer()
-                    if name == zone { Image(systemName: "checkmark") }
-                }
+        let us = Set(Zones.unitedStates)
+        List {
+            Section("United States") {
+                ForEach(zones.filter { us.contains($0) }, id: \.self, content: row)
             }
-            .accessibilityIdentifier("zone-\(name)")
+            Section("Everywhere else") {
+                ForEach(zones.filter { !us.contains($0) }, id: \.self, content: row)
+            }
         }
         .searchable(text: $search, prompt: "City or region")
         .navigationTitle("Time Zone")
+    }
+
+    private func row(_ name: String) -> some View {
+        Button {
+            zone = name
+            dismiss()
+        } label: {
+            HStack {
+                Text(name).foregroundStyle(.primary)
+                Spacer()
+                if name == zone { Image(systemName: "checkmark") }
+            }
+        }
+        .accessibilityIdentifier("zone-\(name)")
     }
 }

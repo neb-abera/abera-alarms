@@ -70,7 +70,8 @@
                         targetAt: now.addingTimeInterval(-3 * 86_400), timeZone: "America/New_York"),
                     Countdown(
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000012")!, label: "Home",
-                        targetAt: now.addingTimeInterval(41 * 86_400 + 5 * 3600), timeZone: "Asia/Amman"),
+                        targetAt: now.addingTimeInterval(41 * 86_400 + 5 * 3600), timeZone: "Asia/Amman",
+                        alarm: true, onCalendar: true),
                 ])
         }
     }

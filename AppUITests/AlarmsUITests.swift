@@ -528,6 +528,47 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertFalse(countdown(app, "Home").exists)
     }
 
+    func testACountdownWithItsAlarmOnSaysSoAndEditShowsTheSwitchOn() {
+        let app = launch(tab: "Countdowns")
+        XCTAssertTrue(countdown(app, "Home").waitForExistence(timeout: 10))
+        XCTAssertTrue(countdown(app, "Home").label.contains("Alarm at this time"), countdown(app, "Home").label)
+        XCTAssertFalse(countdown(app, "Arrived").label.contains("Alarm at this time"))
+        app.buttons["add-countdown"].tap()
+        let label = app.textFields["countdown-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.typeText("Flight")
+        let alarm = app.switches["countdown-alarm"]
+        XCTAssertTrue(alarm.waitForExistence(timeout: 5))
+        XCTAssertEqual(alarm.value as? String, "0")
+        alarm.switches.firstMatch.tap()
+        XCTAssertTrue(poll(5) { alarm.value as? String == "1" })
+        app.buttons["save-countdown"].tap()
+        let flight = countdown(app, "Flight")
+        XCTAssertTrue(flight.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(flight.label.contains("Alarm at this time"), flight.label)
+
+        flight.tap()
+        let saved = app.switches["countdown-alarm"]
+        XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        XCTAssertEqual(saved.value as? String, "1")
+    }
+
+    func testTheZonePickerListsTheUnitedStatesFirstEastToWest() {
+        let app = launch(tab: "Countdowns")
+        XCTAssertTrue(countdown(app, "Home").waitForExistence(timeout: 10))
+        app.buttons["add-countdown"].tap()
+        let zone = app.descendants(matching: .any)["countdown-zone"].firstMatch
+        XCTAssertTrue(zone.waitForExistence(timeout: 5))
+        zone.tap()
+        let zones = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'zone-'"))
+        XCTAssertTrue(zones.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertEqual(zones.firstMatch.identifier, "zone-America/New_York")
+        let order = ["America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles"]
+            .map { app.buttons["zone-\($0)"].firstMatch.frame.minY }
+        XCTAssertEqual(order, order.sorted(), "\(order)")
+    }
+
     func testDeletingACountdownAsksFirst() {
         let app = launch(tab: "Countdowns")
         let home = countdown(app, "Home")
