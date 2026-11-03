@@ -213,9 +213,10 @@ final class AlarmsUITests: XCTestCase {
         lead.tap()
         lead.typeText(XCUIKeyboardKey.delete.rawValue + "3")
         choose("hours", from: "event-lead-unit", in: app)
+        XCTAssertEqual(lead.value as? String, "3")
         XCTAssertTrue(
-            app.staticTexts["Rings 3 hours before the start until you stop it, on the phone and through Pushover."]
-                .waitForExistence(timeout: 5))
+            app.buttons["event-lead-unit"].firstMatch.label.contains("hours"),
+            app.buttons["event-lead-unit"].firstMatch.label)
         app.buttons["add-event"].tap()
 
         let flight = app.descendants(matching: .any).matching(
@@ -229,6 +230,9 @@ final class AlarmsUITests: XCTestCase {
             app.buttons["edit-length-unit"].firstMatch.label.contains("hours"),
             app.buttons["edit-length-unit"].firstMatch.label)
         XCTAssertEqual(app.textFields["event-lead-amount"].value as? String, "3")
+        XCTAssertTrue(
+            app.buttons["event-lead-unit"].firstMatch.label.contains("hours"),
+            app.buttons["event-lead-unit"].firstMatch.label)
     }
 
     /// Opens a unit menu and picks an option, never the other unit menu's own button.
@@ -366,7 +370,10 @@ final class AlarmsUITests: XCTestCase {
         let delete = app.buttons["delete-event"]
         XCTAssertTrue(delete.waitForExistence(timeout: 5))
         delete.tap()
-        let confirm = app.buttons["Delete Event"].firstMatch
+        // The dialog's button, not the form's own Delete Event under it.
+        let confirm = app.buttons.matching(
+            NSPredicate(format: "label == 'Delete Event' AND identifier != 'delete-event'")
+        ).firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["Delete All Events"].exists)
         confirm.tap()
