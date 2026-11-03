@@ -1,6 +1,7 @@
 import ActivityKit
 import AppIntents
 import Foundation
+import os
 
 /// The workout clock on the Lock Screen and in the Dynamic Island, from
 /// Start until Stop. Shared with the widget extension, which draws it.
@@ -27,6 +28,7 @@ struct StartWorkoutIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("StartWorkoutIntent")
         #if !WIDGET
             await WorkoutModel.shared.start()
             await WorkoutModel.shared.settled()
@@ -43,6 +45,7 @@ struct StartOrPauseWorkoutIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("StartOrPauseWorkoutIntent")
         #if !WIDGET
             await WorkoutModel.shared.startOrPause()
             await WorkoutModel.shared.settled()
@@ -60,6 +63,7 @@ struct NextSetIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("NextSetIntent")
         #if !WIDGET
             await WorkoutModel.shared.nextSet()
             await WorkoutModel.shared.settled()
@@ -77,10 +81,22 @@ struct StopWorkoutIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("StopWorkoutIntent")
         #if !WIDGET
             await WorkoutModel.shared.stop()
             await WorkoutModel.shared.settled()
         #endif
         return .result()
+    }
+}
+
+/// Says in the system log which process ran a Lock Screen button, so a
+/// button that does nothing can be traced. scripts/test-app.sh prints these
+/// lines after the UI tests.
+enum IntentLog {
+    static let logger = Logger(subsystem: "tech.abera.alarms", category: "intents")
+
+    static func ran(_ name: String) {
+        logger.notice("\(name, privacy: .public) ran in \(Bundle.main.bundleIdentifier ?? "?", privacy: .public)")
     }
 }

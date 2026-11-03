@@ -89,4 +89,10 @@ if [ "$status" -ne 0 ]; then
   tail -80 build/xcodebuild.log >&2
 fi
 xcrun xccov view --report --only-targets build/AberaAlarms.xcresult 2>/dev/null || true
+# Which process ran each Lock Screen button (App/Shared/WorkoutActivity.swift,
+# IntentLog), and what iOS said about the intents around it.
+echo "Lock Screen intents, from the simulator's log:"
+xcrun simctl spawn "$device" log show --last 90m --style compact \
+  --predicate 'subsystem == "tech.abera.alarms" OR eventMessage CONTAINS[c] "NextSetIntent" OR eventMessage CONTAINS[c] "LiveActivityIntent"' \
+  2>/dev/null | tail -150 || true
 exit "$status"

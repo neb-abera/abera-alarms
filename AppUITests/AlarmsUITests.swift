@@ -593,7 +593,8 @@ final class AlarmsUITests: XCTestCase {
         }
         next.tap()
         let card = springboard.staticTexts["Set 2"].firstMatch
-        if !card.waitForExistence(timeout: 15) {
+        // A cold launch on the Xcode 27 runner has taken over a minute.
+        if !card.waitForExistence(timeout: closingTheApp ? 45 : 15) {
             XCTFail("the card did not move to Set 2:\n\(springboard.debugDescription)")
         }
 
