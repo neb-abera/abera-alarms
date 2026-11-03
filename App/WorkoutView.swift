@@ -143,9 +143,9 @@ struct WorkoutView: View {
             }
             .confirmationDialog("Reset the session?", isPresented: $confirmingReset, titleVisibility: .visible) {
                 Button("Reset Session", role: .destructive) { timer.resetSession() }
+                    .accessibilityIdentifier("confirm-reset-session")
                 Button("Reset Everything", role: .destructive) { Task { await timer.resetEverything() } }
                     .accessibilityIdentifier("confirm-reset-everything")
-                    .accessibilityIdentifier("confirm-reset-session")
             } message: {
                 Text(
                     "Reset Session goes back to set 1 at 0:00 and clears the sets done. Reset Everything also says the time every 30 s again and sets the rest to 1:30."
