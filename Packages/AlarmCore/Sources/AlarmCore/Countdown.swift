@@ -16,12 +16,14 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var alarm: Bool
     /// False for a countdown abera.tech has not put on the calendar yet. Nil from an older server.
     public var onCalendar: Bool?
-    /// How it repeats. For one that repeats, `targetAt` is the next date as abera.tech last sent it.
+    /// The unit it repeats in. For one that repeats, `targetAt` is the next date as abera.tech last sent it.
     public var repeats: CountdownRepeat
+    /// How many units between two dates.
+    public var repeatEvery: Int
 
     public init(
         id: UUID, label: String, targetAt: Date, timeZone: String, updatedAt: Date? = nil, alarm: Bool = false,
-        onCalendar: Bool? = nil, repeats: CountdownRepeat = .none
+        onCalendar: Bool? = nil, repeats: CountdownRepeat = .none, repeatEvery: Int = 1
     ) {
         self.id = id
         self.label = label
@@ -31,10 +33,11 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.alarm = alarm
         self.onCalendar = onCalendar
         self.repeats = repeats
+        self.repeatEvery = repeatEvery
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, label, targetAt, timeZone, updatedAt, alarm, onCalendar
+        case id, label, targetAt, timeZone, updatedAt, alarm, onCalendar, repeatEvery
         case repeats = "repeat"
     }
 
@@ -49,11 +52,14 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
         onCalendar = try container.decodeIfPresent(Bool.self, forKey: .onCalendar)
         // A value this build does not know reads as none, so a newer server never breaks the list.
         repeats = (try? container.decodeIfPresent(CountdownRepeat.self, forKey: .repeats)) ?? CountdownRepeat.none
+        repeatEvery = (try? container.decodeIfPresent(Int.self, forKey: .repeatEvery)) ?? 1
     }
 
     /// The draft that recreates this countdown, for an edit.
     public var draft: CountdownDraft {
-        CountdownDraft(label: label, targetAt: targetAt, timeZone: timeZone, alarm: alarm, repeats: repeats)
+        CountdownDraft(
+            label: label, targetAt: targetAt, timeZone: timeZone, alarm: alarm, repeats: repeats,
+            repeatEvery: repeatEvery)
     }
 
     /// The zone, or New York when this phone does not know it.
@@ -68,7 +74,7 @@ public struct Countdown: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// The date it counts to at `now`: the target, or for one that repeats
     /// and has passed, the next date in its series. abera.tech sends the
     /// next date on every sync. This keeps the clock right until the next.
-    public func nextAt(_ now: Date) -> Date { repeats.next(after: now, from: targetAt, in: zone) }
+    public func nextAt(_ now: Date) -> Date { repeats.next(after: now, from: targetAt, every: repeatEvery, in: zone) }
 
     /// The target, or at `now` the next date, in its own zone, named.
     public func targetText(at now: Date?) -> String {
@@ -127,20 +133,24 @@ public struct CountdownDraft: Codable, Equatable, Sendable {
     /// Ring an alarm at the target, on the phone and through Pushover, until it is stopped.
     public var alarm: Bool
     public var repeats: CountdownRepeat
+    /// How many units between two dates, 1 to 999.
+    public var repeatEvery: Int
 
     enum CodingKeys: String, CodingKey {
-        case label, targetAt, timeZone, alarm
+        case label, targetAt, timeZone, alarm, repeatEvery
         case repeats = "repeat"
     }
 
     public init(
-        label: String = "", targetAt: Date, timeZone: String, alarm: Bool = false, repeats: CountdownRepeat = .none
+        label: String = "", targetAt: Date, timeZone: String, alarm: Bool = false, repeats: CountdownRepeat = .none,
+        repeatEvery: Int = 1
     ) {
         self.label = label
         self.targetAt = targetAt
         self.timeZone = timeZone
         self.alarm = alarm
         self.repeats = repeats
+        self.repeatEvery = repeatEvery
     }
 
     public init(from decoder: any Decoder) throws {
@@ -150,6 +160,7 @@ public struct CountdownDraft: Codable, Equatable, Sendable {
         timeZone = try container.decode(String.self, forKey: .timeZone)
         alarm = try container.decodeIfPresent(Bool.self, forKey: .alarm) ?? false
         repeats = try container.decodeIfPresent(CountdownRepeat.self, forKey: .repeats) ?? CountdownRepeat.none
+        repeatEvery = try container.decodeIfPresent(Int.self, forKey: .repeatEvery) ?? 1
     }
 
     /// The label as sent: trimmed, and "Countdown" when empty.
@@ -169,6 +180,9 @@ public struct CountdownDraft: Codable, Equatable, Sendable {
             problems.append("The date must be between 1900 and 2199.")
         }
         if TimeZone(identifier: timeZone) == nil { problems.append("Choose a time zone the tz database knows.") }
+        if repeats != .none, !(1...CountdownRepeat.maxEvery).contains(repeatEvery) {
+            problems.append("Repeat every 1 to \(CountdownRepeat.maxEvery).")
+        }
         return problems
     }
 

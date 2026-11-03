@@ -109,8 +109,8 @@ struct CountdownRow: View {
                 Text(countdown.targetText(at: context.date))
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                if countdown.repeats != .none {
-                    Label(countdown.repeats.label, systemImage: "repeat")
+                if let often = countdown.repeats.describe(every: countdown.repeatEvery) {
+                    Label(often, systemImage: "repeat")
                         .font(.footnote)
                 }
                 if countdown.alarm {
@@ -141,6 +141,7 @@ struct CountdownEditor: View {
     @State private var zone: String
     @State private var alarm: Bool
     @State private var repeats: CountdownRepeat
+    @State private var every: Int
     @State private var deleting: Countdown?
 
     init(model: AppModel, countdown: Countdown?) {
@@ -154,10 +155,13 @@ struct CountdownEditor: View {
         _zone = State(initialValue: countdown?.timeZone ?? Zones.phone())
         _alarm = State(initialValue: countdown?.alarm ?? false)
         _repeats = State(initialValue: countdown?.repeats ?? .none)
+        _every = State(initialValue: countdown?.repeatEvery ?? 1)
     }
 
     private var draft: CountdownDraft {
-        CountdownDraft(label: label, targetAt: target, timeZone: zone, alarm: alarm, repeats: repeats)
+        CountdownDraft(
+            label: label, targetAt: target, timeZone: zone, alarm: alarm, repeats: repeats,
+            repeatEvery: repeats == .none ? 1 : every)
     }
 
     var body: some View {
@@ -186,10 +190,16 @@ struct CountdownEditor: View {
                         .accessibilityIdentifier("countdown-alarm")
                     Picker("Repeats", selection: $repeats) {
                         ForEach(CountdownRepeat.allCases, id: \.self) { choice in
-                            Text(choice.label).tag(choice)
+                            Text(choice == .none ? "Never" : "Every \(choice.unit(every))").tag(choice)
                         }
                     }
                     .accessibilityIdentifier("countdown-repeat")
+                    if repeats != .none {
+                        Stepper(value: $every, in: 1...CountdownRepeat.maxEvery) {
+                            LabeledContent("Every", value: "\(every) \(repeats.unit(every))")
+                        }
+                        .accessibilityIdentifier("countdown-every")
+                    }
                 } footer: {
                     Text(
                         "Rings on the phone and through Pushover until it is stopped. One that does not repeat is deleted once its alarm is stopped. A repeating one moves to its next date at its time. Every countdown is on Google Calendar."

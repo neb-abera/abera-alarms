@@ -644,13 +644,18 @@ final class AlarmsUITests: XCTestCase {
         let repeats = app.buttons["countdown-repeat"].firstMatch
         XCTAssertTrue(repeats.waitForExistence(timeout: 5))
         repeats.tap()
-        let everyMonth = app.buttons["Every month"].firstMatch
-        XCTAssertTrue(everyMonth.waitForExistence(timeout: 5))
-        everyMonth.tap()
+        let everyWeek = app.buttons["Every week"].firstMatch
+        XCTAssertTrue(everyWeek.waitForExistence(timeout: 5))
+        everyWeek.tap()
+        let every = app.steppers["countdown-every"].firstMatch
+        XCTAssertTrue(every.waitForExistence(timeout: 5))
+        every.buttons["Increment"].tap()
+        XCTAssertTrue(
+            poll(5) { every.label.contains("2 weeks") || every.value as? String == "2" }, every.debugDescription)
         app.buttons["save-countdown"].tap()
         let birthday = countdown(app, "Birthday")
         XCTAssertTrue(birthday.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(birthday.label.contains("Every month"), birthday.label)
+        XCTAssertTrue(birthday.label.contains("Every 2 weeks"), birthday.label)
     }
 
     func testTheZonePickerListsTheUnitedStatesFirstEastToWest() {
