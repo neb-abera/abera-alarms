@@ -561,6 +561,16 @@ final class AlarmsUITests: XCTestCase {
     /// Neb's iPhone, and no test had ever tapped one: -demo turned the Live
     /// Activity off.
     func testTheLockScreenCardsNextSetButtonReachesTheApp() {
+        lockScreenNextSet(closingTheApp: false)
+    }
+
+    /// The same with the app closed, as on a locked phone: iOS launches the
+    /// app in the background, with no arguments, to run the button.
+    func testTheLockScreenCardsNextSetButtonLaunchesAClosedApp() {
+        lockScreenNextSet(closingTheApp: true)
+    }
+
+    private func lockScreenNextSet(closingTheApp: Bool) {
         let app = XCUIApplication()
         app.launchArguments = ["-demo", "-demo-lock-screen"]
         app.launch()
@@ -571,6 +581,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForChange(workoutClock(app), from: "0:00"), "the clock did not start")
 
         XCUIDevice.shared.press(.home)
+        if closingTheApp { app.terminate() }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.005))
         let middle = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
@@ -586,6 +597,7 @@ final class AlarmsUITests: XCTestCase {
             XCTFail("the card did not move to Set 2:\n\(springboard.debugDescription)")
         }
 
+        guard !closingTheApp else { return }
         app.activate()
         XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
     }

@@ -157,8 +157,13 @@ final class WorkoutModel {
     /// No store in -demo mode, so every UI test starts at set 1.
     private init() {
         let demo = ProcessInfo.processInfo.arguments.contains("-demo")
-        store = demo ? nil : .standard
-        system = !demo || ProcessInfo.processInfo.arguments.contains("-demo-lock-screen")
+        let lockScreen = ProcessInfo.processInfo.arguments.contains("-demo-lock-screen")
+        // -demo-lock-screen keeps the workout in the app's own store, from
+        // set 1, so the app iOS launches for a Lock Screen button (with no
+        // arguments) finds the same workout.
+        if demo && lockScreen { UserDefaults.standard.removeObject(forKey: Self.key) }
+        store = demo && !lockScreen ? nil : .standard
+        system = !demo || lockScreen
         workout =
             store?.data(forKey: Self.key).flatMap { try? JSONDecoder().decode(Workout.self, from: $0) } ?? Workout()
         follow()
