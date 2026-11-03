@@ -30,6 +30,7 @@ struct AdjustRestIntent: LiveActivityIntent {
     }
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("AdjustRestIntent")
         #if !WIDGET
             await RestModel.shared.adjust(by: seconds)
         #endif
@@ -47,6 +48,7 @@ struct RestartRestIntent: LiveActivityIntent {
     init() {}
 
     func perform() async throws -> some IntentResult {
+        IntentLog.ran("RestartRestIntent")
         #if !WIDGET
             await RestModel.shared.restart()
         #endif
