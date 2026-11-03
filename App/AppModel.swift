@@ -159,9 +159,15 @@ final class AppModel {
     }
 
     /// True when abera.tech changed the event.
-    func updateEvent(_ edit: EventEdit) async -> Bool {
+    /// A new alert type, when given, is set first, for every event in the
+    /// series, as the type menu beside the event sets it. The key it names
+    /// changes once the start moves.
+    func updateEvent(_ edit: EventEdit, type: String? = nil) async -> Bool {
         eventError = nil
-        await perform { client throws(APIError) in try await client.updateEvent(edit) }
+        await perform { client throws(APIError) in
+            if let type { _ = try await client.setType(key: edit.key, type: type) }
+            return try await client.updateEvent(edit)
+        }
         if let error = report?.error {
             eventError = Self.describe(error)
             return false

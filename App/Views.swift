@@ -326,6 +326,80 @@ struct DeleteChoices: View {
     }
 }
 
+/// A length typed as a number with its unit beside it: "30" and "minutes".
+struct SpanField: View {
+    let title: String
+    @Binding var span: TimeSpan
+    let id: String
+
+    var body: some View {
+        LabeledContent(title) {
+            HStack {
+                // Zero shows as an empty field with a grey 0, so a typed
+                // number replaces it rather than landing beside it.
+                TextField(
+                    title,
+                    text: Binding(
+                        get: { span.amount == 0 ? "" : String(span.amount) },
+                        set: { span.amount = TimeSpan.amount(typed: $0) }),
+                    prompt: Text("0")
+                )
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 80)
+                .accessibilityIdentifier("\(id)-amount")
+                Picker(title, selection: $span.unit) {
+                    ForEach(TimeSpan.Unit.allCases, id: \.self) { unit in
+                        Text(unit.name(span.amount)).tag(unit)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .accessibilityIdentifier("\(id)-unit")
+            }
+        }
+    }
+}
+
+/// The alert on an event: on by default, ringing until stopped, at the
+/// start unless a time before it is typed.
+struct AlertFields: View {
+    @Binding var on: Bool
+    @Binding var type: String
+    @Binding var lead: TimeSpan
+    var series = false
+
+    var body: some View {
+        Section {
+            Toggle("Alert", isOn: $on)
+                .accessibilityIdentifier("event-alert")
+            if on {
+                Picker("Rings", selection: $type) {
+                    Text("Until stopped").tag(AlertType.alarm)
+                    Text("Once").tag(AlertType.notification)
+                }
+                .accessibilityIdentifier("event-type")
+                SpanField(title: "Before the start", span: $lead, id: "event-lead")
+            }
+        } footer: {
+            Text(footer)
+        }
+    }
+
+    private var footer: String {
+        let when =
+            lead.amount == 0
+            ? "at the start" : "\(lead.amount) \(lead.unit.name(lead.amount)) before the start"
+        let what =
+            !on
+            ? "No alert. The event is on Google Calendar."
+            : type == AlertType.alarm
+                ? "Rings \(when) until you stop it, on the phone and through Pushover."
+                : "Rings once, \(when)."
+        return series ? what + " The alert covers every event in the series." : what
+    }
+}
+
 /// Change an event's title, start, length, location and alert, or delete
 /// it. abera.tech makes the change in Google Calendar.
 struct EventEditor: View {
@@ -334,9 +408,11 @@ struct EventEditor: View {
     @Environment(\.dismiss) private var dismiss
     @State private var title: String
     @State private var startsAt: Date
-    @State private var durationMinutes: Int
+    @State private var length: TimeSpan
     @State private var location: String
-    @State private var leadMinutes: Int
+    @State private var alerts: Bool
+    @State private var type: String
+    @State private var lead: TimeSpan
     @State private var scope = EditScope.occurrence
     @State private var confirmingDelete = false
 
@@ -345,9 +421,11 @@ struct EventEditor: View {
         self.alert = alert
         _title = State(initialValue: alert.title)
         _startsAt = State(initialValue: alert.startsAt)
-        _durationMinutes = State(initialValue: alert.durationMinutes ?? 30)
+        _length = State(initialValue: TimeSpan(minutes: alert.durationMinutes ?? NewEvent.defaultLength.minutes))
         _location = State(initialValue: alert.location ?? "")
-        _leadMinutes = State(initialValue: alert.leadMinutes)
+        _alerts = State(initialValue: alert.type != AlertType.none)
+        _type = State(initialValue: alert.type == AlertType.notification ? AlertType.notification : AlertType.alarm)
+        _lead = State(initialValue: TimeSpan(minutes: alert.leadMinutes))
     }
 
     var body: some View {
@@ -358,13 +436,11 @@ struct EventEditor: View {
                         .accessibilityIdentifier("edit-title")
                     DatePicker("Starts", selection: $startsAt, in: Date()...)
                     if alert.durationMinutes != nil {
-                        Stepper("Length: \(durationMinutes) min", value: $durationMinutes, in: 5...1440, step: 5)
+                        SpanField(title: "Length", span: $length, id: "edit-length")
                     }
                     TextField("Location", text: $location)
-                    Stepper(
-                        leadMinutes == 0 ? "Rings at the start" : "Rings \(leadMinutes) min before the start",
-                        value: $leadMinutes, in: 0...1440, step: 5)
                 }
+                AlertFields(on: $alerts, type: $type, lead: $lead, series: alert.recurring)
                 if alert.recurring {
                     Section {
                         Picker("Change", selection: $scope) {
@@ -402,7 +478,7 @@ struct EventEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            if await model.updateEvent(edit) { dismiss() }
+                            if await model.updateEvent(edit, type: newType) { dismiss() }
                         }
                     }
                     .disabled(!problems.isEmpty || model.busy)
@@ -420,12 +496,18 @@ struct EventEditor: View {
         }
     }
 
+    /// The alert type to set, or nil when it has not changed.
+    private var newType: String? {
+        let chosen = alerts ? type : AlertType.none
+        return chosen == alert.type ? nil : chosen
+    }
+
     private var edit: EventEdit {
         EventEdit(
             key: alert.key, scope: alert.recurring ? scope : .occurrence,
             title: title.trimmingCharacters(in: .whitespacesAndNewlines), startsAt: startsAt,
-            durationMinutes: alert.durationMinutes == nil ? nil : durationMinutes,
-            location: location.isEmpty ? nil : location, leadMinutes: leadMinutes)
+            durationMinutes: alert.durationMinutes == nil ? nil : length.minutes,
+            location: location.isEmpty ? nil : location, leadMinutes: alerts ? lead.minutes : nil)
     }
 
     private var problems: [String] {
@@ -435,51 +517,36 @@ struct EventEditor: View {
 
 // MARK: New event
 
+/// A new calendar event: when it starts, how long it lasts, and its alert,
+/// which is on and rings until stopped unless switched.
 struct NewEventView: View {
     /// The title when the field is left empty.
-    static let defaultTitle = "Alarm"
+    static let defaultTitle = "Event"
 
     @Bindable var model: AppModel
     @Environment(\.dismiss) private var dismiss
     @State private var title = ""
-    @State private var startsAt = NewEventView.nextHalfHour()
-    @State private var advanced = false
-    @State private var durationMinutes = 5
+    @State private var startsAt = NewEvent.defaultStart()
+    @State private var length = NewEvent.defaultLength
     @State private var location = ""
+    @State private var alerts = true
     @State private var type = AlertType.alarm
-    @State private var leadMinutes = 0
+    @State private var lead = TimeSpan(0, .minutes)
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
-                    DatePicker("Rings at", selection: $startsAt, in: Date()...)
-                        .accessibilityIdentifier("event-start")
                     TextField("Title (optional)", text: $title, prompt: Text(Self.defaultTitle))
                         .accessibilityIdentifier("event-title")
+                    DatePicker("Starts", selection: $startsAt, in: Date()...)
+                        .accessibilityIdentifier("event-start")
+                    SpanField(title: "Length", span: $length, id: "event-length")
+                    TextField("Location", text: $location)
                 } footer: {
-                    Text("Rings until stopped at this time. abera.tech adds it to your Google Calendar with #critical.")
+                    Text("abera.tech adds it to your Google Calendar.")
                 }
-                Section {
-                    DisclosureGroup("Advanced", isExpanded: $advanced) {
-                        Picker("Type", selection: $type) {
-                            Text(TypeMenu.name(AlertType.alarm)).tag(AlertType.alarm)
-                            Text(TypeMenu.name(AlertType.notification)).tag(AlertType.notification)
-                            Text(TypeMenu.name(AlertType.none)).tag(AlertType.none)
-                        }
-                        .accessibilityIdentifier("event-type")
-                        if type != AlertType.none {
-                            Stepper(
-                                leadMinutes == 0 ? "Rings at the start" : "Rings \(leadMinutes) min before the start",
-                                value: $leadMinutes, in: 0...1440, step: 5)
-                        }
-                        Stepper(
-                            "Length in the calendar: \(durationMinutes) min", value: $durationMinutes, in: 5...1440,
-                            step: 5)
-                        TextField("Location", text: $location)
-                    }
-                    .accessibilityIdentifier("advanced")
-                }
+                AlertFields(on: $alerts, type: $type, lead: $lead)
                 ForEach(problems, id: \.self) { problem in
                     Text(problem).foregroundStyle(.red)
                 }
@@ -516,20 +583,13 @@ struct NewEventView: View {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         return NewEvent(
             title: trimmed.isEmpty ? Self.defaultTitle : trimmed, startsAt: startsAt,
-            durationMinutes: durationMinutes,
-            location: location.isEmpty ? nil : location, type: type,
-            leadMinutes: type == AlertType.none ? nil : leadMinutes)
+            durationMinutes: length.minutes,
+            location: location.isEmpty ? nil : location, type: alerts ? type : AlertType.none,
+            leadMinutes: alerts ? lead.minutes : nil)
     }
 
     private var problems: [String] {
         event.problems(now: Date())
-    }
-
-    /// The first half hour at least 20 minutes away.
-    static func nextHalfHour(after now: Date = Date()) -> Date {
-        let now = now.addingTimeInterval(20 * 60)
-        let seconds = now.timeIntervalSinceReferenceDate
-        return Date(timeIntervalSinceReferenceDate: (seconds / 1800).rounded(.up) * 1800)
     }
 }
 
