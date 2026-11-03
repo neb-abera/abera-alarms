@@ -378,7 +378,8 @@ public actor FakeAlertsServer: HTTPTransport {
                 PlannedAlert(
                     key: "created-\(created.count)|\(event.startsAt.timeIntervalSince1970)",
                     title: event.title, location: event.location, startsAt: event.startsAt,
-                    alertAt: event.startsAt.addingTimeInterval(-lead), type: event.type, typeFrom: "set"))
+                    alertAt: event.startsAt.addingTimeInterval(-lead), type: event.type, typeFrom: "set",
+                    endsAt: event.startsAt.addingTimeInterval(Double(event.durationMinutes) * 60)))
             state.alerts.sort { $0.alertAt < $1.alertAt }
             state.calendarWrite = calendarWriteFailure
             return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())

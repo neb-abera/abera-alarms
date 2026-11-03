@@ -168,20 +168,92 @@ final class AlarmsUITests: XCTestCase {
         add.tap()
 
         let made = app.descendants(matching: .any).matching(
-            NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Alarm'")
+            NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Event'")
         ).firstMatch
         XCTAssertTrue(made.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(waitFor(made, labelContaining: "Set on this phone"), made.label)
     }
 
-    func testAdvancedOptionsStartClosed() {
+    func testANewEventStartsWithItsAlertOnRingingUntilStopped() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         app.buttons["new-event"].tap()
         XCTAssertTrue(app.buttons["add-event"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Rings at the start"].exists)
-        app.buttons["Advanced"].tap()
-        XCTAssertTrue(app.staticTexts["Rings at the start"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Starts"].exists)
+        XCTAssertFalse(app.staticTexts["Rings at"].exists)
+        let alert = app.switches["event-alert"]
+        XCTAssertEqual(alert.value as? String, "1")
+        XCTAssertTrue(
+            app.buttons["event-type"].firstMatch.label.contains("Until stopped"),
+            app.buttons["event-type"].firstMatch.label)
+        XCTAssertEqual(app.textFields["event-length-amount"].value as? String, "30")
+        XCTAssertEqual(app.textFields["event-lead-amount"].value as? String, "0")
+        XCTAssertTrue(
+            app.staticTexts["Rings at the start until you stop it, on the phone and through Pushover."].exists)
+
+        alert.switches.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["No alert. The event is on Google Calendar."].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.buttons["event-type"].firstMatch.exists)
+        XCTAssertFalse(app.textFields["event-lead-amount"].exists)
+    }
+
+    func testANewEventTakesALengthAndLeadInAnyUnit() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["new-event"].tap()
+        let title = app.textFields["event-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText("Flight")
+        let length = app.textFields["event-length-amount"]
+        length.tap()
+        length.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "2")
+        choose("hours", from: "event-length-unit", in: app)
+        let lead = app.textFields["event-lead-amount"]
+        lead.tap()
+        lead.typeText(XCUIKeyboardKey.delete.rawValue + "3")
+        choose("hours", from: "event-lead-unit", in: app)
+        XCTAssertTrue(
+            app.staticTexts["Rings 3 hours before the start until you stop it, on the phone and through Pushover."]
+                .waitForExistence(timeout: 5))
+        app.buttons["add-event"].tap()
+
+        let flight = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Flight'")
+        ).firstMatch
+        XCTAssertTrue(flight.waitForExistence(timeout: 10), app.debugDescription)
+        flight.tap()
+        XCTAssertTrue(app.textFields["edit-length-amount"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["edit-length-amount"].value as? String, "2")
+        XCTAssertTrue(
+            app.buttons["edit-length-unit"].firstMatch.label.contains("hours"),
+            app.buttons["edit-length-unit"].firstMatch.label)
+        XCTAssertEqual(app.textFields["event-lead-amount"].value as? String, "3")
+    }
+
+    /// Opens a unit menu and picks an option, never the other unit menu's own button.
+    private func choose(_ option: String, from menu: String, in app: XCUIApplication) {
+        app.buttons[menu].firstMatch.tap()
+        let item = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND NOT (identifier ENDSWITH '-unit')", option)
+        ).firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 5), app.debugDescription)
+        item.tap()
+    }
+
+    func testTurningAnEventsAlertOffInTheEditor() {
+        let app = launch()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        standup.tap()
+        let alert = app.switches["event-alert"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        XCTAssertEqual(alert.value as? String, "1")
+        alert.switches.firstMatch.tap()
+        app.buttons["save-event"].tap()
+        XCTAssertTrue(waitForGone(app.buttons["save-event"]))
+        show("All events", in: app)
+        XCTAssertTrue(poll(5) { app.buttons["type-standup"].label.hasSuffix("Off") }, app.buttons["type-standup"].label)
     }
 
     func testAnAlarmAcknowledgedInABrowserSaysSo() {
