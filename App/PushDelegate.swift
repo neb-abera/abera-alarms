@@ -1,5 +1,6 @@
 import AlarmCore
 import UIKit
+import UserNotifications
 
 /// Push notifications from abera.tech. A push carries no content: it wakes
 /// the app, which syncs as it would on launch. iOS rations these pushes and
@@ -11,6 +12,16 @@ final class PushDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         application.registerForRemoteNotifications()
+        // Without notification permission iOS puts "Allow Live Activities"
+        // on every Lock Screen card and its buttons do nothing. On
+        // 2026-11-03 the workout card stayed grey that way on Neb's iPhone,
+        // and Settings > Apps > Alarms had no Notifications row. iOS asks
+        // once. The UI tests in -demo mode skip the alert.
+        if !ProcessInfo.processInfo.arguments.contains("-demo") {
+            Task {
+                _ = try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+            }
+        }
         return true
     }
 
