@@ -124,6 +124,7 @@ struct WorkoutView: View {
                     }
                 }
                 .scrollContentBackground(.hidden)
+                .accessibilityIdentifier("workout-list")
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Timer")
@@ -176,7 +177,11 @@ final class WorkoutModel {
         // -demo-lock-screen keeps the workout in the app's own store, from
         // set 1, so the app iOS launches for a Lock Screen button (with no
         // arguments) finds the same workout.
-        if demo && lockScreen {
+        // -reset-lock-screen starts that store and the Lock Screen list
+        // empty. A UI test passes it on its first launch only, because iOS
+        // can end a backgrounded app and the test's next activate relaunches
+        // it with the same arguments.
+        if demo && ProcessInfo.processInfo.arguments.contains("-reset-lock-screen") {
             UserDefaults.standard.removeObject(forKey: Self.key)
             UserDefaults.standard.removeObject(forKey: IntentLog.key)
         }
