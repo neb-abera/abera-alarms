@@ -553,6 +553,43 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(error.label.contains("No connection"), error.label)
     }
 
+    // MARK: Lock Screen buttons
+
+    /// Taps Next set on the workout's Live Activity in Notification Center,
+    /// where iOS draws the same card as on the Lock Screen, with the app in
+    /// the background. On 2026-11-03 none of the card's buttons worked on
+    /// Neb's iPhone, and no test had ever tapped one: -demo turned the Live
+    /// Activity off.
+    func testTheLockScreenCardsNextSetButtonReachesTheApp() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-demo", "-demo-lock-screen"]
+        app.launch()
+        open("Timer", in: app)
+        let set = app.descendants(matching: .any)["workout-set"].firstMatch
+        XCTAssertTrue(set.waitForExistence(timeout: 10))
+        app.buttons["workout-start"].tap()
+        XCTAssertTrue(waitForChange(workoutClock(app), from: "0:00"), "the clock did not start")
+
+        XCUIDevice.shared.press(.home)
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let top = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.005))
+        let middle = springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.7))
+        top.press(forDuration: 0.1, thenDragTo: middle)
+        let next = springboard.buttons["Next set"].firstMatch
+        if !next.waitForExistence(timeout: 15) {
+            XCTFail("no Next set button in Notification Center:\n\(springboard.debugDescription)")
+            return
+        }
+        next.tap()
+        let card = springboard.staticTexts["Set 2"].firstMatch
+        if !card.waitForExistence(timeout: 15) {
+            XCTFail("the card did not move to Set 2:\n\(springboard.debugDescription)")
+        }
+
+        app.activate()
+        XCTAssertTrue(waitFor(set, labelContaining: "Set 2"), set.label)
+    }
+
     // MARK: Workout timer
 
     private func workoutClock(_ app: XCUIApplication) -> XCUIElement {
