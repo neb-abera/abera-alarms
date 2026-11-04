@@ -60,6 +60,20 @@ import Testing
         #expect(second.held.map(\.key) == ["a"])
     }
 
+    @Test func aSyncRecordsWhenItReadTheServerAndOfflineKeepsIt() async {
+        let rig = Fixtures.rig([Fixtures.alert("a", inMinutes: 30)])
+        #expect(await rig.sync.lastSyncedAt() == nil)
+        let first = await rig.sync.sync()
+        let synced = await rig.sync.lastSyncedAt()
+        #expect(synced != nil)
+        #expect(abs((synced ?? .distantPast).timeIntervalSince(first.at)) < 0.001)
+        await rig.server.setOffline(true)
+        _ = await rig.sync.sync()
+        #expect(await rig.sync.lastSyncedAt() == synced)
+        await rig.sync.unpair()
+        #expect(await rig.sync.lastSyncedAt() == nil)
+    }
+
     @Test func offlineTheAlarmsStay() async {
         let rig = Fixtures.rig([Fixtures.alert("a", inMinutes: 30)])
         _ = await rig.sync.sync()

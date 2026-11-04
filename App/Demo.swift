@@ -1,6 +1,7 @@
 #if DEBUG
     import AlarmCore
     import Foundation
+    import Synchronization
 
     /// The app with abera.tech and AlarmKit in memory, for the UI tests and
     /// for trying the screens in the simulator. Debug builds only.
@@ -26,7 +27,8 @@
                     alarms: MemoryAlarms(),
                     documents: MemoryDocuments()),
                 permissions: DemoPermissions(),
-                allowedServers: [Pairing.production])
+                allowedServers: [Pairing.production],
+                device: DemoDevice(arguments))
         }
 
         static func state(now: Date) -> AlertsState {
@@ -78,6 +80,26 @@
                         onCalendar: true, repeats: .yearly),
                 ])
         }
+    }
+
+    /// A phone that passes every check, unless `-demo-unready` (no test
+    /// alarm heard yet) or `-demo-refresh-off` (Background App Refresh off).
+    final class DemoDevice: DeviceChecks {
+        private let heard: Mutex<Date?>
+        private let refresh: Bool
+
+        init(_ arguments: [String]) {
+            heard = Mutex(arguments.contains("-demo-unready") ? nil : Date(timeIntervalSinceNow: -86_400))
+            refresh = !arguments.contains("-demo-refresh-off")
+        }
+
+        @MainActor func read() -> DeviceReading {
+            DeviceReading(backgroundRefresh: refresh, pushRegistered: true, lowPower: false, pushover: true)
+        }
+
+        var testHeardAt: Date? { heard.withLock { $0 } }
+        func markTestHeard(_ at: Date) { heard.withLock { $0 = at } }
+        func ringTest(sound: String) async -> Bool { true }
     }
 
     struct DemoPermissions: AlarmPermissions {

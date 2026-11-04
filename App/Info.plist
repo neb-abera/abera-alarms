@@ -39,6 +39,10 @@
 	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>pushover</string>
+	</array>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Rings the alarms you set on abera.tech/alerts, with or without a connection.</string>
 	<key>NSSupportsLiveActivities</key>

@@ -1,4 +1,5 @@
 import AlarmCore
+import AlarmKit
 import SwiftUI
 import UIKit
 
@@ -37,6 +38,9 @@ struct RootView: View {
             } else {
                 PairView(model: model)
             }
+        }
+        .fullScreenCover(isPresented: Binding(get: { model.blocked }, set: { _ in })) {
+            ReadyView(model: model)
         }
         .task { await model.start() }
     }
@@ -93,7 +97,7 @@ struct AlarmsView: View {
     var body: some View {
         NavigationStack {
             List {
-                PermissionSection(model: model)
+                ReadinessSection(model: model)
                 StatusSection(model: model)
                 Section {
                     Picker("Show", selection: $model.showAll) {
@@ -593,29 +597,6 @@ struct NewEventView: View {
     }
 }
 
-struct PermissionSection: View {
-    @Bindable var model: AppModel
-
-    var body: some View {
-        switch model.permission {
-        case .allowed:
-            EmptyView()
-        case .notAsked:
-            Section {
-                Text("This app needs permission to ring alarms.")
-                Button("Allow alarms") { Task { await model.requestPermission() } }
-                    .accessibilityIdentifier("allow-alarms")
-            }
-        case .denied:
-            Section {
-                Text("Alarms are off for this app. Nothing will ring on this phone.")
-                    .foregroundStyle(.red)
-                Link("Open Settings", destination: URL(string: UIApplication.openSettingsURLString)!)
-            }
-        }
-    }
-}
-
 struct StatusSection: View {
     @Bindable var model: AppModel
 
@@ -698,6 +679,166 @@ struct Footer: View {
             Text(
                 "Tap the icon beside an event to choose Ring until stopped, Ring once or Off. Swipe to skip one day. Pull down to sync."
             )
+        }
+    }
+}
+
+// MARK: Ready to ring
+
+/// What iOS tells the app about this phone, for the readiness checks.
+struct DeviceReading: Equatable, Sendable {
+    var backgroundRefresh: Bool
+    var pushRegistered: Bool
+    var lowPower: Bool
+    /// Nil when iOS does not say.
+    var pushover: Bool?
+}
+
+/// The phone settings an alarm depends on, and the test alarm.
+protocol DeviceChecks: Sendable {
+    @MainActor func read() -> DeviceReading
+    /// When the owner said the test alarm rang loud enough.
+    var testHeardAt: Date? { get }
+    func markTestHeard(_ at: Date)
+    /// Sets an alarm 10 seconds from now with the chosen sound. False when iOS refused it.
+    func ringTest(sound: String) async -> Bool
+}
+
+/// The real phone.
+struct SystemDevice: DeviceChecks {
+    static let heardKey = "test-alarm-heard-at"
+    nonisolated static let testAlarmID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000002")!
+
+    @MainActor func read() -> DeviceReading {
+        let app = UIApplication.shared
+        return DeviceReading(
+            backgroundRefresh: app.backgroundRefreshStatus == .available,
+            pushRegistered: app.isRegisteredForRemoteNotifications,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled,
+            // Info.plist lists the pushover scheme, so iOS answers.
+            pushover: URL(string: "pushover://").map(app.canOpenURL))
+    }
+
+    var testHeardAt: Date? { UserDefaults.standard.object(forKey: Self.heardKey) as? Date }
+
+    func markTestHeard(_ at: Date) { UserDefaults.standard.set(at, forKey: Self.heardKey) }
+
+    func ringTest(sound: String) async -> Bool {
+        try? AlarmManager.shared.cancel(id: Self.testAlarmID)
+        let alert = AlarmPresentation.Alert(title: "Test alarm", secondaryButton: nil, secondaryButtonBehavior: nil)
+        let attributes = AlarmAttributes<AlarmInfo>(
+            presentation: AlarmPresentation(alert: alert, countdown: nil, paused: nil),
+            metadata: AlarmInfo(key: "test"),
+            tintColor: .accentColor)
+        let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>(
+            countdownDuration: nil,
+            schedule: .fixed(Date().addingTimeInterval(10)),
+            attributes: attributes,
+            stopIntent: nil,
+            secondaryIntent: nil,
+            sound: AlarmKitScheduler.sound(sound))
+        do {
+            _ = try await AlarmManager.shared.schedule(id: Self.testAlarmID, configuration: configuration)
+            return true
+        } catch {
+            return false
+        }
+    }
+}
+
+/// The checks that fail, at the top of the Alarms and Calendar tabs. The
+/// blocking ones also hold the app on the setup screen.
+struct ReadinessSection: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        ForEach(model.checks) { check in
+            Section {
+                CheckRow(model: model, check: check)
+            }
+        }
+    }
+}
+
+/// Every check that fails, until the blocking ones pass. The app opens on
+/// it after pairing and on every launch while one fails.
+struct ReadyView: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Text(
+                        "Alarms ring only when each item marked red is fixed. The app checks again every time it opens."
+                    )
+                }
+                ReadinessSection(model: model)
+            }
+            .navigationTitle("Ready to Ring")
+            .refreshable { await model.checkReadiness() }
+        }
+        .interactiveDismissDisabled()
+    }
+}
+
+struct CheckRow: View {
+    @Bindable var model: AppModel
+    let check: ReadinessCheck
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(
+                check.title,
+                systemImage: check.severity == .blocking ? "xmark.octagon.fill" : "exclamationmark.triangle"
+            )
+            .font(.headline)
+            .foregroundStyle(check.severity == .blocking ? Color.red : Color.orange)
+            Text(check.detail).font(.subheadline)
+            fix
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("check-\(check.kind.rawValue)")
+    }
+
+    @ViewBuilder private var fix: some View {
+        switch check.fix {
+        case .allowAlarms where model.permission == .notAsked:
+            Button("Allow alarms") { Task { await model.requestPermission() } }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("allow-alarms")
+        case .allowAlarms, .openSettings:
+            Link("Open Settings", destination: URL(string: UIApplication.openSettingsURLString)!)
+                .accessibilityIdentifier("open-settings-\(check.kind.rawValue)")
+        case .testAlarm:
+            if let at = model.testRingsAt {
+                Text(
+                    "It rings at \(at, format: .dateTime.hour().minute().second()). Lock the phone to hear it as you would at night."
+                )
+                .font(.subheadline)
+                .accessibilityIdentifier("test-rings-at")
+                HStack {
+                    Button("I heard it") { Task { await model.heardTest() } }
+                        .buttonStyle(.borderedProminent)
+                        .accessibilityIdentifier("heard-test")
+                    Button("Ring it again") { Task { await model.ringTestAlarm() } }
+                        .buttonStyle(.bordered)
+                        .accessibilityIdentifier("ring-test-again")
+                }
+            } else {
+                Button("Ring a test alarm") { Task { await model.ringTestAlarm() } }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("ring-test")
+            }
+            if let error = model.testError {
+                Text(error).foregroundStyle(.red).font(.subheadline)
+            }
+        case .sync:
+            Button("Sync now") { Task { await model.sync() } }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("sync-now")
+        case .none:
+            EmptyView()
         }
     }
 }
