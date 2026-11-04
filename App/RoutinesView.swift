@@ -14,6 +14,23 @@ struct RoutinesView: View {
         NavigationStack {
             List {
                 ReadinessSection(model: model)
+                if let at = model.testRingsAt, !model.blocked {
+                    Section {
+                        Label(
+                            "Test alarm rings at \(at.formatted(.dateTime.hour().minute().second())). Lock the phone to hear it as you would at night.",
+                            systemImage: "bell.and.waves.left.and.right"
+                        )
+                        .accessibilityIdentifier("test-rings-at")
+                        Button("I heard it") { Task { await model.heardTest() } }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("heard-test")
+                    }
+                }
+                if let error = model.testError, !model.blocked {
+                    Section {
+                        Text(error).foregroundStyle(.red)
+                    }
+                }
                 if let error = model.routineError {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")
@@ -56,6 +73,14 @@ struct RoutinesView: View {
                         Label("Sound & Snooze", systemImage: "speaker.wave.2")
                     }
                     .accessibilityIdentifier("sound-settings")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task { await model.ringTestAlarm() }
+                    } label: {
+                        Label("Ring a test alarm", systemImage: "bell.and.waves.left.and.right")
+                    }
+                    .accessibilityIdentifier("test-alarm")
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {

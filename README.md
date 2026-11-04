@@ -36,6 +36,8 @@ After pairing, and on every launch while one of these fails, the app opens on Re
 - Background App Refresh on for the app, so new and moved alarms reach the phone with the app closed.
 - A test alarm heard. It rings 10 seconds after the tap, with the sound every alarm plays, at the Ringtone and Alert Volume in Settings > Sounds & Haptics. No app can read that volume, so the owner confirms it.
 
+The bell button at the top of the Alarms tab rings the same test alarm at any time.
+
 The same screen warns, without holding the app, when the last sync is more than 12 hours old, when iOS refused an alarm, when abera.tech cannot wake the phone, when Low Power Mode is on, and when Pushover, the backup, is not installed. The app checks again after every sync and each time it comes back from Settings.
 
 ## Sound and snooze
