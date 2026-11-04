@@ -746,13 +746,15 @@ struct SystemDevice: DeviceChecks {
     }
 }
 
-/// The checks that fail, at the top of the Alarms and Calendar tabs. The
-/// blocking ones also hold the app on the setup screen.
+/// The checks that fail. The tabs show the warnings at the top. The
+/// blocking ones hold the app on the setup screen.
 struct ReadinessSection: View {
     @Bindable var model: AppModel
+    /// The tabs show the warnings. The setup screen, over them, shows every check.
+    var warningsOnly = true
 
     var body: some View {
-        ForEach(model.checks) { check in
+        ForEach(model.checks.filter { !warningsOnly || $0.severity == .warning }) { check in
             Section {
                 CheckRow(model: model, check: check)
             }
@@ -773,7 +775,7 @@ struct ReadyView: View {
                         "Alarms ring only when each item marked red is fixed. The app checks again every time it opens."
                     )
                 }
-                ReadinessSection(model: model)
+                ReadinessSection(model: model, warningsOnly: false)
             }
             .navigationTitle("Ready to Ring")
             .refreshable { await model.checkReadiness() }
