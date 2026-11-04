@@ -191,7 +191,9 @@ final class AlarmsUITests: XCTestCase {
             app.staticTexts["Rings at the start until you stop it, on the phone and through Pushover."].exists)
 
         alert.switches.firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["No alert. The event is on Google Calendar."].waitForExistence(timeout: 5))
+        // The switch's own value: its footer can sit under the keyboard,
+        // which the test before this one leaves up on iOS 27.
+        XCTAssertTrue(waitFor(alert, value: "0"), alert.debugDescription)
         XCTAssertFalse(app.buttons["event-type"].firstMatch.exists)
         XCTAssertFalse(app.textFields["event-lead-amount"].exists)
     }
