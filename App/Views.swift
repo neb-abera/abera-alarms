@@ -101,8 +101,8 @@ struct AlarmsView: View {
                 StatusSection(model: model)
                 Section {
                     Picker("Show", selection: $model.showAll) {
-                        Text("Alarms").tag(false)
                         Text("All events").tag(true)
+                        Text("Alarms").tag(false)
                     }
                     .pickerStyle(.segmented)
                     .accessibilityIdentifier("show")
