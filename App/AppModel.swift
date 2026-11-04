@@ -130,6 +130,8 @@ final class AppModel {
         testMissed = true
     }
 
+    func dismissTestHelp() { testMissed = false }
+
     func sync() async {
         await run { await self.dependencies.sync.sync() }
     }

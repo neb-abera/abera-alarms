@@ -194,6 +194,19 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(app.buttons["heard-test"]))
     }
 
+    func testTheSilentTestHelpCanBeDismissed() {
+        let app = launch(tab: nil)
+        let button = app.buttons["test-alarm"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        XCTAssertTrue(app.buttons["missed-test"].waitForExistence(timeout: 5))
+        app.buttons["missed-test"].tap()
+        let help = app.descendants(matching: .any)["test-missed-help"]
+        XCTAssertTrue(help.waitForExistence(timeout: 5))
+        app.buttons["dismiss-test-help"].tap()
+        XCTAssertTrue(waitForGone(help))
+    }
+
     func testAReadyPhoneOpensOnItsTabs() {
         let app = launch(tab: nil)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))

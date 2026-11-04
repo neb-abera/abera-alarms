@@ -850,9 +850,14 @@ struct TestAlarmControls: View {
             )
             .font(.subheadline)
             .accessibilityIdentifier("test-missed-help")
-            Button("Ring it again") { Task { await model.ringTestAlarm() } }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("ring-test-again")
+            HStack {
+                Button("Ring it again") { Task { await model.ringTestAlarm() } }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("ring-test-again")
+                Button("Dismiss") { model.dismissTestHelp() }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("dismiss-test-help")
+            }
         } else {
             Button("Ring a test alarm") { Task { await model.ringTestAlarm() } }
                 .buttonStyle(.borderedProminent)
