@@ -813,34 +813,53 @@ struct CheckRow: View {
             Link("Open Settings", destination: URL(string: UIApplication.openSettingsURLString)!)
                 .accessibilityIdentifier("open-settings-\(check.kind.rawValue)")
         case .testAlarm:
-            if let at = model.testRingsAt {
-                Text(
-                    "It rings at \(at, format: .dateTime.hour().minute().second()). Lock the phone to hear it as you would at night."
-                )
-                .font(.subheadline)
-                .accessibilityIdentifier("test-rings-at")
-                HStack {
-                    Button("I heard it") { Task { await model.heardTest() } }
-                        .buttonStyle(.borderedProminent)
-                        .accessibilityIdentifier("heard-test")
-                    Button("Ring it again") { Task { await model.ringTestAlarm() } }
-                        .buttonStyle(.bordered)
-                        .accessibilityIdentifier("ring-test-again")
-                }
-            } else {
-                Button("Ring a test alarm") { Task { await model.ringTestAlarm() } }
-                    .buttonStyle(.borderedProminent)
-                    .accessibilityIdentifier("ring-test")
-            }
-            if let error = model.testError {
-                Text(error).foregroundStyle(.red).font(.subheadline)
-            }
+            TestAlarmControls(model: model)
         case .sync:
             Button("Sync now") { Task { await model.sync() } }
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("sync-now")
         case .none:
             EmptyView()
+        }
+    }
+}
+
+/// The test alarm: ring it, then say whether it was heard. A silent test
+/// shows the settings that set an alarm's volume, and rings again.
+struct TestAlarmControls: View {
+    @Bindable var model: AppModel
+
+    var body: some View {
+        if let at = model.testRingsAt {
+            Text(
+                "It rings at \(at, format: .dateTime.hour().minute().second()). Lock the phone to hear it as you would at night."
+            )
+            .font(.subheadline)
+            .accessibilityIdentifier("test-rings-at")
+            HStack {
+                Button("I heard it") { Task { await model.heardTest() } }
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("heard-test")
+                Button("I didn't hear it") { model.missedTest() }
+                    .buttonStyle(.bordered)
+                    .accessibilityIdentifier("missed-test")
+            }
+        } else if model.testMissed {
+            Text(
+                "Settings > Sounds & Haptics > Alarms and Timers: turn Match Ringtone Volume off and drag the slider all the way right. Then ring it again. If it is still silent, restart the phone and try once more."
+            )
+            .font(.subheadline)
+            .accessibilityIdentifier("test-missed-help")
+            Button("Ring it again") { Task { await model.ringTestAlarm() } }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("ring-test-again")
+        } else {
+            Button("Ring a test alarm") { Task { await model.ringTestAlarm() } }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("ring-test")
+        }
+        if let error = model.testError {
+            Text(error).foregroundStyle(.red).font(.subheadline)
         }
     }
 }

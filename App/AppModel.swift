@@ -23,6 +23,8 @@ final class AppModel {
     /// When the test alarm rings, while the owner has not said it was heard.
     private(set) var testRingsAt: Date?
     private(set) var testError: String?
+    /// The owner said the last test alarm was silent.
+    private(set) var testMissed = false
 
     /// A paired phone stays on the setup screen while a blocking check fails.
     var blocked: Bool { paired && checks.contains { $0.severity == .blocking } }
@@ -105,6 +107,7 @@ final class AppModel {
     /// Sets the test alarm 10 seconds out, with the sound every alarm plays.
     func ringTestAlarm() async {
         testError = nil
+        testMissed = false
         if await dependencies.device.ringTest(sound: phone.sound) {
             testRingsAt = Date().addingTimeInterval(10)
         } else {
@@ -116,7 +119,15 @@ final class AppModel {
     func heardTest() async {
         dependencies.device.markTestHeard(Date())
         testRingsAt = nil
+        testMissed = false
         await checkReadiness()
+    }
+
+    /// The test alarm was silent: the setup check stays open and the app
+    /// says what to change.
+    func missedTest() {
+        testRingsAt = nil
+        testMissed = true
     }
 
     func sync() async {
