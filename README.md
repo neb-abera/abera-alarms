@@ -34,7 +34,7 @@ After pairing, and on every launch while one of these fails, the app opens on Re
 
 - Alarms allowed for the app (Settings > Apps > Alarms > Alarms).
 - Background App Refresh on for the app, so new and moved alarms reach the phone with the app closed.
-- A test alarm heard. It rings 10 seconds after the tap, with the sound every alarm plays, at the Ringtone and Alert Volume in Settings > Sounds & Haptics. No app can read that volume, so the owner confirms it.
+- A test alarm heard. It rings 10 seconds after the tap, with the sound every alarm plays. On iOS 27 the alarm volume is its own slider: Settings > Sounds & Haptics > Alarms and Timers, with Match Ringtone Volume off. Attention Aware Features (Settings > Face ID & Passcode) lowers an alarm while the owner looks at the phone. No app can read either setting, so the owner confirms the test.
 
 The bell button at the top of the Alarms tab rings the same test alarm at any time.
 

@@ -87,7 +87,7 @@ public enum Readiness {
                 .init(
                     kind: .test, severity: .blocking, title: "Ring a test alarm",
                     detail:
-                        "It rings in 10 seconds at the volume your alarms use. Settings > Sounds & Haptics > Ringtone and Alert Volume sets it. Turn Change with Buttons off so music volume never lowers it.",
+                        "It rings in 10 seconds at your alarm volume. Lock the phone and listen. Settings > Sounds & Haptics > Alarms and Timers: turn Match Ringtone Volume off and drag the slider all the way right. Settings > Face ID & Passcode > Attention Aware Features: off, or the iPhone lowers an alarm while you look at it.",
                     fix: .testAlarm))
         }
         if inputs.refused > 0 {
