@@ -12,7 +12,7 @@ struct AlarmKitScheduler: AlarmScheduling {
     /// The rest timer's alarm is the Timer tab's, not the sync's, so the
     /// sync never sees it to cancel.
     func scheduledIDs() async throws -> Set<UUID> {
-        Set(try AlarmManager.shared.alarms.map(\.id)).subtracting([RestModel.alarmID])
+        Set(try AlarmManager.shared.alarms.map(\.id)).subtracting([RestModel.alarmID, SystemDevice.testAlarmID])
     }
 
     func schedule(_ alarm: DesiredAlarm) async throws {
@@ -99,7 +99,7 @@ struct AlarmKitScheduler: AlarmScheduling {
                 }
             }
             .map(\.id)
-        ).subtracting([RestModel.alarmID])
+        ).subtracting([RestModel.alarmID, SystemDevice.testAlarmID])
     }
 
     /// A repeating alarm is set again for its next time. A one-time alarm is removed.

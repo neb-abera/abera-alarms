@@ -139,6 +139,38 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(row(app, "standup")))
     }
 
+    // MARK: Ready to ring
+
+    func testANewPhoneStaysOnSetupUntilATestAlarmIsHeard() {
+        let app = launch("-demo-unready", tab: nil)
+        let check = app.descendants(matching: .any)["check-test"]
+        XCTAssertTrue(check.waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(app.navigationBars["Ready to Ring"].exists)
+        XCTAssertFalse(app.tabBars.buttons["Calendar"].isHittable)
+
+        app.buttons["ring-test"].tap()
+        XCTAssertTrue(app.staticTexts["test-rings-at"].waitForExistence(timeout: 5))
+        app.buttons["heard-test"].tap()
+
+        XCTAssertTrue(waitForGone(app.navigationBars["Ready to Ring"]), app.debugDescription)
+        open("Calendar", in: app)
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+    }
+
+    func testBackgroundRefreshOffHoldsSetupWithASettingsLink() {
+        let app = launch("-demo-refresh-off", tab: nil)
+        let check = app.descendants(matching: .any)["check-backgroundRefresh"]
+        XCTAssertTrue(check.waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(app.descendants(matching: .any)["open-settings-backgroundRefresh"].exists)
+        XCTAssertTrue(app.navigationBars["Ready to Ring"].exists)
+    }
+
+    func testAReadyPhoneOpensOnItsTabs() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))
+        XCTAssertFalse(app.navigationBars["Ready to Ring"].exists)
+    }
+
     // MARK: New event
 
     func testANewAlarmEventRingsOnThePhone() {

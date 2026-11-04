@@ -18,6 +18,15 @@ final class AppModel {
     private(set) var permission: AlarmPermission = .notAsked
     private(set) var pairingError: String?
 
+    /// The readiness checks that fail, blocking ones first.
+    private(set) var checks: [ReadinessCheck] = []
+    /// When the test alarm rings, while the owner has not said it was heard.
+    private(set) var testRingsAt: Date?
+    private(set) var testError: String?
+
+    /// A paired phone stays on the setup screen while a blocking check fails.
+    var blocked: Bool { paired && checks.contains { $0.severity == .blocking } }
+
     private let dependencies: Dependencies
 
     init(dependencies: Dependencies = .shared) {
@@ -77,7 +86,37 @@ final class AppModel {
         state = await dependencies.sync.lastState()
         permission = await dependencies.permissions.current()
         started = true
-        if paired { await sync() }
+        if paired { await sync() } else { await checkReadiness() }
+    }
+
+    /// Reads every setting an alarm depends on. Runs on launch, after every
+    /// sync and each time the app comes back from Settings.
+    func checkReadiness() async {
+        permission = await dependencies.permissions.current()
+        let device = dependencies.device.read()
+        let inputs = ReadinessInputs(
+            alarmsAllowed: permission == .allowed, backgroundRefresh: device.backgroundRefresh,
+            pushRegistered: device.pushRegistered, lowPowerMode: device.lowPower,
+            lastSyncedAt: await dependencies.sync.lastSyncedAt(), testHeardAt: dependencies.device.testHeardAt,
+            refused: report?.refused.count ?? 0, pushoverInstalled: device.pushover)
+        checks = Readiness.failing(inputs, now: Date())
+    }
+
+    /// Sets the test alarm 10 seconds out, with the sound every alarm plays.
+    func ringTestAlarm() async {
+        testError = nil
+        if await dependencies.device.ringTest(sound: phone.sound) {
+            testRingsAt = Date().addingTimeInterval(10)
+        } else {
+            testRingsAt = nil
+            testError = "iOS refused the test alarm. Check that alarms are on for this app."
+        }
+    }
+
+    func heardTest() async {
+        dependencies.device.markTestHeard(Date())
+        testRingsAt = nil
+        await checkReadiness()
     }
 
     func sync() async {
@@ -321,6 +360,7 @@ final class AppModel {
         let before = sending.status
         sending.settle(waiting: Set(waiting))
         for (id, status) in sending.status where status == .saved && before[id] != .saved { clearSavedSoon(id) }
+        await checkReadiness()
         busy = false
         return result
     }

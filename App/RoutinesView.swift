@@ -13,7 +13,7 @@ struct RoutinesView: View {
     var body: some View {
         NavigationStack {
             List {
-                PermissionSection(model: model)
+                ReadinessSection(model: model)
                 if let error = model.routineError {
                     Section {
                         Label(error, systemImage: "exclamationmark.triangle")

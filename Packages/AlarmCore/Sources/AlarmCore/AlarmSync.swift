@@ -131,6 +131,7 @@ public actor AlarmSync {
         try? await documents.remove(Self.routineChangesName)
         _ = await apply(AlertsState(configured: false))
         try? await documents.remove(Self.stateName)
+        try? await documents.remove(Self.syncedName)
     }
 
     // MARK: Sync
@@ -279,6 +280,16 @@ public actor AlarmSync {
         return RoutineChange.overlay(raw, changes)
     }
 
+    static let syncedName = "last-sync.txt"
+
+    /// When this phone last read its alarms from abera.tech. Nil before the first sync.
+    public func lastSyncedAt() async -> Date? {
+        guard let data = try? await documents.load(Self.syncedName),
+            let seconds = Double(String(decoding: data, as: UTF8.self))
+        else { return nil }
+        return Date(timeIntervalSince1970: seconds)
+    }
+
     private func lastServerState() async -> AlertsState? {
         guard let data = try? await documents.load(Self.stateName) else { return nil }
         return try? ServerDates.decoder().decode(AlertsState.self, from: data)
@@ -413,6 +424,9 @@ public actor AlarmSync {
         // it again on every read, so none is applied twice.
         if keep, server.configured, let data = try? ServerDates.encoder().encode(server) {
             try? await documents.save(data, as: Self.stateName)
+        }
+        if server.configured {
+            try? await documents.save(Data(String(at.timeIntervalSince1970).utf8), as: Self.syncedName)
         }
 
         return SyncReport(

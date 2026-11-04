@@ -19,6 +19,7 @@ struct Dependencies: Sendable {
     let sync: AlarmSync
     let permissions: any AlarmPermissions
     let allowedServers: Set<URL>
+    var device: any DeviceChecks = SystemDevice()
 
     static let shared: Dependencies = {
         #if DEBUG
