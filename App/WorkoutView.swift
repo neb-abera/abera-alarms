@@ -10,7 +10,6 @@ import UIKit
 struct WorkoutView: View {
     @Bindable var timer: WorkoutModel
     var onScreen = true
-    @State private var confirmingReset = false
     @AppStorage(IntentLog.key) private var lockScreenLog = ""
 
     private var workout: Workout { timer.workout }
@@ -135,21 +134,16 @@ struct WorkoutView: View {
             .navigationTitle("Timer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Two buttons, one tap each, no confirmation (Neb, 2026-11-04).
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Reset Everything") { Task { await timer.resetEverything() } }
+                        .accessibilityIdentifier("workout-reset-everything")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Reset Session") { confirmingReset = true }
+                    Button("Reset Session") { timer.resetSession() }
                         .disabled(!workout.started && workout.sets.isEmpty)
                         .accessibilityIdentifier("workout-reset-session")
                 }
-            }
-            .confirmationDialog("Reset the session?", isPresented: $confirmingReset, titleVisibility: .visible) {
-                Button("Reset Session", role: .destructive) { timer.resetSession() }
-                    .accessibilityIdentifier("confirm-reset-session")
-                Button("Reset Everything", role: .destructive) { Task { await timer.resetEverything() } }
-                    .accessibilityIdentifier("confirm-reset-everything")
-            } message: {
-                Text(
-                    "Reset Session goes back to set 1 at 0:00 and clears the sets done. Reset Everything also says the time every 30 s again and sets the rest to 1:30."
-                )
             }
         }
     }
