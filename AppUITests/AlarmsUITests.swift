@@ -428,8 +428,12 @@ final class AlarmsUITests: XCTestCase {
         let app = launch()
         let pt = row(app, "pt|1")
         XCTAssertTrue(pt.waitForExistence(timeout: 10))
+        // All events lists it further down: scroll it into view before the swipe.
+        for _ in 0..<5 where !pt.isHittable { app.collectionViews.firstMatch.swipeUp() }
         pt.swipeLeft()
-        app.buttons["Delete"].firstMatch.tap()
+        let delete = app.buttons["Delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5), app.debugDescription)
+        delete.tap()
         let one = app.buttons["Delete This Event"]
         XCTAssertTrue(one.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Delete All Events"].waitForExistence(timeout: 5), app.debugDescription)
