@@ -98,17 +98,18 @@ final class AlarmsUITests: XCTestCase {
 
     // MARK: The list
 
-    func testTheListShowsAlarmsAndNotNotifications() {
+    func testTheListOpensOnAllEventsAndAlarmsShowsOnlyAlarms() {
         let app = launch()
+        XCTAssertTrue(row(app, "lunch").waitForExistence(timeout: 10))
+        XCTAssertTrue(row(app, "dinner").exists)
+        XCTAssertTrue(app.segmentedControls.buttons["All events"].isSelected)
+
+        show("Alarms", in: app)
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
         XCTAssertTrue(row(app, "pt|1").exists)
         XCTAssertFalse(row(app, "lunch").exists)
         XCTAssertFalse(row(app, "dinner").exists)
         XCTAssertTrue(app.staticTexts["1 notification(s) go through Pushover only."].exists)
-
-        show("All events", in: app)
-        XCTAssertTrue(row(app, "lunch").waitForExistence(timeout: 5))
-        XCTAssertTrue(row(app, "dinner").exists)
     }
 
     // MARK: Type
@@ -131,6 +132,8 @@ final class AlarmsUITests: XCTestCase {
 
     func testMakingAnAlarmNoneTakesItOffThePhone() {
         let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        show("Alarms", in: app)
         let type = app.buttons["type-standup"]
         XCTAssertTrue(type.waitForExistence(timeout: 10))
         type.tap()

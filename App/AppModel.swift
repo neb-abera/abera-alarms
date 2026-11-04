@@ -34,7 +34,7 @@ final class AppModel {
     }
 
     /// All events, or only the ones that ring on this phone.
-    var showAll = false
+    var showAll = true
     private(set) var eventError: String?
     private(set) var routineError: String?
 
