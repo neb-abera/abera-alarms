@@ -182,7 +182,7 @@ struct AlarmCountdownActivity: Widget {
                         .monospacedDigit()
                 }
             } compactLeading: {
-                Image(systemName: "zzz")
+                Image(systemName: context.attributes.metadata?.key == "timer" ? "timer" : "zzz")
             } compactTrailing: {
                 CountdownText(state: context.state)
                     .monospacedDigit()

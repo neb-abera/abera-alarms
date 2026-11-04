@@ -702,12 +702,59 @@ protocol DeviceChecks: Sendable {
     func markTestHeard(_ at: Date)
     /// Sets an alarm 10 seconds from now with the chosen sound. False when iOS refused it.
     func ringTest(sound: String) async -> Bool
+    /// Starts the timer: a countdown on the Lock Screen that rings until
+    /// stopped. Nil when iOS refused it, else when it rings.
+    func startTimer(seconds: Int, label: String, sound: String) async -> Date?
+    func cancelTimer() async
+    /// When the running timer rings. Nil when none runs.
+    func timerEndsAt() async -> Date?
 }
 
 /// The real phone.
 struct SystemDevice: DeviceChecks {
     static let heardKey = "test-alarm-heard-at"
     nonisolated static let testAlarmID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000002")!
+    nonisolated static let timerID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000003")!
+    static let timerKey = "timer-ends-at"
+
+    func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
+        try? AlarmManager.shared.cancel(id: Self.timerID)
+        let alert = AlarmPresentation.Alert(title: "\(label)", secondaryButton: nil, secondaryButtonBehavior: nil)
+        let countdown = AlarmPresentation.Countdown(title: "\(label)", pauseButton: nil)
+        let attributes = AlarmAttributes<AlarmInfo>(
+            presentation: AlarmPresentation(alert: alert, countdown: countdown, paused: nil),
+            metadata: AlarmInfo(key: "timer"),
+            tintColor: .accentColor)
+        let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>(
+            countdownDuration: .init(preAlert: TimeInterval(seconds), postAlert: nil),
+            schedule: nil,
+            attributes: attributes,
+            stopIntent: nil,
+            secondaryIntent: nil,
+            sound: AlarmKitScheduler.sound(sound))
+        do {
+            _ = try await AlarmManager.shared.schedule(id: Self.timerID, configuration: configuration)
+            let endsAt = Date().addingTimeInterval(TimeInterval(seconds))
+            UserDefaults.standard.set(endsAt, forKey: Self.timerKey)
+            return endsAt
+        } catch {
+            return nil
+        }
+    }
+
+    func cancelTimer() async {
+        try? AlarmManager.shared.cancel(id: Self.timerID)
+        UserDefaults.standard.removeObject(forKey: Self.timerKey)
+    }
+
+    func timerEndsAt() async -> Date? {
+        let running = (try? AlarmManager.shared.alarms.contains { $0.id == Self.timerID }) ?? false
+        guard running else {
+            UserDefaults.standard.removeObject(forKey: Self.timerKey)
+            return nil
+        }
+        return UserDefaults.standard.object(forKey: Self.timerKey) as? Date
+    }
 
     @MainActor func read() -> DeviceReading {
         let app = UIApplication.shared
@@ -865,6 +912,105 @@ struct TestAlarmControls: View {
         }
         if let error = model.testError {
             Text(error).foregroundStyle(.red).font(.subheadline)
+        }
+    }
+}
+
+// MARK: Timer
+
+/// A timer: a length typed with its unit and an optional label. It counts
+/// down on the Lock Screen and in the Dynamic Island, then rings until stopped.
+struct TimerSheet: View {
+    @Bindable var model: AppModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var length = TimerLength.standard
+    @State private var label = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    LabeledContent("Length") {
+                        HStack {
+                            TextField(
+                                "Length",
+                                text: Binding(
+                                    get: { length.amount == 0 ? "" : String(length.amount) },
+                                    set: { length.amount = TimeSpan.amount(typed: $0) }),
+                                prompt: Text("0")
+                            )
+                            .keyboardType(.numberPad)
+                            .multilineTextAlignment(.trailing)
+                            .frame(maxWidth: 80)
+                            .accessibilityIdentifier("timer-amount")
+                            Picker("Unit", selection: $length.unit) {
+                                ForEach(TimerLength.Unit.allCases, id: \.self) { unit in
+                                    Text(unit.name(length.amount)).tag(unit)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("timer-unit")
+                        }
+                    }
+                    TextField("Label (optional)", text: $label, prompt: Text("Timer"))
+                        .accessibilityIdentifier("timer-label")
+                } footer: {
+                    Text("Counts down on the Lock Screen and rings until you stop it, through silent mode and Focus.")
+                }
+                ForEach(length.problems, id: \.self) { problem in
+                    Text(problem).foregroundStyle(.red)
+                }
+                if let error = model.timerError {
+                    Text(error).foregroundStyle(.red)
+                }
+            }
+            .navigationTitle("Timer")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Start") {
+                        Task {
+                            if await model.startTimer(length, label: label) { dismiss() }
+                        }
+                    }
+                    .disabled(!length.problems.isEmpty)
+                    .accessibilityIdentifier("start-timer")
+                }
+            }
+        }
+    }
+}
+
+/// The running timer at the top of the Alarms tab: its label, the time
+/// left, and Cancel.
+struct TimerSection: View {
+    @Bindable var model: AppModel
+    var ticking = true
+
+    var body: some View {
+        if let endsAt = model.timerEndsAt {
+            Section {
+                HStack {
+                    TimelineView(Ticking.schedule(ticking)) { context in
+                        let left = Int(endsAt.timeIntervalSince(context.date).rounded(.up))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(model.timerLabel).font(.headline)
+                            Text(left > 0 ? TimerLength.clock(left) : "Ringing")
+                                .font(.title2.monospacedDigit())
+                        }
+                        .accessibilityElement(children: .combine)
+                        .accessibilityIdentifier("timer-row")
+                    }
+                    Spacer()
+                    Button("Cancel", role: .destructive) { Task { await model.cancelTimer() } }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier("cancel-timer")
+                }
+            }
         }
     }
 }
