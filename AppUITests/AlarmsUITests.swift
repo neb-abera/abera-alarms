@@ -191,7 +191,9 @@ final class AlarmsUITests: XCTestCase {
             app.staticTexts["Rings at the start until you stop it, on the phone and through Pushover."].exists)
 
         alert.switches.firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["No alert. The event is on Google Calendar."].waitForExistence(timeout: 5))
+        // The switch's own value: its footer can sit under the keyboard,
+        // which the test before this one leaves up on iOS 27.
+        XCTAssertTrue(waitFor(alert, value: "0"), alert.debugDescription)
         XCTAssertFalse(app.buttons["event-type"].firstMatch.exists)
         XCTAssertFalse(app.textFields["event-lead-amount"].exists)
     }
@@ -627,6 +629,38 @@ final class AlarmsUITests: XCTestCase {
         let saved = app.switches["countdown-alarm"]
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
         XCTAssertEqual(saved.value as? String, "1")
+    }
+
+    func testARepeatingCountdownSaysSoAndAddingOneSendsItsRepeat() {
+        let app = launch(tab: "Countdowns")
+        let anniversary = countdown(app, "Anniversary")
+        XCTAssertTrue(anniversary.waitForExistence(timeout: 10))
+        XCTAssertTrue(anniversary.label.contains("Every year"), anniversary.label)
+        XCTAssertFalse(countdown(app, "Home").label.contains("Every"), countdown(app, "Home").label)
+
+        app.buttons["add-countdown"].tap()
+        let label = app.textFields["countdown-label"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.typeText("Birthday")
+        let repeats = app.buttons["countdown-repeat"].firstMatch
+        XCTAssertTrue(repeats.waitForExistence(timeout: 5))
+        repeats.tap()
+        let everyWeek = app.buttons["Every week"].firstMatch
+        XCTAssertTrue(everyWeek.waitForExistence(timeout: 5))
+        everyWeek.tap()
+        let every = app.steppers["countdown-every"].firstMatch
+        XCTAssertTrue(every.waitForExistence(timeout: 5))
+        // A Stepper holds its minus and plus buttons in that order. iOS 27
+        // gives the plus no "Increment" identifier, as iOS 26 did.
+        XCTAssertTrue(poll(5) { every.buttons.count == 2 }, every.debugDescription)
+        every.buttons.element(boundBy: 1).tap()
+        XCTAssertTrue(
+            poll(5) { every.label.contains("2 weeks") || every.value as? String == "2" }, every.debugDescription)
+        app.buttons["save-countdown"].tap()
+        let birthday = countdown(app, "Birthday")
+        XCTAssertTrue(birthday.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(birthday.label.contains("Every 2 weeks"), birthday.label)
     }
 
     func testTheZonePickerListsTheUnitedStatesFirstEastToWest() {

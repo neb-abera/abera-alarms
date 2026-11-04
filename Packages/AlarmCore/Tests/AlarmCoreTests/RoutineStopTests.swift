@@ -136,7 +136,7 @@ import Testing
         #expect(await rig.sync.pending() == [Self.todaysKey])
     }
 
-    @Test func aRingOnceRoutineIsAcknowledgedAndStillSwitchedOff() async throws {
+    @Test func aRingOnceRoutineIsAcknowledgedAndDeleted() async throws {
         var onceRing = ring(Self.todaysKey)
         onceRing.key = "routine:0a1b2c3d-0000-4000-8000-00000000000e:2026-10-05T05:30"
         onceRing.routineId = Self.onceID
@@ -150,7 +150,8 @@ import Testing
 
         _ = await rig.sync.acknowledgeRoutine(id: Self.onceID)
         #expect(await rig.server.acknowledgements == [onceRing.key])
-        #expect(await rig.server.state.routines.first?.enabled == false)
+        #expect(await rig.server.state.routines.contains { $0.id == Self.onceID } == false)
+        #expect(await rig.server.routineDeletes == [Self.onceID])
         #expect(await rig.alarms.alarms[Self.onceID] == nil)
     }
 

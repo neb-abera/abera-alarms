@@ -172,12 +172,24 @@ import Testing
         return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     }
 
-    func body(_ request: URLRequest) throws -> [String: String] {
-        let object = try sent(request)
-        return object.mapValues { value in
-            if let flag = value as? Bool { return flag ? "true" : "false" }
-            return "\(value)"
+    /// A JSON scalar as text. JSONDecoder keeps a Bool and a number apart,
+    /// where JSONSerialization on Darwin reads 1 as true.
+    struct Scalar: Decodable {
+        let text: String
+        init(from decoder: any Decoder) throws {
+            let value = try decoder.singleValueContainer()
+            if let flag = try? value.decode(Bool.self) {
+                text = flag ? "true" : "false"
+            } else if let number = try? value.decode(Int.self) {
+                text = String(number)
+            } else {
+                text = try value.decode(String.self)
+            }
         }
+    }
+
+    func body(_ request: URLRequest) throws -> [String: String] {
+        try JSONDecoder().decode([String: Scalar].self, from: try #require(request.httpBody)).mapValues(\.text)
     }
 
     @Test func createPostsTheDraft() async throws {
@@ -192,7 +204,7 @@ import Testing
             try body(request)
                 == [
                     "label": "Home", "targetAt": "2026-11-13T14:00:00.000Z", "timeZone": "Asia/Amman",
-                    "alarm": "false",
+                    "alarm": "false", "repeat": "none", "repeatEvery": "1",
                 ])
     }
 
@@ -212,7 +224,7 @@ import Testing
         #expect(request.httpMethod == "PUT")
         #expect(request.url?.path == "/api/alerts/countdowns/6f1c2c1e-3b52-4a52-9a0e-2b8f2f6b0a11")
         #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer \(Fixtures.token)")
-        #expect(try body(request).keys.sorted() == ["alarm", "label", "targetAt", "timeZone"])
+        #expect(try body(request).keys.sorted() == ["alarm", "label", "repeat", "repeatEvery", "targetAt", "timeZone"])
     }
 
     @Test func deleteSendsNoBody() async throws {

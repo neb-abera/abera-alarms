@@ -132,6 +132,7 @@ public actor FakeAlertsServer: HTTPTransport {
     public private(set) var timeZones: [String] = []
     public private(set) var typeChanges: [String] = []
     public private(set) var routineUpdates: [Routine] = []
+    public private(set) var routineDeletes: [UUID] = []
     public private(set) var edits: [EventEdit] = []
     public private(set) var deletions: [String] = []
     /// "<token> <environment>" as the phone last registered it.
@@ -312,6 +313,7 @@ public actor FakeAlertsServer: HTTPTransport {
             sortRoutines()
         case ("DELETE", _) where path.hasPrefix("/api/alerts/routines/"):
             guard let index = routineIndex(path) else { return respond(request, 404, Data()) }
+            routineDeletes.append(state.routines[index].id)
             state.routines.remove(at: index)
         case ("POST", "/api/alerts/countdowns"):
             let (draft, problem) = countdownDraft(request)
@@ -322,7 +324,8 @@ public actor FakeAlertsServer: HTTPTransport {
             state.countdowns.append(
                 Countdown(
                     id: UUID(), label: draft.sentLabel, targetAt: draft.targetAt, timeZone: draft.timeZone,
-                    updatedAt: Date(), alarm: draft.alarm, onCalendar: true))
+                    updatedAt: Date(), alarm: draft.alarm, onCalendar: true, repeats: draft.repeats,
+                    repeatEvery: draft.repeatEvery))
             sortCountdowns()
             return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
         case ("PUT", _) where path.hasPrefix("/api/alerts/countdowns/"):
@@ -333,6 +336,8 @@ public actor FakeAlertsServer: HTTPTransport {
             state.countdowns[index].targetAt = draft.targetAt
             state.countdowns[index].timeZone = draft.timeZone
             state.countdowns[index].alarm = draft.alarm
+            state.countdowns[index].repeats = draft.repeats
+            state.countdowns[index].repeatEvery = draft.repeatEvery
             state.countdowns[index].onCalendar = true
             state.countdowns[index].updatedAt = Date()
             sortCountdowns()
