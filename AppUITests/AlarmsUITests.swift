@@ -657,7 +657,9 @@ final class AlarmsUITests: XCTestCase {
         let label = app.textFields["countdown-label"]
         XCTAssertTrue(label.waitForExistence(timeout: 5))
         label.tap()
-        label.typeText("Flight")
+        // Return closes the keyboard. With it open, the first tap on the
+        // switch below only closed the keyboard on iOS 26.5 (abera-alarms #45, #47).
+        label.typeText("Flight\n")
         let alarm = app.switches["countdown-alarm"]
         XCTAssertTrue(alarm.waitForExistence(timeout: 5))
         XCTAssertEqual(alarm.value as? String, "0")
