@@ -165,6 +165,17 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Ready to Ring"].exists)
     }
 
+    func testATestAlarmRingsFromTheAlarmsTabInOneTap() {
+        let app = launch(tab: nil)
+        let button = app.buttons["test-alarm"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        let rings = app.descendants(matching: .any)["test-rings-at"]
+        XCTAssertTrue(rings.waitForExistence(timeout: 5), app.debugDescription)
+        app.buttons["heard-test"].tap()
+        XCTAssertTrue(waitForGone(rings))
+    }
+
     func testAReadyPhoneOpensOnItsTabs() {
         let app = launch(tab: nil)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))
