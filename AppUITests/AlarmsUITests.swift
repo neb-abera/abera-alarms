@@ -580,6 +580,8 @@ final class AlarmsUITests: XCTestCase {
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         save.tap()
+        // A tap while the editor sheet is still closing reached no switch on Xcode 26.5.
+        XCTAssertTrue(waitForGone(save))
         let toggle = app.switches["routine-switch-Alarm"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(waitFor(toggle, value: "1"))
