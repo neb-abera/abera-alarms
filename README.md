@@ -36,7 +36,7 @@ After pairing, and on every launch while one of these fails, the app opens on Re
 - Background App Refresh on for the app, so new and moved alarms reach the phone with the app closed.
 - A test alarm heard. It rings 10 seconds after the tap, with the sound every alarm plays. On iOS 27 the alarm volume is its own slider: Settings > Sounds & Haptics > Alarms and Timers, with Match Ringtone Volume off. Attention Aware Features (Settings > Face ID & Passcode) lowers an alarm while the owner looks at the phone. No app can read either setting, so the owner confirms the test.
 
-The bell button at the top of the Alarms tab rings the same test alarm at any time.
+The bell button at the top of the Alarms tab rings the same test alarm at any time. After it rings, I heard it records the test, and I didn't hear it shows the iOS 27 alarm volume setting with Ring it again.
 
 The same screen warns, without holding the app, when the last sync is more than 12 hours old, when iOS refused an alarm, when abera.tech cannot wake the phone, when Low Power Mode is on, and when Pushover, the backup, is not installed. The app checks again after every sync and each time it comes back from Settings.
 

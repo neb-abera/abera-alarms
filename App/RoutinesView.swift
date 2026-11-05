@@ -14,21 +14,9 @@ struct RoutinesView: View {
         NavigationStack {
             List {
                 ReadinessSection(model: model)
-                if let at = model.testRingsAt, !model.blocked {
-                    Section {
-                        Label(
-                            "Test alarm rings at \(at.formatted(.dateTime.hour().minute().second())). Lock the phone to hear it as you would at night.",
-                            systemImage: "bell.and.waves.left.and.right"
-                        )
-                        .accessibilityIdentifier("test-rings-at")
-                        Button("I heard it") { Task { await model.heardTest() } }
-                            .buttonStyle(.borderless)
-                            .accessibilityIdentifier("heard-test")
-                    }
-                }
-                if let error = model.testError, !model.blocked {
-                    Section {
-                        Text(error).foregroundStyle(.red)
+                if !model.blocked, model.testRingsAt != nil || model.testMissed || model.testError != nil {
+                    Section("Test alarm") {
+                        TestAlarmControls(model: model)
                     }
                 }
                 if let error = model.routineError {

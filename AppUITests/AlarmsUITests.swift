@@ -179,6 +179,34 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(rings))
     }
 
+    func testASilentTestAlarmShowsTheVolumeSettingAndRingsAgain() {
+        let app = launch(tab: nil)
+        let button = app.buttons["test-alarm"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        let missed = app.buttons["missed-test"]
+        XCTAssertTrue(missed.waitForExistence(timeout: 5), app.debugDescription)
+        missed.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["test-missed-help"].waitForExistence(timeout: 5))
+        app.buttons["ring-test-again"].tap()
+        XCTAssertTrue(app.buttons["heard-test"].waitForExistence(timeout: 5))
+        app.buttons["heard-test"].tap()
+        XCTAssertTrue(waitForGone(app.buttons["heard-test"]))
+    }
+
+    func testTheSilentTestHelpCanBeDismissed() {
+        let app = launch(tab: nil)
+        let button = app.buttons["test-alarm"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        XCTAssertTrue(app.buttons["missed-test"].waitForExistence(timeout: 5))
+        app.buttons["missed-test"].tap()
+        let help = app.descendants(matching: .any)["test-missed-help"]
+        XCTAssertTrue(help.waitForExistence(timeout: 5))
+        app.buttons["dismiss-test-help"].tap()
+        XCTAssertTrue(waitForGone(help))
+    }
+
     func testAReadyPhoneOpensOnItsTabs() {
         let app = launch(tab: nil)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))
@@ -552,6 +580,8 @@ final class AlarmsUITests: XCTestCase {
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
         save.tap()
+        // A tap while the editor sheet is still closing reached no switch on Xcode 26.5.
+        XCTAssertTrue(waitForGone(save))
         let toggle = app.switches["routine-switch-Alarm"]
         XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(waitFor(toggle, value: "1"))
