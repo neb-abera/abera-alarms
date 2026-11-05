@@ -8,12 +8,14 @@ struct RoutinesView: View {
     @State private var adding = false
     @State private var editing: Routine?
     @State private var settings = false
+    @State private var timer = false
     var onScreen = true
 
     var body: some View {
         NavigationStack {
             List {
                 ReadinessSection(model: model)
+                TimerSection(model: model, ticking: onScreen)
                 if !model.blocked, model.testRingsAt != nil || model.testMissed || model.testError != nil {
                     Section("Test alarm") {
                         TestAlarmControls(model: model)
@@ -64,6 +66,14 @@ struct RoutinesView: View {
                 }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        timer = true
+                    } label: {
+                        Label("Timer", systemImage: "timer")
+                    }
+                    .accessibilityIdentifier("new-timer")
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         Task { await model.ringTestAlarm() }
                     } label: {
                         Label("Ring a test alarm", systemImage: "bell.and.waves.left.and.right")
@@ -78,6 +88,9 @@ struct RoutinesView: View {
                     }
                     .accessibilityIdentifier("add-routine")
                 }
+            }
+            .sheet(isPresented: $timer) {
+                TimerSheet(model: model)
             }
             .sheet(isPresented: $adding) {
                 RoutineEditor(model: model, routine: nil)

@@ -25,6 +25,10 @@ final class AppModel {
     private(set) var testError: String?
     /// The owner said the last test alarm was silent.
     private(set) var testMissed = false
+    /// When the running timer rings, and its label. Nil when none runs.
+    private(set) var timerEndsAt: Date?
+    private(set) var timerLabel = "Timer"
+    private(set) var timerError: String?
 
     /// A paired phone stays on the setup screen while a blocking check fails.
     var blocked: Bool { paired && checks.contains { $0.severity == .blocking } }
@@ -94,6 +98,7 @@ final class AppModel {
     /// Reads every setting an alarm depends on. Runs on launch, after every
     /// sync and each time the app comes back from Settings.
     func checkReadiness() async {
+        await readTimer()
         permission = await dependencies.permissions.current()
         let device = dependencies.device.read()
         let inputs = ReadinessInputs(
@@ -131,6 +136,26 @@ final class AppModel {
     }
 
     func dismissTestHelp() { testMissed = false }
+    /// Starts the timer, replacing one already running. True when it runs.
+    func startTimer(_ length: TimerLength, label: String) async -> Bool {
+        timerError = nil
+        let name = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        timerLabel = name.isEmpty ? "Timer" : name
+        timerEndsAt = await dependencies.device.startTimer(
+            seconds: length.seconds, label: timerLabel, sound: phone.sound)
+        if timerEndsAt == nil { timerError = "iOS refused the timer. Check that alarms are on for this app." }
+        return timerEndsAt != nil
+    }
+
+    func cancelTimer() async {
+        await dependencies.device.cancelTimer()
+        timerEndsAt = nil
+    }
+
+    /// Reads the running timer back after a launch. A timer that rang and was stopped is gone.
+    func readTimer() async {
+        timerEndsAt = await dependencies.device.timerEndsAt()
+    }
 
     func sync() async {
         await run { await self.dependencies.sync.sync() }

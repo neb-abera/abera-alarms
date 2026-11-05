@@ -207,6 +207,28 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(help))
     }
 
+    func testATimerStartsFromTheAlarmsTabAndCancels() {
+        let app = launch(tab: nil)
+        let button = app.buttons["new-timer"]
+        XCTAssertTrue(button.waitForExistence(timeout: 15))
+        button.tap()
+        let amount = app.textFields["timer-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5))
+        XCTAssertEqual(amount.value as? String, "10")
+        replace(amount, with: "2", in: app)
+        let label = app.textFields["timer-label"]
+        label.tap()
+        label.typeText("Laundry\n")
+        app.buttons["start-timer"].tap()
+
+        let row = app.descendants(matching: .any)["timer-row"]
+        XCTAssertTrue(row.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(row.label.contains("Laundry"), row.label)
+        XCTAssertTrue(row.label.contains("1:5") || row.label.contains("2:00"), row.label)
+        app.buttons["cancel-timer"].tap()
+        XCTAssertTrue(waitForGone(row))
+    }
+
     func testAReadyPhoneOpensOnItsTabs() {
         let app = launch(tab: nil)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))

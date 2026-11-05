@@ -100,6 +100,15 @@
         var testHeardAt: Date? { heard.withLock { $0 } }
         func markTestHeard(_ at: Date) { heard.withLock { $0 = at } }
         func ringTest(sound: String) async -> Bool { true }
+
+        private let timer = Mutex<Date?>(nil)
+        func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
+            let endsAt = Date().addingTimeInterval(TimeInterval(seconds))
+            timer.withLock { $0 = endsAt }
+            return endsAt
+        }
+        func cancelTimer() async { timer.withLock { $0 = nil } }
+        func timerEndsAt() async -> Date? { timer.withLock { $0 } }
     }
 
     struct DemoPermissions: AlarmPermissions {
