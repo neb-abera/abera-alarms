@@ -480,12 +480,10 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(pt.waitForExistence(timeout: 10))
         // All events lists it further down: scroll it into view before the swipe.
         for _ in 0..<5 where !pt.isHittable { app.collectionViews.firstMatch.swipeUp() }
-        // Swipe the list cell, which owns the swipe actions. A swipe on the
-        // row's text missed them once on Xcode 27, so it tries twice.
-        let cell = app.cells.containing(.any, identifier: "alarm-pt|1").firstMatch
+        // A swipe on the row missed its actions once on Xcode 27, so it tries twice.
         let delete = app.buttons["Delete"].firstMatch
-        for _ in 0..<2 where !delete.exists {
-            cell.swipeLeft()
+        for _ in 0..<2 where !delete.exists && pt.exists {
+            pt.swipeLeft()
             _ = delete.waitForExistence(timeout: 3)
         }
         XCTAssertTrue(delete.exists, app.debugDescription)
