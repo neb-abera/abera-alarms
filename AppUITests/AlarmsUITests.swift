@@ -429,6 +429,14 @@ final class AlarmsUITests: XCTestCase {
     /// out. A predicate expectation is not used: on the Xcode 27 runner on
     /// 2026-10-03 one read the calculator total once in 14 s and failed,
     /// and the label it never read again was right.
+    /// A PNG of the screen kept in the result bundle, for reading a failure on CI.
+    private func snap(_ name: String, _ app: XCUIApplication) {
+        let shot = XCTAttachment(screenshot: app.screenshot(), quality: .medium)
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     private func poll(_ timeout: TimeInterval, _ holds: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !holds() {
@@ -483,8 +491,11 @@ final class AlarmsUITests: XCTestCase {
         let app = launch()
         let pt = row(app, "pt|1")
         XCTAssertTrue(pt.waitForExistence(timeout: 10))
+        snap("opened", app)
         // All events lists it further down: scroll it into view before the swipe.
         for _ in 0..<5 where !pt.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        snap("scrolled", app)
+        XCTAssertTrue(app.tabBars.buttons["Calendar"].isSelected, app.debugDescription)
         // A short swipe shows Delete. A full swipe runs it at once and opens the
         // dialog. Both are ways a person reaches it, so either passes.
         let delete = app.buttons["Delete"].firstMatch
@@ -492,6 +503,7 @@ final class AlarmsUITests: XCTestCase {
         for _ in 0..<2 where !delete.exists && !one.exists && pt.exists {
             pt.swipeLeft()
             _ = poll(5) { delete.exists || one.exists }
+            snap("swiped", app)
         }
         if !one.exists {
             XCTAssertTrue(delete.exists, app.debugDescription)
