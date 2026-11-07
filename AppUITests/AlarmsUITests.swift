@@ -581,8 +581,9 @@ final class AlarmsUITests: XCTestCase {
         app.cells.containing(.any, identifier: "routine-Wake").firstMatch.tap()
         XCTAssertTrue(poll(5) { deleteSelected.isEnabled }, app.debugDescription)
         deleteSelected.tap()
-        let confirm = app.buttons["confirm-delete-routines"].firstMatch
-        XCTAssertTrue(confirm.waitForExistence(timeout: 5))
+        // A dialog's buttons carry their label, not the identifier.
+        let confirm = app.buttons["Delete Alarm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
         confirm.tap()
         XCTAssertTrue(waitForGone(wake))
         XCTAssertTrue(routine(app, "Weekend").exists)
@@ -595,8 +596,9 @@ final class AlarmsUITests: XCTestCase {
         let all = app.buttons["delete-all-routines"]
         XCTAssertTrue(all.waitForExistence(timeout: 5))
         all.tap()
-        XCTAssertTrue(app.staticTexts["Delete 2 alarms?"].waitForExistence(timeout: 5))
-        app.buttons["confirm-delete-routines"].firstMatch.tap()
+        let confirm = app.buttons["Delete 2 Alarms"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
+        confirm.tap()
         XCTAssertTrue(app.staticTexts["no-routines"].waitForExistence(timeout: 10), app.debugDescription)
     }
 
