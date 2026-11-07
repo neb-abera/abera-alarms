@@ -2,18 +2,23 @@ import AlarmCore
 import SwiftUI
 
 /// The Clock app's alarm list: every routine with its time, label, days
-/// and an on/off switch. Tap one to edit it, swipe to delete, + to add.
+/// and an on/off switch. Tap one to edit it, + to add. Delete one by a
+/// swipe, a press and hold, or Delete Alarm in its editor. Select deletes
+/// several, or all of them.
 struct RoutinesView: View {
     @Bindable var model: AppModel
     @State private var adding = false
     @State private var editing: Routine?
     @State private var settings = false
     @State private var timer = false
+    @State private var selecting = false
+    @State private var selected = Set<UUID>()
+    @State private var confirmingDelete: Set<UUID>?
     var onScreen = true
 
     var body: some View {
         NavigationStack {
-            List {
+            List(selection: $selected) {
                 ReadinessSection(model: model)
                 TimerSection(model: model, ticking: onScreen)
                 if !model.blocked, model.testRingsAt != nil || model.testMissed || model.testError != nil {
@@ -45,17 +50,50 @@ struct RoutinesView: View {
                         .accessibilityIdentifier("no-routines")
                 }
                 ForEach(model.routines) { routine in
-                    RoutineRow(model: model, routine: routine, ticking: onScreen) { editing = routine }
-                        .swipeActions {
-                            Button("Delete", role: .destructive) {
-                                Task { await model.deleteRoutine(routine) }
-                            }
+                    RoutineRow(model: model, routine: routine, ticking: onScreen, selecting: selecting) {
+                        editing = routine
+                    }
+                    .tag(routine.id)
+                    .swipeActions {
+                        Button("Delete", role: .destructive) {
+                            Task { await model.deleteRoutine(routine) }
                         }
+                    }
+                    .contextMenu {
+                        Button("Edit", systemImage: "pencil") { editing = routine }
+                        Button("Delete", systemImage: "trash", role: .destructive) {
+                            Task { await model.deleteRoutine(routine) }
+                        }
+                        .accessibilityIdentifier("context-delete")
+                    }
                 }
             }
             .navigationTitle("Alarms")
+            .environment(\.editMode, .constant(selecting ? .active : .inactive))
             .refreshable { await model.sync() }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(selecting ? "Done" : "Select") {
+                        selecting.toggle()
+                        selected = []
+                    }
+                    .disabled(model.routines.isEmpty && !selecting)
+                    .accessibilityIdentifier("select-routines")
+                }
+                if selecting {
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        Button("Delete All", role: .destructive) {
+                            confirmingDelete = Set(model.routines.map(\.id))
+                        }
+                        .accessibilityIdentifier("delete-all-routines")
+                        Spacer()
+                        Button("Delete Selected (\(selected.count))", role: .destructive) {
+                            confirmingDelete = selected
+                        }
+                        .disabled(selected.isEmpty)
+                        .accessibilityIdentifier("delete-selected-routines")
+                    }
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
                         settings = true
@@ -89,6 +127,23 @@ struct RoutinesView: View {
                     .accessibilityIdentifier("add-routine")
                 }
             }
+            .confirmationDialog(
+                confirmingDelete.map { $0.count == 1 ? "Delete 1 alarm?" : "Delete \($0.count) alarms?" } ?? "",
+                isPresented: Binding(get: { confirmingDelete != nil }, set: { if !$0 { confirmingDelete = nil } }),
+                titleVisibility: .visible,
+                presenting: confirmingDelete
+            ) { ids in
+                Button(ids.count == 1 ? "Delete Alarm" : "Delete \(ids.count) Alarms", role: .destructive) {
+                    Task {
+                        await model.deleteRoutines(ids)
+                        selected = []
+                        selecting = false
+                    }
+                }
+                .accessibilityIdentifier("confirm-delete-routines")
+            } message: { _ in
+                Text("They are deleted on this phone and on abera.tech.")
+            }
             .sheet(isPresented: $timer) {
                 TimerSheet(model: model)
             }
@@ -109,6 +164,7 @@ struct RoutineRow: View {
     @Bindable var model: AppModel
     let routine: Routine
     var ticking = true
+    var selecting = false
     var open: () -> Void = {}
 
     var body: some View {
@@ -140,7 +196,9 @@ struct RoutineRow: View {
                 Spacer()
             }
             .contentShape(Rectangle())
-            .onTapGesture(perform: open)
+            // While selecting, a tap selects the row, so the editor stays shut.
+            .onTapGesture { if !selecting { open() } }
+            .allowsHitTesting(!selecting)
             Toggle(
                 "\(routine.label) on",
                 isOn: Binding(
@@ -148,6 +206,7 @@ struct RoutineRow: View {
                     set: { on in Task { await model.setRoutine(routine, enabled: on) } })
             )
             .labelsHidden()
+            .disabled(selecting)
             .accessibilityIdentifier("routine-switch-\(routine.label)")
         }
         .foregroundStyle(routine.enabled ? .primary : .secondary)

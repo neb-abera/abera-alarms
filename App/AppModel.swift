@@ -286,6 +286,13 @@ final class AppModel {
         _ = await changeRoutine(.delete(id: routine.id))
     }
 
+    /// Deletes each alarm in turn. Each one works offline like a single delete.
+    func deleteRoutines(_ ids: Set<UUID>) async {
+        for routine in routines where ids.contains(routine.id) {
+            await deleteRoutine(routine)
+        }
+    }
+
     private func changeRoutine(_ change: RoutineChange) async -> Bool {
         routineError = nil
         sending.begin(change)
