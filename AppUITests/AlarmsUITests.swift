@@ -492,8 +492,13 @@ final class AlarmsUITests: XCTestCase {
         let pt = row(app, "pt|1")
         XCTAssertTrue(pt.waitForExistence(timeout: 10))
         snap("opened", app)
-        // All events lists it further down: scroll it into view before the swipe.
-        for _ in 0..<5 where !pt.isHittable { app.collectionViews.firstMatch.swipeUp() }
+        // Scroll it clear of the floating tab bar. A swipe that starts on the
+        // tab bar moves between tabs: at 22:51 UTC the row sat half under it,
+        // and the swipe opened the Alarms tab.
+        let bar = app.tabBars.firstMatch
+        for _ in 0..<6 where !pt.isHittable || pt.frame.maxY > bar.frame.minY - 24 {
+            app.collectionViews.firstMatch.swipeUp()
+        }
         snap("scrolled", app)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].isSelected, app.debugDescription)
         // A short swipe shows Delete. A full swipe runs it at once and opens the
