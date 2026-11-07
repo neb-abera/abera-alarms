@@ -558,6 +558,50 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waiting.label.contains("1 change(s)"), waiting.label)
     }
 
+    func testPressAndHoldDeletesAnAlarm() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        wake.press(forDuration: 1.2)
+        let delete = app.buttons["context-delete"].firstMatch
+        XCTAssertTrue(delete.waitForExistence(timeout: 5), app.debugDescription)
+        delete.tap()
+        XCTAssertTrue(waitForGone(wake))
+        XCTAssertTrue(routine(app, "Weekend").exists)
+    }
+
+    func testSelectingAlarmsDeletesTheSelectedOnes() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        app.buttons["select-routines"].tap()
+        let deleteSelected = app.buttons["delete-selected-routines"]
+        XCTAssertTrue(deleteSelected.waitForExistence(timeout: 5))
+        XCTAssertFalse(deleteSelected.isEnabled)
+        app.cells.containing(.any, identifier: "routine-Wake").firstMatch.tap()
+        XCTAssertTrue(poll(5) { deleteSelected.isEnabled }, app.debugDescription)
+        deleteSelected.tap()
+        // A dialog's buttons carry their label, not the identifier.
+        let confirm = app.buttons["Delete Alarm"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
+        confirm.tap()
+        XCTAssertTrue(waitForGone(wake))
+        XCTAssertTrue(routine(app, "Weekend").exists)
+    }
+
+    func testDeleteAllRemovesEveryAlarm() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["select-routines"].tap()
+        let all = app.buttons["delete-all-routines"]
+        XCTAssertTrue(all.waitForExistence(timeout: 5))
+        all.tap()
+        let confirm = app.buttons["Delete 2 Alarms"].firstMatch
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
+        confirm.tap()
+        XCTAssertTrue(app.staticTexts["no-routines"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
     func testSwitchingARoutineOffAndOn() {
         let app = launch(tab: nil)
         let toggle = app.switches["routine-switch-Wake"]
