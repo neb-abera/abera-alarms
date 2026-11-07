@@ -18,7 +18,7 @@ struct RoutinesView: View {
 
     var body: some View {
         NavigationStack {
-            List(selection: $selected) {
+            List {
                 ReadinessSection(model: model)
                 if selecting {
                     Section {
@@ -37,7 +37,7 @@ struct RoutinesView: View {
                             .accessibilityIdentifier("delete-all-routines")
                         }
                     } footer: {
-                        Text("Tap alarms to select them.")
+                        Text("Tap the circles to select alarms.")
                     }
                 }
                 TimerSection(model: model, ticking: onScreen)
@@ -70,10 +70,24 @@ struct RoutinesView: View {
                         .accessibilityIdentifier("no-routines")
                 }
                 ForEach(model.routines) { routine in
-                    RoutineRow(model: model, routine: routine, ticking: onScreen, selecting: selecting) {
-                        editing = routine
+                    HStack {
+                        if selecting {
+                            let on = selected.contains(routine.id)
+                            Button {
+                                if on { selected.remove(routine.id) } else { selected.insert(routine.id) }
+                            } label: {
+                                Image(systemName: on ? "checkmark.circle.fill" : "circle")
+                                    .font(.title2)
+                                    .foregroundStyle(on ? Color.accentColor : Color.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(on ? "Selected \(routine.label)" : "Select \(routine.label)")
+                            .accessibilityIdentifier("select-routine-\(routine.label)")
+                        }
+                        RoutineRow(model: model, routine: routine, ticking: onScreen, selecting: selecting) {
+                            editing = routine
+                        }
                     }
-                    .tag(routine.id)
                     .swipeActions {
                         Button("Delete", role: .destructive) {
                             Task { await model.deleteRoutine(routine) }
@@ -89,7 +103,6 @@ struct RoutinesView: View {
                 }
             }
             .navigationTitle("Alarms")
-            .environment(\.editMode, .constant(selecting ? .active : .inactive))
             .refreshable { await model.sync() }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -202,7 +215,7 @@ struct RoutineRow: View {
                 Spacer()
             }
             .contentShape(Rectangle())
-            // While selecting, a tap selects the row, so the editor stays shut.
+            // While selecting, the circle beside the row selects it, and the editor stays shut.
             .onTapGesture { if !selecting { open() } }
             .allowsHitTesting(!selecting)
             Toggle(

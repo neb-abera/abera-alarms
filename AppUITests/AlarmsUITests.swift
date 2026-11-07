@@ -590,7 +590,7 @@ final class AlarmsUITests: XCTestCase {
         let deleteSelected = app.buttons["delete-selected-routines"]
         XCTAssertTrue(deleteSelected.waitForExistence(timeout: 5))
         XCTAssertFalse(deleteSelected.isEnabled)
-        app.cells.containing(.any, identifier: "routine-Wake").firstMatch.tap()
+        app.buttons["select-routine-Wake"].tap()
         XCTAssertTrue(poll(5) { deleteSelected.isEnabled }, app.debugDescription)
         deleteSelected.tap()
         // A dialog's buttons carry their label, not the identifier.
