@@ -316,7 +316,12 @@ final class AlarmsUITests: XCTestCase {
         let flight = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Flight'")
         ).firstMatch
-        XCTAssertTrue(flight.waitForExistence(timeout: 10), app.debugDescription)
+        // The list builds only the rows on screen: look at the top, then lower down.
+        if !flight.waitForExistence(timeout: 10) {
+            app.collectionViews.firstMatch.swipeDown()
+            for _ in 0..<4 where !flight.waitForExistence(timeout: 2) { app.collectionViews.firstMatch.swipeUp() }
+        }
+        XCTAssertTrue(flight.exists, app.debugDescription)
         flight.tap()
         XCTAssertTrue(app.textFields["edit-length-amount"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["edit-length-amount"].value as? String, "2")
@@ -484,9 +489,9 @@ final class AlarmsUITests: XCTestCase {
         // dialog. Both are ways a person reaches it, so either passes.
         let delete = app.buttons["Delete"].firstMatch
         let one = app.buttons["Delete This Event"]
-        for _ in 0..<2 where !delete.exists && !one.exists {
+        for _ in 0..<2 where !delete.exists && !one.exists && pt.exists {
             pt.swipeLeft()
-            _ = delete.waitForExistence(timeout: 3) || one.waitForExistence(timeout: 1)
+            _ = poll(5) { delete.exists || one.exists }
         }
         if !one.exists {
             XCTAssertTrue(delete.exists, app.debugDescription)
