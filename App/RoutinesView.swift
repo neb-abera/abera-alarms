@@ -20,6 +20,26 @@ struct RoutinesView: View {
         NavigationStack {
             List(selection: $selected) {
                 ReadinessSection(model: model)
+                if selecting {
+                    Section {
+                        HStack {
+                            Button("Delete Selected (\(selected.count))", role: .destructive) {
+                                confirmingDelete = selected
+                            }
+                            .buttonStyle(.borderless)
+                            .disabled(selected.isEmpty)
+                            .accessibilityIdentifier("delete-selected-routines")
+                            Spacer()
+                            Button("Delete All", role: .destructive) {
+                                confirmingDelete = Set(model.routines.map(\.id))
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityIdentifier("delete-all-routines")
+                        }
+                    } footer: {
+                        Text("Tap alarms to select them.")
+                    }
+                }
                 TimerSection(model: model, ticking: onScreen)
                 if !model.blocked, model.testRingsAt != nil || model.testMissed || model.testError != nil {
                     Section("Test alarm") {
@@ -79,20 +99,6 @@ struct RoutinesView: View {
                     }
                     .disabled(model.routines.isEmpty && !selecting)
                     .accessibilityIdentifier("select-routines")
-                }
-                if selecting {
-                    ToolbarItemGroup(placement: .bottomBar) {
-                        Button("Delete All", role: .destructive) {
-                            confirmingDelete = Set(model.routines.map(\.id))
-                        }
-                        .accessibilityIdentifier("delete-all-routines")
-                        Spacer()
-                        Button("Delete Selected (\(selected.count))", role: .destructive) {
-                            confirmingDelete = selected
-                        }
-                        .disabled(selected.isEmpty)
-                        .accessibilityIdentifier("delete-selected-routines")
-                    }
                 }
                 ToolbarItem(placement: .topBarLeading) {
                     Button {
