@@ -316,7 +316,12 @@ final class AlarmsUITests: XCTestCase {
         let flight = app.descendants(matching: .any).matching(
             NSPredicate(format: "identifier BEGINSWITH 'alarm-created-' AND label CONTAINS 'Flight'")
         ).firstMatch
-        XCTAssertTrue(flight.waitForExistence(timeout: 10), app.debugDescription)
+        // The list builds only the rows on screen: look at the top, then lower down.
+        if !flight.waitForExistence(timeout: 10) {
+            app.collectionViews.firstMatch.swipeDown()
+            for _ in 0..<4 where !flight.waitForExistence(timeout: 2) { app.collectionViews.firstMatch.swipeUp() }
+        }
+        XCTAssertTrue(flight.exists, app.debugDescription)
         flight.tap()
         XCTAssertTrue(app.textFields["edit-length-amount"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.textFields["edit-length-amount"].value as? String, "2")
@@ -424,6 +429,14 @@ final class AlarmsUITests: XCTestCase {
     /// out. A predicate expectation is not used: on the Xcode 27 runner on
     /// 2026-10-03 one read the calculator total once in 14 s and failed,
     /// and the label it never read again was right.
+    /// A PNG of the screen kept in the result bundle, for reading a failure on CI.
+    private func snap(_ name: String, _ app: XCUIApplication) {
+        let shot = XCTAttachment(screenshot: app.screenshot(), quality: .medium)
+        shot.name = name
+        shot.lifetime = .keepAlways
+        add(shot)
+    }
+
     private func poll(_ timeout: TimeInterval, _ holds: () -> Bool) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while !holds() {
@@ -478,13 +491,29 @@ final class AlarmsUITests: XCTestCase {
         let app = launch()
         let pt = row(app, "pt|1")
         XCTAssertTrue(pt.waitForExistence(timeout: 10))
-        // All events lists it further down: scroll it into view before the swipe.
-        for _ in 0..<5 where !pt.isHittable { app.collectionViews.firstMatch.swipeUp() }
-        pt.swipeLeft()
+        snap("opened", app)
+        // Scroll it clear of the floating tab bar. A swipe that starts on the
+        // tab bar moves between tabs: at 22:51 UTC the row sat half under it,
+        // and the swipe opened the Alarms tab.
+        let bar = app.tabBars.firstMatch
+        for _ in 0..<6 where !pt.isHittable || pt.frame.maxY > bar.frame.minY - 24 {
+            app.collectionViews.firstMatch.swipeUp()
+        }
+        snap("scrolled", app)
+        XCTAssertTrue(app.tabBars.buttons["Calendar"].isSelected, app.debugDescription)
+        // A short swipe shows Delete. A full swipe runs it at once and opens the
+        // dialog. Both are ways a person reaches it, so either passes.
         let delete = app.buttons["Delete"].firstMatch
-        XCTAssertTrue(delete.waitForExistence(timeout: 5), app.debugDescription)
-        delete.tap()
         let one = app.buttons["Delete This Event"]
+        for _ in 0..<2 where !delete.exists && !one.exists && pt.exists {
+            pt.swipeLeft()
+            _ = poll(5) { delete.exists || one.exists }
+            snap("swiped", app)
+        }
+        if !one.exists {
+            XCTAssertTrue(delete.exists, app.debugDescription)
+            delete.tap()
+        }
         XCTAssertTrue(one.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Delete All Events"].waitForExistence(timeout: 5), app.debugDescription)
         one.tap()
@@ -578,7 +607,7 @@ final class AlarmsUITests: XCTestCase {
         let deleteSelected = app.buttons["delete-selected-routines"]
         XCTAssertTrue(deleteSelected.waitForExistence(timeout: 5))
         XCTAssertFalse(deleteSelected.isEnabled)
-        app.cells.containing(.any, identifier: "routine-Wake").firstMatch.tap()
+        app.buttons["select-routine-Wake"].tap()
         XCTAssertTrue(poll(5) { deleteSelected.isEnabled }, app.debugDescription)
         deleteSelected.tap()
         // A dialog's buttons carry their label, not the identifier.
