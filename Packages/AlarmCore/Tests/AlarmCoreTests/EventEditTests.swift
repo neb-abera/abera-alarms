@@ -16,6 +16,39 @@ import Testing
         return alert
     }
 
+    @Test func aStartedEventKeepsItsOwnStartAndCannotMoveToAnotherPastTime() {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let now = start.addingTimeInterval(10 * 60)
+        func edit(_ startsAt: Date) -> EventEdit {
+            EventEdit(
+                key: "standup", scope: .occurrence, title: "Standup runs long", startsAt: startsAt,
+                durationMinutes: 60, location: nil, leadMinutes: nil)
+        }
+        #expect(edit(start).problems(now: now, listedStart: start).isEmpty)
+        #expect(edit(start).problems(now: now) == ["The start is in the past."])
+        #expect(
+            edit(start.addingTimeInterval(5 * 60)).problems(now: now, listedStart: start) == [
+                "The start is in the past."
+            ])
+    }
+
+    /// The round trip the editor makes: the phone sends dates to the
+    /// millisecond, and the server's start can carry more digits.
+    @Test func aStartedEventIsRenamedThroughTheServerWhenItsStartHasMoreDigits() async {
+        var drill = Fixtures.alert("drill", inMinutes: -20, lead: 10)
+        drill.startsAt = drill.startsAt.addingTimeInterval(0.000_4)
+        drill.endsAt = drill.startsAt.addingTimeInterval(30 * 60)
+        let rig = Fixtures.rig([drill])
+        _ = await rig.sync.sync()
+        let rename = EventEdit(
+            key: "drill", scope: .occurrence, title: "Fire drill, Bldg 2", startsAt: drill.startsAt,
+            durationMinutes: 30, location: nil, leadMinutes: nil)
+        #expect(rename.problems(now: Fixtures.now, listedStart: drill.startsAt).isEmpty)
+        let report = await rig.sync.perform { client throws(APIError) in try await client.updateEvent(rename) }
+        #expect(report.error == nil)
+        #expect(await rig.server.edits.map(\.title) == ["Fire drill, Bldg 2"])
+    }
+
     @Test func lengthAndLeadComeFromTheTimes() {
         let alert = daily(0)
         #expect(alert.durationMinutes == 30)

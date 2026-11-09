@@ -60,7 +60,7 @@ enum Fixtures {
     ) -> Rig {
         var initial = state(alerts)
         initial.routines = routines
-        let server = FakeAlertsServer(state: initial, token: token)
+        let server = FakeAlertsServer(state: initial, token: token, now: { clock.now })
         let alarms = MemoryAlarms()
         let documents = MemoryDocuments()
         let credentials = MemoryCredentials(paired ? pairing : nil)
@@ -71,7 +71,7 @@ enum Fixtures {
     }
 
     static func rig(_ alerts: [PlannedAlert], paired: Bool = true) -> Rig {
-        let server = FakeAlertsServer(state: state(alerts), token: token)
+        let server = FakeAlertsServer(state: state(alerts), token: token, now: { Fixtures.now })
         let alarms = MemoryAlarms()
         let documents = MemoryDocuments()
         let credentials = MemoryCredentials(paired ? pairing : nil)

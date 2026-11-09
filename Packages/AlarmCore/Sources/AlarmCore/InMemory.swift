@@ -142,12 +142,18 @@ public actor FakeAlertsServer: HTTPTransport {
     public var calendarWriteFailure: String?
     /// A 409 detail for new events, as when no calendar has edit access.
     public var createRefusal: String?
+    /// The server's clock, for the bounds an edit is checked against.
+    private let now: @Sendable () -> Date
 
-    public init(state: AlertsState, token: String, offline: Bool = false, latency: Duration = .zero) {
+    public init(
+        state: AlertsState, token: String, offline: Bool = false, latency: Duration = .zero,
+        now: @escaping @Sendable () -> Date = { Date() }
+    ) {
         self.state = state
         self.token = token
         self.offline = offline
         self.latency = latency
+        self.now = now
     }
 
     public func setOffline(_ offline: Bool) { self.offline = offline }
@@ -258,6 +264,10 @@ public actor FakeAlertsServer: HTTPTransport {
             else { return respond(request, 400, Data()) }
             guard let index = state.alerts.firstIndex(where: { $0.key == edit.key }) else {
                 return respond(request, 404, Data())
+            }
+            // abera.tech's bounds: a started event may keep its own start.
+            if let problem = edit.problems(now: now(), listedStart: state.alerts[index].startsAt).first {
+                return respond(request, 400, Data(#"{"errors":{"startsAt":["\#(problem)"]}}"#.utf8))
             }
             if let refusal = createRefusal {
                 return respond(request, 409, Data(#"{"detail":"\#(refusal)"}"#.utf8))

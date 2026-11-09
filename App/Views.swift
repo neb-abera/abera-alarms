@@ -439,7 +439,8 @@ struct EventEditor: View {
                 Section {
                     TextField("Title", text: $title)
                         .accessibilityIdentifier("edit-title")
-                    DatePicker("Starts", selection: $startsAt, in: Date()...)
+                    // A started event keeps its own start in range.
+                    DatePicker("Starts", selection: $startsAt, in: min(alert.startsAt, Date())...)
                     if alert.durationMinutes != nil {
                         SpanField(title: "Length", span: $length, id: "edit-length")
                     }
@@ -516,7 +517,7 @@ struct EventEditor: View {
     }
 
     private var problems: [String] {
-        edit.problems(now: Date())
+        edit.problems(now: Date(), listedStart: alert.startsAt)
     }
 }
 

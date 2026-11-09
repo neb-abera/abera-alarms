@@ -476,6 +476,21 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(standup, labelContaining: "Stand-up"))
     }
 
+    func testAStartedEventCanBeRenamedInTheEditor() {
+        let app = launch("-demo-started")
+        let drill = row(app, "drill")
+        XCTAssertTrue(drill.waitForExistence(timeout: 10))
+        drill.tap()
+        let title = app.textFields["edit-title"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        title.tap()
+        title.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: 10) + "Fire drill, Bldg 2")
+        let save = app.buttons["save-event"]
+        XCTAssertTrue(save.isEnabled, "Save is off for a started event that keeps its start")
+        save.tap()
+        XCTAssertTrue(waitFor(drill, labelContaining: "Fire drill, Bldg 2"))
+    }
+
     func testDeletingFromTheEditor() {
         let app = launch()
         let standup = row(app, "standup")
