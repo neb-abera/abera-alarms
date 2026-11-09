@@ -596,7 +596,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(delete.waitForExistence(timeout: 5), app.debugDescription)
         delete.tap()
         XCTAssertTrue(waitForGone(wake))
-        XCTAssertTrue(routine(app, "Weekend").exists)
+        XCTAssertTrue(routine(app, "Weekend").waitForExistence(timeout: 5), app.debugDescription)
     }
 
     func testSelectingAlarmsDeletesTheSelectedOnes() {
@@ -615,7 +615,7 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
         confirm.tap()
         XCTAssertTrue(waitForGone(wake))
-        XCTAssertTrue(routine(app, "Weekend").exists)
+        XCTAssertTrue(routine(app, "Weekend").waitForExistence(timeout: 5), app.debugDescription)
     }
 
     func testDeleteAllRemovesEveryAlarm() {
