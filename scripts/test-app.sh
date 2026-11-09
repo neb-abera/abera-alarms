@@ -68,6 +68,11 @@ xcodebuild test-without-building \
 echo "warm-up: xcodebuild exited $?"
 
 # Streamed, so a hung test shows where it hung. Each test gets two minutes.
+# A test that fails runs once more: on 2026-11-09 the Xcode 27 simulator
+# failed four runs in a row at launch, in a different test each time ("does
+# not have a process ID", "Failed to terminate", 105 s to idle, no card in
+# Notification Center), while Xcode 26.5 passed every test. A test that
+# fails twice fails the job. Each retried test is named below.
 xcodebuild test-without-building \
   -project AberaAlarms.xcodeproj \
   -scheme AberaAlarms \
@@ -75,6 +80,7 @@ xcodebuild test-without-building \
   -resultBundlePath build/AberaAlarms.xcresult \
   -derivedDataPath build/DerivedData \
   -skip-testing:AberaAlarmsUITests/AlarmsUITests/test0WarmUp \
+  -retry-tests-on-failure -test-iterations 2 \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 \
   -maximum-test-execution-time-allowance 120 \
@@ -83,6 +89,15 @@ xcodebuild test-without-building \
   | grep --line-buffered -E '^(Test Case|Test Suite|\*\*)|error:|warning:|t = .*(Launch|Wait|Tap|Type|Find)'
 status="${PIPESTATUS[0]}"
 set -e -o pipefail
+
+# A test that failed and then passed: a warning on the run, so a flake
+# stays in view.
+retried=$(sed -nE "s/^Test Case '-\[[^ ]+ ([^]]+)\]' failed .*/\1/p" build/xcodebuild.log | sort -u)
+for t in $retried; do
+  if grep -qE "^Test Case '-\[[^ ]+ $t\]' passed" build/xcodebuild.log; then
+    echo "::warning title=UI test passed on retry::$t failed once and passed on its retry"
+  fi
+done
 
 if [ "$status" -ne 0 ]; then
   echo "error: xcodebuild exited $status. The last 80 lines of build/xcodebuild.log:" >&2
