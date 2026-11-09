@@ -360,7 +360,7 @@ final class AlarmsUITests: XCTestCase {
     }
 
     func testAStartedEventStaysListedUntilItsEnd() {
-        let app = launch()
+        let app = launch("-demo-started")
         let drill = row(app, "drill")
         XCTAssertTrue(drill.waitForExistence(timeout: 10))
         XCTAssertTrue(drill.label.contains("Started"), drill.label)
