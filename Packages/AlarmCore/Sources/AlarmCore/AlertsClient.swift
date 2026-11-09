@@ -286,12 +286,15 @@ public struct EventEdit: Codable, Equatable, Sendable {
 
     /// The bounds the server checks, so the editor can say what is wrong first.
     /// A started event may keep its own start, `listedStart`, once it is past.
+    /// Within a second is the same start: dates travel at millisecond
+    /// precision, and abera.tech writes seven fractional digits.
     public func problems(now: Date, listedStart: Date? = nil) -> [String] {
+        let keepsStart = listedStart.map { abs(startsAt.timeIntervalSince($0)) < 1 } ?? false
         var problems: [String] = []
         let title = self.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if title.isEmpty { problems.append("Give the event a title.") }
         if title.count > 200 { problems.append("The title is longer than 200 characters.") }
-        if startsAt <= now && startsAt != listedStart { problems.append("The start is in the past.") }
+        if startsAt <= now && !keepsStart { problems.append("The start is in the past.") }
         if let durationMinutes, !(5...1440).contains(durationMinutes) {
             problems.append("The length must be 5 minutes to 24 hours.")
         }
