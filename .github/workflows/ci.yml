@@ -62,7 +62,7 @@ jobs:
   app:
     name: app (build and UI tests, Xcode ${{ matrix.xcode }})
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 60
+    timeout-minutes: 80
     strategy:
       fail-fast: false
       matrix:
@@ -91,8 +91,11 @@ jobs:
 
       - name: build, then run the UI tests in the simulator
         # 23 UI tests took 29 minutes with the build on the xcode-27 runner
-        # on 2026-10-01. Each test is still capped at two minutes.
-        timeout-minutes: 50
+        # on 2026-10-01. On 2026-11-09, 59 tests: boot 3 min, build and
+        # warm-up 16, the suite 26, the log 4. That run passed every test and
+        # hit the old 50-minute limit. Each test is still capped at two
+        # minutes, and a retried one adds up to two more.
+        timeout-minutes: 65
         run: scripts/test-app.sh
 
       - name: test results
