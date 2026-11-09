@@ -53,10 +53,11 @@ final class AppModel {
 
     func syncStatus(_ routine: Routine) -> RoutineSyncStatus? { sending.status[routine.id] }
 
-    /// The events still ahead: every one, or the alarms alone.
+    /// The events not yet over: every one, or the alarms alone. An event
+    /// stays listed until its end.
     var events: [PlannedAlert] {
         let now = Date()
-        return (state?.alerts ?? []).filter { $0.startsAt > now && (showAll || $0.isAlarm) }
+        return (state?.alerts ?? []).filter { $0.isListed(at: now) && (showAll || $0.isAlarm) }
     }
 
     /// The events grouped by the day their alert goes off, in order.
@@ -70,7 +71,8 @@ final class AppModel {
 
     var emptyMessage: String {
         if showAll { return "No events in the next 48 hours. Tap + to add one." }
-        let others = (state?.alerts ?? []).filter { !$0.isAlarm && $0.startsAt > Date() }.count
+        let now = Date()
+        let others = (state?.alerts ?? []).filter { !$0.isAlarm && $0.isListed(at: now) }.count
         let hint =
             "Show All events and set one to Ring until stopped with the icon beside it, add #critical to it in Google Calendar, or tap + for a new alarm."
         return others == 0

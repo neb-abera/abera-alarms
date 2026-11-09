@@ -242,11 +242,12 @@ struct EventRow: View {
         }
         if alert.skipped { return "Skipped" }
         if alert.muted { return "Muted" }
+        if alert.hasStarted(at: Date()) { return "Started" }
         return model.isHeld(alert) ? "Set on this phone" : "Not set on this phone"
     }
 
     private var statusColor: Color {
-        if alert.acknowledged || alert.skipped || alert.muted { return .secondary }
+        if alert.acknowledged || alert.skipped || alert.muted || alert.hasStarted(at: Date()) { return .secondary }
         return model.isHeld(alert) ? .green : .red
     }
 }

@@ -10,6 +10,7 @@
     /// countdowns, one passed. `-demo-unpaired` starts on
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
     /// `-demo-slow` answers every request after 8 s, as a weak signal does.
+    /// `-demo-started` adds an event that started 10 minutes ago and ends in 20.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
@@ -17,7 +18,8 @@
         static func fromLaunchArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> Dependencies? {
             guard arguments.contains("-demo") else { return nil }
             let server = FakeAlertsServer(
-                state: state(now: Date()), token: token, offline: arguments.contains("-demo-offline"),
+                state: state(now: Date(), started: arguments.contains("-demo-started")), token: token,
+                offline: arguments.contains("-demo-offline"),
                 latency: arguments.contains("-demo-slow") ? .seconds(8) : .zero)
             let pairing = Pairing(server: Pairing.production, token: token)
             return Dependencies(
@@ -31,14 +33,22 @@
                 device: DemoDevice(arguments))
         }
 
-        static func state(now: Date) -> AlertsState {
+        static func state(now: Date, started: Bool = false) -> AlertsState {
             func at(_ minutes: Double) -> Date { now.addingTimeInterval(minutes * 60) }
+            // A started event, only when asked: one more row pushes the last
+            // row off a small screen, and the list drops it.
+            let drill =
+                started
+                ? [
+                    PlannedAlert(
+                        key: "drill", title: "Fire drill", startsAt: at(-10), alertAt: at(-20), endsAt: at(20))
+                ] : []
             return AlertsState(
                 configured: true,
                 timeZone: TimeZone.current.identifier,
                 lastFetchAt: now,
                 lastSuccessAt: now,
-                alerts: [
+                alerts: drill + [
                     PlannedAlert(
                         key: "standup", title: "Standup", location: "Room 4", startsAt: at(70), alertAt: at(60),
                         endsAt: at(85)),
