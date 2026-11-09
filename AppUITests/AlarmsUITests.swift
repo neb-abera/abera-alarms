@@ -359,6 +359,13 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(poll(5) { app.buttons["type-standup"].label.hasSuffix("Off") }, app.buttons["type-standup"].label)
     }
 
+    func testAStartedEventStaysListedUntilItsEnd() {
+        let app = launch()
+        let drill = row(app, "drill")
+        XCTAssertTrue(drill.waitForExistence(timeout: 10))
+        XCTAssertTrue(drill.label.contains("Started"), drill.label)
+    }
+
     func testAnAlarmAcknowledgedInABrowserSaysSo() {
         let app = launch()
         let brief = row(app, "brief")

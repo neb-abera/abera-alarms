@@ -40,6 +40,8 @@
                 lastSuccessAt: now,
                 alerts: [
                     PlannedAlert(
+                        key: "drill", title: "Fire drill", startsAt: at(-10), alertAt: at(-20), endsAt: at(20)),
+                    PlannedAlert(
                         key: "standup", title: "Standup", location: "Room 4", startsAt: at(70), alertAt: at(60),
                         endsAt: at(85)),
                     PlannedAlert(

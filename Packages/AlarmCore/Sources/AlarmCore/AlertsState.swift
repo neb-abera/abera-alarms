@@ -154,6 +154,13 @@ public struct PlannedAlert: Codable, Equatable, Hashable, Sendable, Identifiable
 
     public var isAlarm: Bool { type == AlertType.alarm }
 
+    /// The event has started at `now`.
+    public func hasStarted(at now: Date) -> Bool { startsAt <= now }
+
+    /// The event is still listed at `now`: until its end, or until its
+    /// start when the feed gives no end.
+    public func isListed(at now: Date) -> Bool { (endsAt ?? startsAt) > now }
+
     public init(
         key: String,
         title: String,
