@@ -285,12 +285,13 @@ public struct EventEdit: Codable, Equatable, Sendable {
     }
 
     /// The bounds the server checks, so the editor can say what is wrong first.
-    public func problems(now: Date) -> [String] {
+    /// A started event may keep its own start, `listedStart`, once it is past.
+    public func problems(now: Date, listedStart: Date? = nil) -> [String] {
         var problems: [String] = []
         let title = self.title.trimmingCharacters(in: .whitespacesAndNewlines)
         if title.isEmpty { problems.append("Give the event a title.") }
         if title.count > 200 { problems.append("The title is longer than 200 characters.") }
-        if startsAt <= now { problems.append("The start is in the past.") }
+        if startsAt <= now && startsAt != listedStart { problems.append("The start is in the past.") }
         if let durationMinutes, !(5...1440).contains(durationMinutes) {
             problems.append("The length must be 5 minutes to 24 hours.")
         }

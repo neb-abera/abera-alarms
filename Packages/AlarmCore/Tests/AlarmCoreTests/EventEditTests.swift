@@ -16,6 +16,22 @@ import Testing
         return alert
     }
 
+    @Test func aStartedEventKeepsItsOwnStartAndCannotMoveToAnotherPastTime() {
+        let start = Date(timeIntervalSince1970: 1_790_000_000)
+        let now = start.addingTimeInterval(10 * 60)
+        func edit(_ startsAt: Date) -> EventEdit {
+            EventEdit(
+                key: "standup", scope: .occurrence, title: "Standup runs long", startsAt: startsAt,
+                durationMinutes: 60, location: nil, leadMinutes: nil)
+        }
+        #expect(edit(start).problems(now: now, listedStart: start).isEmpty)
+        #expect(edit(start).problems(now: now) == ["The start is in the past."])
+        #expect(
+            edit(start.addingTimeInterval(5 * 60)).problems(now: now, listedStart: start) == [
+                "The start is in the past."
+            ])
+    }
+
     @Test func lengthAndLeadComeFromTheTimes() {
         let alert = daily(0)
         #expect(alert.durationMinutes == 30)
