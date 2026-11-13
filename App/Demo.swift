@@ -11,6 +11,8 @@
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
     /// `-demo-slow` answers every request after 8 s, as a weak signal does.
     /// `-demo-started` adds an event that started 10 minutes ago and ends in 20.
+    /// `-demo-invited` refuses every event edit as Google refuses one of an
+    /// event someone else organized.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
@@ -21,6 +23,9 @@
                 state: state(now: Date(), started: arguments.contains("-demo-started")), token: token,
                 offline: arguments.contains("-demo-offline"),
                 latency: arguments.contains("-demo-slow") ? .seconds(8) : .zero)
+            if arguments.contains("-demo-invited") {
+                Task { await server.refuseNewEvents("Only the organizer can change this event.") }
+            }
             let pairing = Pairing(server: Pairing.production, token: token)
             return Dependencies(
                 sync: AlarmSync(

@@ -16,6 +16,31 @@ import Testing
         return alert
     }
 
+    /// The editor sends nothing to the calendar unless a calendar field
+    /// changed, so a new type alone never meets Google's organizer rule.
+    @Test func anEditChangesTheEventOnlyWhenACalendarFieldChanges() {
+        var farewell = Fixtures.alert("farewell", inMinutes: 60)
+        farewell.title = "CSOJTF-C J2 and FTN farewell"
+        farewell.endsAt = farewell.startsAt.addingTimeInterval(30 * 60)
+        func edit(
+            title: String? = nil, start: Date? = nil, minutes: Int? = 30, location: String? = nil, lead: Int? = 10
+        ) -> EventEdit {
+            EventEdit(
+                key: farewell.key, scope: .occurrence, title: title ?? farewell.title,
+                startsAt: start ?? farewell.startsAt, durationMinutes: minutes, location: location, leadMinutes: lead)
+        }
+        #expect(!edit().changesEvent(farewell))
+        // Dates travel at millisecond precision.
+        #expect(!edit(start: farewell.startsAt.addingTimeInterval(0.4)).changesEvent(farewell))
+        // The alert switched off sends no lead, and that is no calendar change.
+        #expect(!edit(lead: nil).changesEvent(farewell))
+        #expect(edit(title: "Farewell").changesEvent(farewell))
+        #expect(edit(start: farewell.startsAt.addingTimeInterval(60)).changesEvent(farewell))
+        #expect(edit(minutes: 45).changesEvent(farewell))
+        #expect(edit(location: "J2").changesEvent(farewell))
+        #expect(edit(lead: 30).changesEvent(farewell))
+    }
+
     @Test func aStartedEventKeepsItsOwnStartAndCannotMoveToAnotherPastTime() {
         let start = Date(timeIntervalSince1970: 1_790_000_000)
         let now = start.addingTimeInterval(10 * 60)

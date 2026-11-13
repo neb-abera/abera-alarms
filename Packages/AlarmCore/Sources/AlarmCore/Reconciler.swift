@@ -165,6 +165,28 @@ public enum Reconciler {
             }
     }
 
+    /// The event alarms ringing or snoozed now that nothing has answered.
+    /// Their time has passed, so `desired` leaves them out, but a ring ends
+    /// only on Stop or when abera.tech says it was answered, skipped, muted,
+    /// or deleted. A routine needs none of this: its alarm stays wanted for
+    /// its next time.
+    public static func stillRinging(
+        _ state: AlertsState, ringing: Set<UUID>, ledger: [UUID: DesiredAlarm], acknowledgedHere: Set<String>
+    ) -> [DesiredAlarm] {
+        guard state.configured else { return [] }
+        let open = Set(
+            state.alerts
+                .filter { alert in
+                    alert.isAlarm && !alert.skipped && !alert.muted && !alert.acknowledged
+                        && !acknowledgedHere.contains(alert.key)
+                }
+                .map(\.key))
+        return ringing.sorted { $0.uuidString < $1.uuidString }.compactMap { id in
+            guard let held = ledger[id], !held.isRoutine, open.contains(held.key) else { return nil }
+            return held
+        }
+    }
+
     /// What to cancel and schedule so the phone holds exactly `desired`.
     ///
     /// `ledger` is what this app scheduled and still believes is there.
