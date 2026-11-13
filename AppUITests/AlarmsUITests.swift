@@ -362,23 +362,19 @@ final class AlarmsUITests: XCTestCase {
     /// Google lets only an event's organizer change it, and abera.tech keeps
     /// the type itself. On 12 Nov 2026 the farewell's alarm was saved this
     /// way, and the editor said the organizer alone could change the event.
-    func testAnAlarmOnAnEventSomeoneElseOrganizedSaves() {
+    func testANewTypeOnAnEventSomeoneElseOrganizedSaves() {
         let app = launch("-demo-invited")
-        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
-        show("All events", in: app)
-        let lunch = row(app, "lunch")
-        XCTAssertTrue(lunch.waitForExistence(timeout: 5))
-        lunch.tap()
-        let rings = app.buttons["event-type"].firstMatch
-        XCTAssertTrue(rings.waitForExistence(timeout: 5))
-        rings.tap()
-        let untilStopped = app.buttons["Until stopped"].firstMatch
-        XCTAssertTrue(untilStopped.waitForExistence(timeout: 5), app.debugDescription)
-        untilStopped.tap()
+        let standup = row(app, "standup")
+        XCTAssertTrue(standup.waitForExistence(timeout: 10))
+        standup.tap()
+        let alert = app.switches["event-alert"]
+        XCTAssertTrue(alert.waitForExistence(timeout: 5))
+        alert.switches.firstMatch.tap()
         app.buttons["save-event"].tap()
 
-        XCTAssertTrue(waitForGone(app.buttons["save-event"]), app.staticTexts["edit-error"].label)
-        XCTAssertTrue(waitFor(app.buttons["type-lunch"], labelContaining: "Ring until stopped"))
+        XCTAssertTrue(waitForGone(app.buttons["save-event"]), app.debugDescription)
+        show("All events", in: app)
+        XCTAssertTrue(poll(5) { app.buttons["type-standup"].label.hasSuffix("Off") }, app.buttons["type-standup"].label)
     }
 
     func testAStartedEventStaysListedUntilItsEnd() {
