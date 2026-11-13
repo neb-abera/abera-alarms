@@ -381,15 +381,16 @@ public actor AlarmSync {
 
         await noteRungOnce(ledger: ledger, system: system, at: at)
         let off = Set(await pendingOff())
-        let desired = Reconciler.desired(
-            from: state, now: at, acknowledgedHere: Set(await pending()), calendar: calendar
-        )
-        .filter { !off.contains($0.id) }
+        let answered = Set(await pending())
+        // A phone that cannot say what is ringing stops nothing.
+        var ringing = (try? await alarms.ringingIDs()) ?? []
+        let desired =
+            Reconciler.desired(from: state, now: at, acknowledgedHere: answered, calendar: calendar)
+            .filter { !off.contains($0.id) }
+            + Reconciler.stillRinging(state, ringing: ringing, ledger: ledger, acknowledgedHere: answered)
 
         let changes = Reconciler.changes(desired: desired, ledger: ledger, system: system)
         var held = ledger.filter { system.contains($0.key) }
-        // A phone that cannot say what is ringing stops nothing.
-        var ringing = (try? await alarms.ringingIDs()) ?? []
         var cancelled = 0
         for id in changes.cancel {
             // Stop first: AlarmKit documents cancel as removing the alarm,

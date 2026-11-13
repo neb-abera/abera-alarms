@@ -241,11 +241,19 @@ final class AppModel {
     /// A new alert type, when given, is set first, for every event in the
     /// series, as the type menu beside the event sets it. The key it names
     /// changes once the start moves.
-    func updateEvent(_ edit: EventEdit, type: String? = nil) async -> Bool {
+    /// An edit that changes nothing on the calendar is not sent: abera.tech
+    /// keeps the type itself, and Google refuses any edit of an event
+    /// someone else organized. On 12 Nov 2026 that refusal read as the
+    /// alarm not being set.
+    func updateEvent(_ edit: EventEdit, of alert: PlannedAlert, type: String? = nil) async -> Bool {
         eventError = nil
+        let changes = edit.changesEvent(alert)
         await perform { client throws(APIError) in
-            if let type { _ = try await client.setType(key: edit.key, type: type) }
-            return try await client.updateEvent(edit)
+            if let type {
+                let state = try await client.setType(key: edit.key, type: type)
+                if !changes { return state }
+            }
+            return changes ? try await client.updateEvent(edit) : try await client.status()
         }
         if let error = report?.error {
             eventError = Self.describe(error)

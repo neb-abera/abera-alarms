@@ -284,6 +284,19 @@ public struct EventEdit: Codable, Equatable, Sendable {
         try container.encodeIfPresent(leadMinutes, forKey: .leadMinutes)
     }
 
+    /// True when the edit changes the event on the calendar: its title,
+    /// start, length, place, or lead. An edit that changes none is not sent,
+    /// so a new alert type on an event someone else organized saves without
+    /// Google, which lets only the organizer change the event. A start
+    /// within a second of the event's own is the same start.
+    public func changesEvent(_ alert: PlannedAlert) -> Bool {
+        title != alert.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            || abs(startsAt.timeIntervalSince(alert.startsAt)) >= 1
+            || (durationMinutes != nil && durationMinutes != alert.durationMinutes)
+            || (location ?? "") != (alert.location ?? "")
+            || (leadMinutes != nil && leadMinutes != alert.leadMinutes)
+    }
+
     /// The bounds the server checks, so the editor can say what is wrong first.
     /// A started event may keep its own start, `listedStart`, once it is past.
     /// Within a second is the same start: dates travel at millisecond

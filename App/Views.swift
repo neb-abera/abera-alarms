@@ -484,7 +484,7 @@ struct EventEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         Task {
-                            if await model.updateEvent(edit, type: newType) { dismiss() }
+                            if await model.updateEvent(edit, of: alert, type: newType) { dismiss() }
                         }
                     }
                     .disabled(!problems.isEmpty || model.busy)
