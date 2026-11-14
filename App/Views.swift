@@ -23,7 +23,7 @@ struct RootView: View {
                         RoutinesView(model: model, onScreen: tab == .alarms)
                     }
                     Tab("Timer", systemImage: "stopwatch", value: AppTab.timer) {
-                        WorkoutView(timer: timer, onScreen: tab == .timer)
+                        WorkoutView(model: model, timer: timer, onScreen: tab == .timer)
                     }
                     Tab("Calendar", systemImage: "calendar", value: AppTab.calendar) {
                         AlarmsView(model: model, onScreen: tab == .calendar)
@@ -994,25 +994,108 @@ struct TimerSection: View {
     var ticking = true
 
     var body: some View {
-        if let endsAt = model.timerEndsAt {
+        if model.timerEndsAt != nil {
             Section {
-                HStack {
-                    TimelineView(Ticking.schedule(ticking)) { context in
-                        let left = Int(endsAt.timeIntervalSince(context.date).rounded(.up))
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(model.timerLabel).font(.headline)
-                            Text(left > 0 ? TimerLength.clock(left) : "Ringing")
-                                .font(.title2.monospacedDigit())
-                        }
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("timer-row")
-                    }
-                    Spacer()
-                    Button("Cancel", role: .destructive) { Task { await model.cancelTimer() } }
-                        .buttonStyle(.borderless)
-                        .accessibilityIdentifier("cancel-timer")
-                }
+                RunningTimer(model: model, ticking: ticking)
             }
         }
+    }
+}
+
+/// The running timer's row: its label, the time left, and Cancel. At zero
+/// it reads Ringing and the button reads Stop. The row goes once the ring
+/// is stopped, here or on the Lock Screen.
+struct RunningTimer: View {
+    @Bindable var model: AppModel
+    var ticking = true
+    var row = "timer-row"
+    var cancel = "cancel-timer"
+
+    var body: some View {
+        if let endsAt = model.timerEndsAt {
+            TimelineView(Ticking.schedule(ticking)) { context in
+                let left = Int(endsAt.timeIntervalSince(context.date).rounded(.up))
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(model.timerLabel).font(.headline)
+                        Text(left > 0 ? TimerLength.clock(left) : "Ringing")
+                            .font(.title2.monospacedDigit())
+                    }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityIdentifier(row)
+                    Spacer()
+                    Button(left > 0 ? "Cancel" : "Stop", role: .destructive) { Task { await model.cancelTimer() } }
+                        .buttonStyle(.borderless)
+                        .accessibilityIdentifier(cancel)
+                }
+            }
+            .task(id: endsAt) { await model.followTimer() }
+        }
+    }
+}
+
+/// The countdown at the top of the Timer tab: a length typed with its
+/// unit, and Start timer in one tap. While it runs, the time left and
+/// Cancel take its place.
+struct TimerPanel: View {
+    @Bindable var model: AppModel
+    var ticking = true
+    /// The length field's focus, held by the tab so its keyboard's Done can
+    /// end it.
+    var typing: FocusState<Bool>.Binding
+    @State private var length = TimerLength.standard
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if model.timerEndsAt != nil {
+                RunningTimer(model: model, ticking: ticking, row: "countdown-row", cancel: "countdown-cancel")
+            } else {
+                HStack(spacing: 12) {
+                    TextField(
+                        "Length",
+                        text: Binding(
+                            get: { length.amount == 0 ? "" : String(length.amount) },
+                            set: { length.amount = TimeSpan.amount(typed: $0) }),
+                        prompt: Text("0")
+                    )
+                    .keyboardType(.numberPad)
+                    .multilineTextAlignment(.trailing)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 72)
+                    .focused(typing)
+                    .accessibilityIdentifier("countdown-amount")
+                    Picker("Unit", selection: $length.unit) {
+                        ForEach(TimerLength.Unit.allCases, id: \.self) { unit in
+                            Text(unit.name(length.amount)).tag(unit)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .accessibilityIdentifier("countdown-unit")
+                    Spacer()
+                    Button {
+                        typing.wrappedValue = false
+                        Task { _ = await model.startTimer(length, label: "") }
+                    } label: {
+                        Text("Start timer")
+                            .font(.headline)
+                            .frame(minHeight: 32)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!length.problems.isEmpty)
+                    .accessibilityIdentifier("countdown-start")
+                }
+            }
+            ForEach(length.problems, id: \.self) { problem in
+                Text(problem).font(.footnote).foregroundStyle(.red)
+            }
+            if let error = model.timerError {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("countdown-error")
+            }
+        }
+        .padding(.horizontal)
     }
 }

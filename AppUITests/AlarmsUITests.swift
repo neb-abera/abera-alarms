@@ -229,6 +229,87 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitForGone(row))
     }
 
+    func testATimerStartsFromTheTimerTabInOneTapAndCancels() {
+        let app = launch(tab: "Timer")
+        let amount = app.textFields["countdown-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(amount.value as? String, "10")
+        typeLength("2", into: amount)
+        XCTAssertTrue(app.buttons["countdown-start"].isHittable, "the keyboard moved Start timer off screen")
+        XCTAssertTrue(app.buttons["countdown-keyboard-done"].isHittable, "the keyboard has no Done")
+        app.buttons["countdown-start"].tap()
+
+        let row = app.descendants(matching: .any)["countdown-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(row.label.contains("1:5") || row.label.contains("2:00"), row.label)
+        XCTAssertTrue(waitForChange(row, from: row.label), "the timer did not count down")
+        XCTAssertEqual(app.buttons["countdown-cancel"].label, "Cancel")
+        app.buttons["countdown-cancel"].tap()
+        XCTAssertTrue(waitForGone(row))
+        XCTAssertTrue(app.buttons["countdown-start"].waitForExistence(timeout: 5))
+    }
+
+    /// The timer runs to zero: the row reads Ringing and its button Stop.
+    func testATimerOnTheTimerTabRunsToZeroAndStops() {
+        let app = launch(tab: "Timer")
+        startCountdown(app, seconds: 3)
+        let row = app.descendants(matching: .any)["countdown-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(waitFor(row, labelContaining: "Ringing", timeout: 10), row.label)
+        XCTAssertEqual(app.buttons["countdown-cancel"].label, "Stop")
+        app.buttons["countdown-cancel"].tap()
+        XCTAssertTrue(waitForGone(row))
+    }
+
+    /// The timer rings through iOS, as on the phone: AlarmKit counts down,
+    /// shows its alert over the Home Screen, and Stop there ends it. Back in
+    /// the app the row is gone. No test had run a timer to its ring until
+    /// Neb asked on 2026-11-14.
+    func testATimerRingsThroughIOSAndStopsThere() {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = launch("-demo-real-timer", tab: "Timer")
+        startCountdown(app, seconds: 8)
+        // The first timer asks for permission to set alarms.
+        let allow = springboard.buttons["Allow"].firstMatch
+        if allow.waitForExistence(timeout: 3) { allow.tap() }
+        let row = app.descendants(matching: .any)["countdown-row"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 10), app.debugDescription)
+
+        XCUIDevice.shared.press(.home)
+        let stop = springboard.buttons["Stop"].firstMatch
+        if !stop.waitForExistence(timeout: 30) {
+            XCTFail("the timer did not ring:\n\(springboard.debugDescription)")
+            return
+        }
+        stop.tap()
+        XCTAssertTrue(waitForGone(stop), "Stop did not end the ring")
+
+        app.activate()
+        if app.tabBars.buttons["Timer"].waitForExistence(timeout: 10) { app.tabBars.buttons["Timer"].tap() }
+        XCTAssertTrue(app.buttons["countdown-start"].waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertFalse(row.exists)
+    }
+
+    private func startCountdown(_ app: XCUIApplication, seconds: Int) {
+        let amount = app.textFields["countdown-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 10), app.debugDescription)
+        app.buttons["countdown-unit"].tap()
+        let unit = app.buttons["seconds"].firstMatch
+        XCTAssertTrue(unit.waitForExistence(timeout: 5), app.debugDescription)
+        unit.tap()
+        typeLength(String(seconds), into: amount)
+        app.buttons["countdown-start"].tap()
+    }
+
+    /// Types over the timer's length. The field is right-aligned, so a tap
+    /// at its right edge puts the cursor after the number.
+    private func typeLength(_ text: String, into field: XCUIElement) {
+        let old = (field.value as? String) ?? ""
+        field.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        field.typeText(String(repeating: XCUIKeyboardKey.delete.rawValue, count: old.count + 2) + text)
+        XCTAssertEqual(field.value as? String, text)
+    }
+
     func testAReadyPhoneOpensOnItsTabs() {
         let app = launch(tab: nil)
         XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 15))
