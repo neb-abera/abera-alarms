@@ -93,6 +93,7 @@ struct AlarmsView: View {
     @Bindable var model: AppModel
     @State private var confirmingUnpair = false
     @State private var addingEvent = false
+    @State private var editingRules = false
     var onScreen = true
 
     var body: some View {
@@ -145,6 +146,7 @@ struct AlarmsView: View {
                         }
                         Button("Mute for an hour") { Task { await model.mute(.hour) } }
                         Button("Mute until morning") { Task { await model.mute(.morning) } }
+                        Button("Rules") { editingRules = true }
                         Link("Settings on abera.tech", destination: URL(string: "https://abera.tech/alerts")!)
                         Button("Unpair this phone", role: .destructive) { confirmingUnpair = true }
                     } label: {
@@ -155,6 +157,9 @@ struct AlarmsView: View {
             }
             .sheet(isPresented: $addingEvent) {
                 NewEventView(model: model)
+            }
+            .sheet(isPresented: $editingRules) {
+                RulesView(model: model)
             }
             .confirmationDialog("Unpair this phone?", isPresented: $confirmingUnpair, titleVisibility: .visible) {
                 Button("Unpair and remove its alarms", role: .destructive) { Task { await model.unpair() } }

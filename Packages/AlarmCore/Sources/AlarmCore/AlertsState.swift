@@ -29,6 +29,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
     /// How long an alarm rings before it gives up, the owner's setting. A
     /// routine ring stopped later than this after its time names no ring.
     public var stopAfterMinutes: Int
+    /// The rules for what an event sends, in order. An older server sends none.
+    public var rules: [TypeRule]
 
     /// abera.tech's own default.
     public static let defaultStopAfterMinutes = 180
@@ -46,7 +48,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         countdowns: [Countdown] = [],
         phone: PhoneSettings = PhoneSettings(),
         routineRings: [RoutineRing] = [],
-        stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes
+        stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes,
+        rules: [TypeRule] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -61,11 +64,12 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.phone = phone
         self.routineRings = routineRings
         self.stopAfterMinutes = stopAfterMinutes
+        self.rules = rules
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
-            routines, countdowns, phone, settings, routineRings, stopAfterMinutes
+            routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules
     }
 
     private struct ServerSettings: Decodable {
@@ -87,6 +91,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encode(phone, forKey: .phone)
         try container.encode(routineRings, forKey: .routineRings)
         try container.encode(stopAfterMinutes, forKey: .stopAfterMinutes)
+        try container.encode(rules, forKey: .rules)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -114,6 +119,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
             try container.decodeIfPresent(Int.self, forKey: .stopAfterMinutes)
             ?? container.decodeIfPresent(ServerSettings.self, forKey: .settings)?.stopAfterMinutes
         stopAfterMinutes = stop.map { max(1, $0) } ?? Self.defaultStopAfterMinutes
+        rules = try container.decodeIfPresent([TypeRule].self, forKey: .rules) ?? []
     }
 }
 

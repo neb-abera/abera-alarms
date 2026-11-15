@@ -130,6 +130,37 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(waitFor(dinner, labelContaining: "Set on this phone"))
     }
 
+    func testARuleMakesAnEventAnAlarmOnThePhone() {
+        let app = launch()
+        XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))
+        app.buttons["menu"].tap()
+        app.buttons["Rules"].tap()
+
+        let add = app.buttons["add-rule"]
+        XCTAssertTrue(add.waitForExistence(timeout: 5))
+        add.tap()
+        app.buttons["rule-1-field"].tap()
+        app.buttons["Title contains"].tap()
+        let text = app.textFields["rule-1-text"]
+        text.tap()
+        text.typeText("DINNER")
+        app.buttons["rule-1-type"].tap()
+        app.buttons["Ring until stopped"].tap()
+        app.buttons["save-rules"].tap()
+
+        XCTAssertTrue(waitForGone(add))
+        show("Alarms", in: app)
+        let dinner = row(app, "dinner")
+        XCTAssertTrue(dinner.waitForExistence(timeout: 10))
+        XCTAssertTrue(waitFor(dinner, labelContaining: "Set on this phone"))
+
+        // The rule is kept: it is on the screen the next time.
+        app.buttons["menu"].tap()
+        app.buttons["Rules"].tap()
+        XCTAssertTrue(app.textFields["rule-1-text"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.textFields["rule-1-text"].value as? String, "DINNER")
+    }
+
     func testMakingAnAlarmNoneTakesItOffThePhone() {
         let app = launch()
         XCTAssertTrue(row(app, "standup").waitForExistence(timeout: 10))

@@ -35,6 +35,7 @@
 		EA8449C7BBDDF5BBA814EC61 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EC5437F55BD0851B427512 /* RestActivity.swift */; };
 		EE865A5050DC3D50560C7919 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = A783C0B2E1BA54C7B72F43B0 /* Views.swift */; };
 		F4D12282B1141D139480CAC2 /* WorkoutActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4081CA2CA8C755D797C6B56 /* WorkoutActivity.swift */; };
+		F61EF2EE3611B68B6478F5DD /* RulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDA1691D4C9004212B0B36B /* RulesView.swift */; };
 		FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
 /* End PBXBuildFile section */
 
@@ -74,6 +75,7 @@
 		109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundSettingsView.swift; sourceTree = "<group>"; };
 		1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmKitScheduler.swift; sourceTree = "<group>"; };
 		1B571278D349722D70FF8D3E /* RoutinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutinesView.swift; sourceTree = "<group>"; };
+		1DDA1691D4C9004212B0B36B /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
 		1E414D4650C857B71B2B474A /* AlarmsWidget.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmsWidget.swift; sourceTree = "<group>"; };
 		23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AlarmsWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		23FD542C36135ED632A687A1 /* AlarmInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmInfo.swift; sourceTree = "<group>"; };
@@ -173,6 +175,7 @@
 				CA375A6D175B012E7A00735A /* PushDelegate.swift */,
 				875322B8C145E438EE7839FA /* RestView.swift */,
 				1B571278D349722D70FF8D3E /* RoutinesView.swift */,
+				1DDA1691D4C9004212B0B36B /* RulesView.swift */,
 				109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
 				B890D84B86C41523A8B16CA1 /* WorkoutView.swift */,
@@ -354,6 +357,7 @@
 				6D52A8647A8176E4DD28B934 /* RestActivity.swift in Sources */,
 				2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */,
 				AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */,
+				F61EF2EE3611B68B6478F5DD /* RulesView.swift in Sources */,
 				3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
 				F4D12282B1141D139480CAC2 /* WorkoutActivity.swift in Sources */,

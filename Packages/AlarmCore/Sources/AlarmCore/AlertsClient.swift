@@ -104,6 +104,11 @@ public struct AlertsClient: Sendable {
     }
 
     /// The sound every alarm plays and the calendar alarms' snooze.
+    /// Replaces every rule on abera.tech with these, in this order.
+    public func saveRules(_ rules: [TypeRule]) async throws(APIError) -> AlertsState {
+        try await call("PUT", "rules", body: RulesBody(rules: rules.map(\.trimmed)))
+    }
+
     public func updatePhoneSettings(_ settings: PhoneSettings) async throws(APIError) -> AlertsState {
         try await call("PUT", "phone-settings", body: settings.body)
     }

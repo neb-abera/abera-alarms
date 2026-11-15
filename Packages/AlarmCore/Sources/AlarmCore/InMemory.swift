@@ -156,6 +156,24 @@ public actor FakeAlertsServer: HTTPTransport {
         self.now = now
     }
 
+    /// As abera.tech resolves a type: an event with no choice of its own
+    /// and no #critical mark takes the first rule that matches, else the
+    /// default, which the demo holds as none.
+    private func applyRules() {
+        for index in state.alerts.indices where [nil, "default", "rule"].contains(state.alerts[index].typeFrom) {
+            let alert = state.alerts[index]
+            if let rule = state.rules.first(where: {
+                $0.matches(title: alert.title, organizer: nil, location: alert.location)
+            }) {
+                state.alerts[index].type = rule.type
+                state.alerts[index].typeFrom = "rule"
+            } else if alert.typeFrom == "rule" {
+                state.alerts[index].type = AlertType.none
+                state.alerts[index].typeFrom = "default"
+            }
+        }
+    }
+
     public func setOffline(_ offline: Bool) { self.offline = offline }
     public func setLatency(_ latency: Duration) { self.latency = latency }
     public func setState(_ state: AlertsState) { self.state = state }
@@ -259,6 +277,13 @@ public actor FakeAlertsServer: HTTPTransport {
                 let snooze = raw["snoozeMinutes"] as? Int, (1...30).contains(snooze)
             else { return respond(request, 400, Data()) }
             state.phone = PhoneSettings(sound: sound, snoozeMinutes: snooze)
+        case ("PUT", "/api/alerts/rules"):
+            guard let data = request.httpBody, let body = try? JSONDecoder().decode(RulesRequest.self, from: data),
+                TypeRule.problems(body.rules).isEmpty,
+                body.rules.allSatisfy({ [AlertType.alarm, AlertType.notification, AlertType.none].contains($0.type) })
+            else { return respond(request, 400, Data()) }
+            state.rules = body.rules.map(\.trimmed)
+            applyRules()
         case ("PUT", "/api/alerts/events"):
             guard let data = request.httpBody, let edit = try? ServerDates.decoder().decode(EventEdit.self, from: data)
             else { return respond(request, 400, Data()) }
@@ -407,4 +432,9 @@ public actor FakeAlertsServer: HTTPTransport {
     private func respond(_ request: URLRequest, _ status: Int, _ data: Data) -> (Data, HTTPURLResponse) {
         (data, HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: "HTTP/1.1", headerFields: nil)!)
     }
+}
+
+/// What PUT /api/alerts/rules carries.
+private struct RulesRequest: Decodable {
+    var rules: [TypeRule]
 }
