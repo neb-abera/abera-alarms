@@ -242,6 +242,20 @@ final class AppModel {
     var phone: PhoneSettings { state?.phone ?? PhoneSettings() }
     private(set) var settingsError: String?
 
+    /// The rules for what an event sends, as abera.tech holds them.
+    var rules: [TypeRule] { state?.rules ?? [] }
+    private(set) var rulesError: String?
+
+    /// Replaces every rule on abera.tech. True when it saved.
+    func saveRules(_ rules: [TypeRule]) async -> Bool {
+        rulesError = nil
+        await perform { client throws(APIError) in try await client.saveRules(rules) }
+        if let error = report?.error { rulesError = Self.describe(error) }
+        return rulesError == nil
+    }
+
+    func clearRulesError() { rulesError = nil }
+
     func savePhoneSettings(_ settings: PhoneSettings) async {
         settingsError = nil
         await perform { client throws(APIError) in try await client.updatePhoneSettings(settings) }
