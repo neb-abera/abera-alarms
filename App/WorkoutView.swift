@@ -93,6 +93,17 @@ struct WorkoutView: View {
                 }
                 .padding(.vertical)
                 List {
+                    // First, so the newest set shows without a scroll in
+                    // the room the panel above leaves the list.
+                    if !workout.sets.isEmpty {
+                        Section("Sets done") {
+                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
+                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
+                                    .monospacedDigit()
+                                    .accessibilityIdentifier("workout-done-\(index + 1)")
+                            }
+                        }
+                    }
                     Section {
                         Picker("Say the time every", selection: $timer.interval) {
                             ForEach(Workout.intervals, id: \.self) { seconds in
@@ -107,15 +118,6 @@ struct WorkoutView: View {
                                 ? "The timer is silent."
                                 : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number. Stop ends the set and the voice."
                         )
-                    }
-                    if !workout.sets.isEmpty {
-                        Section("Sets done") {
-                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
-                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
-                                    .monospacedDigit()
-                                    .accessibilityIdentifier("workout-done-\(index + 1)")
-                            }
-                        }
                     }
                     Section {
                         if lockScreenLog.isEmpty {

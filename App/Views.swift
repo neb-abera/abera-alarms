@@ -2,6 +2,7 @@ import AlarmCore
 import AlarmKit
 import SwiftUI
 import UIKit
+import os
 
 /// The app's tabs. The clocks on a tab tick only while it is the one selected.
 enum AppTab: Hashable {
@@ -718,6 +719,7 @@ struct SystemDevice: DeviceChecks {
     nonisolated static let testAlarmID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000002")!
     nonisolated static let timerID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000003")!
     static let timerKey = "timer-ends-at"
+    static let log = Logger(subsystem: "tech.abera.alarms", category: "timer")
 
     func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
         try? AlarmManager.shared.cancel(id: Self.timerID)
@@ -740,6 +742,10 @@ struct SystemDevice: DeviceChecks {
             UserDefaults.standard.set(endsAt, forKey: Self.timerKey)
             return endsAt
         } catch {
+            // The reason is in the log: the page can only say iOS refused.
+            Self.log.error(
+                "timer refused: \(String(describing: error), privacy: .public), authorization \(String(describing: AlarmManager.shared.authorizationState), privacy: .public)"
+            )
             return nil
         }
     }

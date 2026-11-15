@@ -124,7 +124,11 @@
         private let timer = Mutex<Date?>(nil)
         func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
             if realTimer {
-                _ = try? await AlarmManager.shared.requestAuthorization()
+                do {
+                    _ = try await AlarmManager.shared.requestAuthorization()
+                } catch {
+                    SystemDevice.log.error("alarm permission: \(String(describing: error), privacy: .public)")
+                }
                 return await SystemDevice().startTimer(seconds: seconds, label: label, sound: sound)
             }
             let endsAt = Date().addingTimeInterval(TimeInterval(seconds))

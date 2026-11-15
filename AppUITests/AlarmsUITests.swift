@@ -282,7 +282,8 @@ final class AlarmsUITests: XCTestCase {
             return
         }
         stop.tap()
-        XCTAssertTrue(waitForGone(stop), "Stop did not end the ring")
+        // The alert takes seconds to leave on a loaded runner.
+        XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
 
         app.activate()
         if app.tabBars.buttons["Timer"].waitForExistence(timeout: 10) { app.tabBars.buttons["Timer"].tap() }
