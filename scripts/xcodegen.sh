@@ -26,10 +26,14 @@ fi
 
 "$bin" generate --quiet
 
+# XcodeGen writes the Info.plist and entitlement files too. On 2026-11-15
+# App/Info.plist held LSApplicationQueriesSchemes that project.yml lacked, so
+# every regeneration dropped it, and this check looked at the project alone.
+generated=(AberaAlarms.xcodeproj ':(glob)**/Info.plist' ':(glob)**/*.entitlements')
 if [ "${1:-}" = "--check" ]; then
-  if ! git diff --quiet -- AberaAlarms.xcodeproj || [ -n "$(git status --porcelain -- AberaAlarms.xcodeproj)" ]; then
-    git status --short -- AberaAlarms.xcodeproj >&2
-    echo "error: AberaAlarms.xcodeproj differs from project.yml. Run scripts/xcodegen.sh and commit it." >&2
+  if ! git diff --quiet -- "${generated[@]}" || [ -n "$(git status --porcelain -- "${generated[@]}")" ]; then
+    git status --short -- "${generated[@]}" >&2
+    echo "error: the generated project or plists differ from project.yml. Run scripts/xcodegen.sh and commit them." >&2
     exit 1
   fi
 fi
