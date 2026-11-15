@@ -144,6 +144,12 @@ struct WorkoutView: View {
             .navigationTitle("Timer")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // The two reset buttons leave the title 30 pt, and it read
+                // "Ti...". The tab bar names the page. The title stays for
+                // VoiceOver and the bar shows nothing in its place.
+                ToolbarItem(placement: .principal) {
+                    Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+                }
                 // Two buttons, one tap each, no confirmation (Neb, 2026-11-04).
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Reset Everything") { Task { await timer.resetEverything() } }

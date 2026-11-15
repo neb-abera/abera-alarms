@@ -1080,6 +1080,15 @@ final class AlarmsUITests: XCTestCase {
         app.descendants(matching: .any)["workout-clock"].firstMatch
     }
 
+    /// The bar holds the two reset buttons and no title. Between them the
+    /// title had 30 pt and read "Ti..." on the phone (2026-11-15).
+    func testTheTimerTabShowsNoCutOffTitle() {
+        let app = launch(tab: "Timer")
+        XCTAssertTrue(app.buttons["workout-reset-everything"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["workout-reset-session"].exists)
+        XCTAssertFalse(app.navigationBars.staticTexts["Timer"].exists, app.debugDescription)
+    }
+
     func testTheTimerCountsSetsAndTheSessionResets() {
         let app = launch(tab: "Timer")
         let set = app.descendants(matching: .any)["workout-set"].firstMatch
