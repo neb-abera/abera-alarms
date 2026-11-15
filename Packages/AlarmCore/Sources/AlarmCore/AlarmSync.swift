@@ -280,6 +280,19 @@ public actor AlarmSync {
         return RoutineChange.overlay(raw, changes)
     }
 
+    /// The alarms this app scheduled that the alarm system still holds: the
+    /// ones the Calendar tab marks Set on this phone, and the routines. Read
+    /// from the phone alone, so it answers offline. Empty when the system
+    /// cannot say.
+    public func heldAlarms() async -> [DesiredAlarm] {
+        await oneAtATime {
+            guard let system = try? await self.alarms.scheduledIDs() else { return [] }
+            return await self.loadLedger().values
+                .filter { system.contains($0.id) }
+                .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
+        }
+    }
+
     static let syncedName = "last-sync.txt"
 
     /// When this phone last read its alarms from abera.tech. Nil before the first sync.

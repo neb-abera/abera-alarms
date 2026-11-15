@@ -6,10 +6,13 @@ import WidgetKit
 
 /// The Lock Screen and Dynamic Island: a snoozed alarm's countdown, which
 /// AlarmKit needs to show it, and the Timer tab's workout clock and rest
-/// countdown.
+/// countdown. The Home Screen and Lock Screen widgets: the next alarm and a
+/// countdown (HomeWidgets.swift).
 @main
 struct AlarmsWidgetBundle: WidgetBundle {
     var body: some Widget {
+        NextAlarmWidget()
+        CountdownWidget()
         AlarmCountdownActivity()
         WorkoutActivity()
         RestActivity()

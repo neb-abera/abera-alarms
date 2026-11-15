@@ -150,6 +150,7 @@ struct AcknowledgeAlarmIntent: LiveActivityIntent {
         let key = key
         await BackgroundTime.run("Acknowledge alarm") {
             _ = await Dependencies.shared.sync.acknowledge(key: key)
+            await WidgetFeed.publish()
         }
         return .result()
     }
@@ -175,6 +176,7 @@ struct AcknowledgeRoutineIntent: LiveActivityIntent {
         if let id = UUID(uuidString: routineID) {
             await BackgroundTime.run("Acknowledge routine alarm") {
                 _ = await Dependencies.shared.sync.acknowledgeRoutine(id: id)
+                await WidgetFeed.publish()
             }
         }
         return .result()

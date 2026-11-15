@@ -52,6 +52,7 @@ final class PushDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]
     ) async -> UIBackgroundFetchResult {
         let report = await Dependencies.shared.sync.sync()
+        await WidgetFeed.publish()
         if report.error != nil { return .failed }
         return report.scheduled + report.cancelled > 0 ? .newData : .noData
     }

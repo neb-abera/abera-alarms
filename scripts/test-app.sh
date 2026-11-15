@@ -16,7 +16,10 @@ cd "$(dirname "$0")/.."
 # tests failed. On 2026-10-28 the same pick failed with "The iOS 27.1
 # simulator runtime is not available". The last green run, on 2026-10-19,
 # had used the iPhone 18 Pro.
-device="$(xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms 2>/dev/null | python3 -c '
+# The whole answer is kept, so an empty list says why.
+mkdir -p build
+xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms > build/destinations.log 2>&1 || true
+device="$(python3 -c '
 import re, sys
 found = []
 for line in sys.stdin:
@@ -30,8 +33,8 @@ if pros:
     print(max(pros)[2])
 elif found:
     print(max(found)[2])
-')"
-[ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
+' < build/destinations.log)"
+[ -n "$device" ] || { echo "error: no iPhone simulator available. xcodebuild -showdestinations said:" >&2; tail -40 build/destinations.log >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
 
 # Boot first and wait, so the first test does not pay the cold start
@@ -41,12 +44,17 @@ xcrun simctl bootstatus "$device" -b
 
 mkdir -p build
 rm -rf build/AberaAlarms.xcresult build/WarmUp.xcresult
+# Signed ad hoc, which needs no team or profile on a simulator and embeds
+# the entitlements. Unsigned, the app and the widget got no app group, and
+# the widget on the Home Screen read nothing ("Open Alarms to load your
+# alarms", CI on 2026-11-15).
+signing=(CODE_SIGN_IDENTITY=- CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES DEVELOPMENT_TEAM=)
 xcodebuild build-for-testing \
   -project AberaAlarms.xcodeproj \
   -scheme AberaAlarms \
   -destination "id=$device" \
   -derivedDataPath build/DerivedData \
-  CODE_SIGNING_ALLOWED=NO \
+  "${signing[@]}" \
   > build/build-for-testing.log 2>&1 || { tail -80 build/build-for-testing.log >&2; exit 1; }
 
 # The first launch under XCUITest on a fresh simulator can take minutes or
@@ -63,7 +71,7 @@ xcodebuild test-without-building \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 300 \
   -maximum-test-execution-time-allowance 300 \
-  CODE_SIGNING_ALLOWED=NO \
+  "${signing[@]}" \
   > build/warm-up.log 2>&1
 echo "warm-up: xcodebuild exited $?"
 
@@ -84,7 +92,7 @@ xcodebuild test-without-building \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 \
   -maximum-test-execution-time-allowance 120 \
-  CODE_SIGNING_ALLOWED=NO \
+  "${signing[@]}" \
   2>&1 | tee build/xcodebuild.log \
   | grep --line-buffered -E '^(Test Case|Test Suite|\*\*)|error:|warning:|t = .*(Launch|Wait|Tap|Type|Find)'
 status="${PIPESTATUS[0]}"

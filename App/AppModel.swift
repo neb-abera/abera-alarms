@@ -95,6 +95,7 @@ final class AppModel {
         permission = await dependencies.permissions.current()
         started = true
         if paired { await sync() } else { await checkReadiness() }
+        await WidgetFeed.publish(dependencies)
     }
 
     /// Reads every setting an alarm depends on. Runs on launch, after every
@@ -146,17 +147,21 @@ final class AppModel {
         timerEndsAt = await dependencies.device.startTimer(
             seconds: length.seconds, label: timerLabel, sound: phone.sound)
         if timerEndsAt == nil { timerError = "iOS refused the timer. Check that alarms are on for this app." }
+        await WidgetFeed.publish(dependencies)
         return timerEndsAt != nil
     }
 
     func cancelTimer() async {
         await dependencies.device.cancelTimer()
         timerEndsAt = nil
+        await WidgetFeed.publish(dependencies)
     }
 
     /// Reads the running timer back after a launch. A timer that rang and was stopped is gone.
     func readTimer() async {
+        let before = timerEndsAt
         timerEndsAt = await dependencies.device.timerEndsAt()
+        if timerEndsAt != before { await WidgetFeed.publish(dependencies) }
     }
 
     /// Waits for the timer's ring, then reads the timer each second, so its
@@ -200,6 +205,7 @@ final class AppModel {
         state = nil
         report = nil
         busy = false
+        await WidgetFeed.publish(dependencies)
     }
 
     func requestPermission() async {
@@ -416,6 +422,7 @@ final class AppModel {
     nonisolated static func backgroundRefresh() async {
         scheduleRefresh()
         _ = await Dependencies.shared.sync.sync()
+        await WidgetFeed.publish()
     }
 
     // MARK: Private
@@ -441,6 +448,7 @@ final class AppModel {
         sending.settle(waiting: Set(waiting))
         for (id, status) in sending.status where status == .saved && before[id] != .saved { clearSavedSoon(id) }
         await checkReadiness()
+        await WidgetFeed.publish(dependencies)
         busy = false
         return result
     }

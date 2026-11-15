@@ -22,14 +22,20 @@
 		820BBBAD4DFAEECC89CC1D45 /* siren.caf in Resources */ = {isa = PBXBuildFile; fileRef = D5684150D92B9CB17980975A /* siren.caf */; };
 		837E22D7B1C8370B971B9B36 /* AlarmsWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		85A87E44C4A4EE885EF64D5B /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */; };
+		863EED47AD906A64D07F5160 /* WidgetFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18942D83DFFA3BC6C8B7F613 /* WidgetFeed.swift */; };
 		89EA624F8A5C80A53050F8EC /* DateCalculatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */; };
+		960520946296F5CDD6566973 /* AlarmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 52B8C26D5E43ADF190CCBDD2 /* AlarmCore */; };
 		9EC8846156730D3AC266B10B /* CountdownsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CD63EB2EC69A6237B225939 /* CountdownsView.swift */; };
 		A40157B9C05DD6765E8B519E /* rise.caf in Resources */ = {isa = PBXBuildFile; fileRef = 25BC4ED3BD714FA459CFCBA5 /* rise.caf */; };
 		AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B571278D349722D70FF8D3E /* RoutinesView.swift */; };
 		AE552238CA0A61409E1CD5D0 /* AlarmInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23FD542C36135ED632A687A1 /* AlarmInfo.swift */; };
+		B0E2A30BA559F3109C963896 /* WidgetUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 025F773C291EF10998E2C4D1 /* WidgetUITests.swift */; };
+		B0F33FA774A56E06B3CB61BE /* HomeWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02215F5407623AF3967C9A92 /* HomeWidgets.swift */; };
 		B6911E0572F1689B6487B830 /* pulse.caf in Resources */ = {isa = PBXBuildFile; fileRef = 6825764355CCF69E47B68355 /* pulse.caf */; };
 		BAD1171ACB15FA680E814E50 /* AberaAlarmsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */; };
+		CDFF3E835C13A95FAA6E6D1C /* WidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D1EAB7B27CD3EB5A7CF344 /* WidgetStore.swift */; };
 		DB15419C87DF8B5D7C88D72E /* AlarmCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5C1DB0A5BDFD4210EC59B6A7 /* AlarmCore */; };
+		E4DC7525B58540D4E190F542 /* WidgetStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6D1EAB7B27CD3EB5A7CF344 /* WidgetStore.swift */; };
 		E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E414D4650C857B71B2B474A /* AlarmsWidget.swift */; };
 		EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA375A6D175B012E7A00735A /* PushDelegate.swift */; };
 		EA8449C7BBDDF5BBA814EC61 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EC5437F55BD0851B427512 /* RestActivity.swift */; };
@@ -71,8 +77,11 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		02215F5407623AF3967C9A92 /* HomeWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeWidgets.swift; sourceTree = "<group>"; };
+		025F773C291EF10998E2C4D1 /* WidgetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetUITests.swift; sourceTree = "<group>"; };
 		09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundSettingsView.swift; sourceTree = "<group>"; };
+		18942D83DFFA3BC6C8B7F613 /* WidgetFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFeed.swift; sourceTree = "<group>"; };
 		1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmKitScheduler.swift; sourceTree = "<group>"; };
 		1B571278D349722D70FF8D3E /* RoutinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutinesView.swift; sourceTree = "<group>"; };
 		1DDA1691D4C9004212B0B36B /* RulesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RulesView.swift; sourceTree = "<group>"; };
@@ -87,6 +96,7 @@
 		41A62A1C2210F5E236DC124A /* AlarmCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = AlarmCore; path = Packages/AlarmCore; sourceTree = SOURCE_ROOT; };
 		6825764355CCF69E47B68355 /* pulse.caf */ = {isa = PBXFileReference; path = pulse.caf; sourceTree = "<group>"; };
 		68D589961DE69EA2F1B8E08D /* AberaAlarmsUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AberaAlarmsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		7303A32E048F632D91CF877A /* AlarmsWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AlarmsWidget.entitlements; sourceTree = "<group>"; };
 		75EC5437F55BD0851B427512 /* RestActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestActivity.swift; sourceTree = "<group>"; };
 		875322B8C145E438EE7839FA /* RestView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestView.swift; sourceTree = "<group>"; };
 		87A83F32AF14C10AA49161F6 /* Dependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Dependencies.swift; sourceTree = "<group>"; };
@@ -102,6 +112,7 @@
 		CF1B80F6CA8CFDF72AEFA15E /* AberaAlarms.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AberaAlarms.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D5684150D92B9CB17980975A /* siren.caf */ = {isa = PBXFileReference; path = siren.caf; sourceTree = "<group>"; };
 		DF0D35255B0EDDDAC1122221 /* chime.caf */ = {isa = PBXFileReference; path = chime.caf; sourceTree = "<group>"; };
+		E6D1EAB7B27CD3EB5A7CF344 /* WidgetStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStore.swift; sourceTree = "<group>"; };
 		EB5AB52E6B03EE0B3B1CCA2B /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -111,6 +122,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				DB15419C87DF8B5D7C88D72E /* AlarmCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6687D401348264FC69854608 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				960520946296F5CDD6566973 /* AlarmCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -132,7 +151,9 @@
 		461318740AA1E8D80A04530A /* AlarmsWidget */ = {
 			isa = PBXGroup;
 			children = (
+				7303A32E048F632D91CF877A /* AlarmsWidget.entitlements */,
 				1E414D4650C857B71B2B474A /* AlarmsWidget.swift */,
+				02215F5407623AF3967C9A92 /* HomeWidgets.swift */,
 				2BB38860B8B6E179D39318BB /* Info.plist */,
 			);
 			path = AlarmsWidget;
@@ -178,6 +199,7 @@
 				1DDA1691D4C9004212B0B36B /* RulesView.swift */,
 				109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
+				18942D83DFFA3BC6C8B7F613 /* WidgetFeed.swift */,
 				B890D84B86C41523A8B16CA1 /* WorkoutView.swift */,
 				B46E6ACFE84102C4B90EAC6A /* Shared */,
 				23AAAC5C77AB8952DC35319F /* Sounds */,
@@ -198,6 +220,7 @@
 			children = (
 				23FD542C36135ED632A687A1 /* AlarmInfo.swift */,
 				75EC5437F55BD0851B427512 /* RestActivity.swift */,
+				E6D1EAB7B27CD3EB5A7CF344 /* WidgetStore.swift */,
 				A4081CA2CA8C755D797C6B56 /* WorkoutActivity.swift */,
 			);
 			path = Shared;
@@ -207,6 +230,7 @@
 			isa = PBXGroup;
 			children = (
 				A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */,
+				025F773C291EF10998E2C4D1 /* WidgetUITests.swift */,
 			);
 			path = AppUITests;
 			sourceTree = "<group>";
@@ -237,6 +261,7 @@
 			buildConfigurationList = C4728C023C4D925FDEDA60E9 /* Build configuration list for PBXNativeTarget "AlarmsWidget" */;
 			buildPhases = (
 				A4CB1BDFD2C66088B08182CD /* Sources */,
+				6687D401348264FC69854608 /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -244,6 +269,7 @@
 			);
 			name = AlarmsWidget;
 			packageProductDependencies = (
+				52B8C26D5E43ADF190CCBDD2 /* AlarmCore */,
 			);
 			productName = AlarmsWidget;
 			productReference = 23E603AC5600ACDAB0C86E0D /* AlarmsWidget.appex */;
@@ -338,6 +364,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				1195A46C96C80469377E9DBF /* AlarmsUITests.swift in Sources */,
+				B0E2A30BA559F3109C963896 /* WidgetUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -360,6 +387,8 @@
 				F61EF2EE3611B68B6478F5DD /* RulesView.swift in Sources */,
 				3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
+				863EED47AD906A64D07F5160 /* WidgetFeed.swift in Sources */,
+				E4DC7525B58540D4E190F542 /* WidgetStore.swift in Sources */,
 				F4D12282B1141D139480CAC2 /* WorkoutActivity.swift in Sources */,
 				21A0EE61A30E51A88A5E116F /* WorkoutView.swift in Sources */,
 			);
@@ -371,7 +400,9 @@
 			files = (
 				FBBC02525328FB08A3363706 /* AlarmInfo.swift in Sources */,
 				E615D06F5BDC8331FA418EC9 /* AlarmsWidget.swift in Sources */,
+				B0F33FA774A56E06B3CB61BE /* HomeWidgets.swift in Sources */,
 				EA8449C7BBDDF5BBA814EC61 /* RestActivity.swift in Sources */,
+				CDFF3E835C13A95FAA6E6D1C /* WidgetStore.swift in Sources */,
 				0F54B98BDB5A3A8E72AC3C35 /* WorkoutActivity.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -395,6 +426,7 @@
 		07E9F1C21F8E4967E5C5BD70 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AlarmsWidget/AlarmsWidget.entitlements;
 				INFOPLIST_FILE = AlarmsWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -619,6 +651,7 @@
 		FF30783AF7AA9FFC74922932 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = AlarmsWidget/AlarmsWidget.entitlements;
 				INFOPLIST_FILE = AlarmsWidget/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -682,6 +715,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		52B8C26D5E43ADF190CCBDD2 /* AlarmCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AlarmCore;
+		};
 		5C1DB0A5BDFD4210EC59B6A7 /* AlarmCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AlarmCore;

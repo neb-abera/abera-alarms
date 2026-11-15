@@ -716,6 +716,8 @@ protocol DeviceChecks: Sendable {
     func cancelTimer() async
     /// When the running timer rings. Nil when none runs.
     func timerEndsAt() async -> Date?
+    /// The running timer's label, for the widgets.
+    func timerLabel() async -> String
 }
 
 /// The real phone.
@@ -724,6 +726,7 @@ struct SystemDevice: DeviceChecks {
     nonisolated static let testAlarmID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000002")!
     nonisolated static let timerID = UUID(uuidString: "5E57A1A2-7E57-4000-8000-000000000003")!
     static let timerKey = "timer-ends-at"
+    static let timerLabelKey = "timer-label"
     static let log = Logger(subsystem: "tech.abera.alarms", category: "timer")
 
     func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
@@ -745,6 +748,7 @@ struct SystemDevice: DeviceChecks {
             _ = try await AlarmManager.shared.schedule(id: Self.timerID, configuration: configuration)
             let endsAt = Date().addingTimeInterval(TimeInterval(seconds))
             UserDefaults.standard.set(endsAt, forKey: Self.timerKey)
+            UserDefaults.standard.set(label, forKey: Self.timerLabelKey)
             return endsAt
         } catch {
             // The reason is in the log: the page can only say iOS refused.
@@ -768,6 +772,8 @@ struct SystemDevice: DeviceChecks {
         }
         return UserDefaults.standard.object(forKey: Self.timerKey) as? Date
     }
+
+    func timerLabel() async -> String { UserDefaults.standard.string(forKey: Self.timerLabelKey) ?? "Timer" }
 
     @MainActor func read() -> DeviceReading {
         let app = UIApplication.shared
