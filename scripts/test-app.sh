@@ -16,7 +16,10 @@ cd "$(dirname "$0")/.."
 # tests failed. On 2026-10-28 the same pick failed with "The iOS 27.1
 # simulator runtime is not available". The last green run, on 2026-10-19,
 # had used the iPhone 18 Pro.
-device="$(xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms 2>/dev/null | python3 -c '
+# The whole answer is kept, so an empty list says why.
+mkdir -p build
+xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms > build/destinations.log 2>&1 || true
+device="$(python3 -c '
 import re, sys
 found = []
 for line in sys.stdin:
@@ -30,8 +33,8 @@ if pros:
     print(max(pros)[2])
 elif found:
     print(max(found)[2])
-')"
-[ -n "$device" ] || { echo "error: no iPhone simulator available" >&2; exit 1; }
+' < build/destinations.log)"
+[ -n "$device" ] || { echo "error: no iPhone simulator available. xcodebuild -showdestinations said:" >&2; tail -40 build/destinations.log >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
 
 # Boot first and wait, so the first test does not pay the cold start
