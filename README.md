@@ -82,7 +82,7 @@ With a free Apple account the app stops opening after 7 days and needs Run again
 
 ### Try it without a server
 
-Run the AberaAlarms scheme in a simulator with the launch argument `-demo`. abera.tech and AlarmKit are replaced by memory, with events, routines and two countdowns. `-demo-unpaired` starts on the pairing screen and `-demo-offline` starts with no connection. `-demo-real-timer` gives the timer to AlarmKit, so it rings through iOS. Debug builds only.
+Run the AberaAlarms scheme in a simulator with the launch argument `-demo`. abera.tech and AlarmKit are replaced by memory, with events, routines and two countdowns. `-demo-unpaired` starts on the pairing screen and `-demo-offline` starts with no connection. `-demo-real-timer` gives the timer to AlarmKit, so it rings through iOS. Debug builds only. The iOS 27.0 simulator denies alarms without a prompt, so `testATimerRingsThroughIOSAndStopsThere` skips there and runs on iOS 26.5.
 
 ## Project layout
 
