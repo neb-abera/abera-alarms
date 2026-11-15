@@ -122,7 +122,9 @@
         func ringTest(sound: String) async -> Bool { true }
 
         private let timer = Mutex<Date?>(nil)
+        private let label = Mutex("Timer")
         func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
+            self.label.withLock { $0 = label }
             if realTimer {
                 do {
                     _ = try await AlarmManager.shared.requestAuthorization()
@@ -142,6 +144,7 @@
         func timerEndsAt() async -> Date? {
             realTimer ? await SystemDevice().timerEndsAt() : timer.withLock { $0 }
         }
+        func timerLabel() async -> String { label.withLock { $0 } }
     }
 
     struct DemoPermissions: AlarmPermissions {

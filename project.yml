@@ -37,6 +37,9 @@ targets:
       properties:
         # Xcode signs a TestFlight or App Store build as production.
         aps-environment: development
+        # The widgets read the app's snapshot from this group.
+        com.apple.security.application-groups:
+          - group.tech.abera.alarms
     info:
       path: App/Info.plist
       properties:
@@ -79,6 +82,13 @@ targets:
     sources:
       - AlarmsWidget
       - App/Shared
+    dependencies:
+      - package: AlarmCore
+    entitlements:
+      path: AlarmsWidget/AlarmsWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.tech.abera.alarms
     info:
       path: AlarmsWidget/Info.plist
       properties:
