@@ -4,13 +4,15 @@ import AlarmCore
 import SwiftUI
 import UIKit
 
-/// The Timer tab: the workout clock, the set it is timing, Next set, the
+/// The Timer tab: the countdown timer, the workout clock, the set it is timing, Next set, the
 /// rest countdown, and the sets done. Every interval the phone says the
 /// time on the clock.
 struct WorkoutView: View {
+    @Bindable var model: AppModel
     @Bindable var timer: WorkoutModel
     var onScreen = true
     @AppStorage(IntentLog.key) private var lockScreenLog = ""
+    @FocusState private var typingLength: Bool
 
     private var workout: Workout { timer.workout }
 
@@ -18,6 +20,8 @@ struct WorkoutView: View {
         NavigationStack {
             VStack(spacing: 0) {
                 VStack(spacing: 12) {
+                    TimerPanel(model: model, ticking: onScreen, typing: $typingLength)
+                    Divider().padding(.horizontal)
                     Text("Set \(workout.set)")
                         .font(.title2.weight(.semibold))
                         .accessibilityIdentifier("workout-set")
@@ -89,6 +93,17 @@ struct WorkoutView: View {
                 }
                 .padding(.vertical)
                 List {
+                    // First, so the newest set shows without a scroll in
+                    // the room the panel above leaves the list.
+                    if !workout.sets.isEmpty {
+                        Section("Sets done") {
+                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
+                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
+                                    .monospacedDigit()
+                                    .accessibilityIdentifier("workout-done-\(index + 1)")
+                            }
+                        }
+                    }
                     Section {
                         Picker("Say the time every", selection: $timer.interval) {
                             ForEach(Workout.intervals, id: \.self) { seconds in
@@ -103,15 +118,6 @@ struct WorkoutView: View {
                                 ? "The timer is silent."
                                 : "A voice says the time on the clock, over music and with the phone locked. Next set says the set's number. Stop ends the set and the voice."
                         )
-                    }
-                    if !workout.sets.isEmpty {
-                        Section("Sets done") {
-                            ForEach(Array(workout.sets.enumerated()).reversed(), id: \.offset) { index, time in
-                                LabeledContent("Set \(index + 1)", value: Workout.clock(time))
-                                    .monospacedDigit()
-                                    .accessibilityIdentifier("workout-done-\(index + 1)")
-                            }
-                        }
                     }
                     Section {
                         if lockScreenLog.isEmpty {
@@ -130,6 +136,10 @@ struct WorkoutView: View {
                 }
                 .scrollContentBackground(.hidden)
             }
+            // Pinned to the top. With the keyboard up the tab is shorter
+            // than its content, and a centered stack put the timer's
+            // length and Start timer under the navigation bar.
+            .frame(minHeight: 0, maxHeight: .infinity, alignment: .top)
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("Timer")
             .navigationBarTitleDisplayMode(.inline)
@@ -143,6 +153,11 @@ struct WorkoutView: View {
                     Button("Reset Session") { timer.resetSession() }
                         .disabled(!workout.started && workout.sets.isEmpty)
                         .accessibilityIdentifier("workout-reset-session")
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { typingLength = false }
+                        .accessibilityIdentifier("countdown-keyboard-done")
                 }
             }
         }

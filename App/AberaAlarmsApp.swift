@@ -27,7 +27,10 @@ struct AberaAlarmsApp: App {
         }
         .onChange(of: phase) { _, now in
             guard now == .active, model.started else { return }
-            Task { model.paired ? await model.sync() : await model.checkReadiness() }
+            Task {
+                await model.readTimer()
+                model.paired ? await model.sync() : await model.checkReadiness()
+            }
         }
         .onChange(of: phase) { _, now in
             if now == .background { AppModel.scheduleRefresh() }

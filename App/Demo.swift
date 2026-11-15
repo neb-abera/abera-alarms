@@ -1,5 +1,6 @@
 #if DEBUG
     import AlarmCore
+    import AlarmKit
     import Foundation
     import Synchronization
 
@@ -10,6 +11,8 @@
     /// countdowns, one passed. `-demo-unpaired` starts on
     /// the pairing screen. `-demo-offline` starts with the server unreachable.
     /// `-demo-slow` answers every request after 8 s, as a weak signal does.
+    /// `-demo-real-timer` gives the timer to AlarmKit, so a UI test hears
+    /// it ring through iOS and stops it there.
     /// `-demo-started` adds an event that started 10 minutes ago and ends in 20.
     /// `-demo-invited` refuses every event edit as Google refuses one of an
     /// event someone else organized.
@@ -102,10 +105,12 @@
     final class DemoDevice: DeviceChecks {
         private let heard: Mutex<Date?>
         private let refresh: Bool
+        private let realTimer: Bool
 
         init(_ arguments: [String]) {
             heard = Mutex(arguments.contains("-demo-unready") ? nil : Date(timeIntervalSinceNow: -86_400))
             refresh = !arguments.contains("-demo-refresh-off")
+            realTimer = arguments.contains("-demo-real-timer")
         }
 
         @MainActor func read() -> DeviceReading {
@@ -118,12 +123,25 @@
 
         private let timer = Mutex<Date?>(nil)
         func startTimer(seconds: Int, label: String, sound: String) async -> Date? {
+            if realTimer {
+                do {
+                    _ = try await AlarmManager.shared.requestAuthorization()
+                } catch {
+                    SystemDevice.log.error("alarm permission: \(String(describing: error), privacy: .public)")
+                }
+                return await SystemDevice().startTimer(seconds: seconds, label: label, sound: sound)
+            }
             let endsAt = Date().addingTimeInterval(TimeInterval(seconds))
             timer.withLock { $0 = endsAt }
             return endsAt
         }
-        func cancelTimer() async { timer.withLock { $0 = nil } }
-        func timerEndsAt() async -> Date? { timer.withLock { $0 } }
+        func cancelTimer() async {
+            if realTimer { await SystemDevice().cancelTimer() }
+            timer.withLock { $0 = nil }
+        }
+        func timerEndsAt() async -> Date? {
+            realTimer ? await SystemDevice().timerEndsAt() : timer.withLock { $0 }
+        }
     }
 
     struct DemoPermissions: AlarmPermissions {

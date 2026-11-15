@@ -159,6 +159,17 @@ final class AppModel {
         timerEndsAt = await dependencies.device.timerEndsAt()
     }
 
+    /// Waits for the timer's ring, then reads the timer each second, so its
+    /// row goes once the ring is stopped on the Lock Screen.
+    func followTimer() async {
+        guard let endsAt = timerEndsAt else { return }
+        try? await Task.sleep(for: .seconds(max(0, endsAt.timeIntervalSinceNow)))
+        while !Task.isCancelled, timerEndsAt == endsAt {
+            await readTimer()
+            try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
     func sync() async {
         await run { await self.dependencies.sync.sync() }
     }
