@@ -19,9 +19,10 @@ struct NextAlarmEntry: TimelineEntry {
 }
 
 struct NextAlarmProvider: TimelineProvider {
-    /// The widget gallery's sample, before any data.
+    /// The widget gallery's sample, before any data. Its title is none of
+    /// the demo's, so a UI test cannot pass on the sample.
     static let sample = WidgetSnapshot(
-        writtenAt: .now, alarms: [.init(title: "Standup", at: .now.addingTimeInterval(3600))],
+        writtenAt: .now, alarms: [.init(title: "Gym", at: .now.addingTimeInterval(3600))],
         events: [.init(title: "Lunch", startsAt: .now.addingTimeInterval(3 * 3600))])
 
     func placeholder(in context: Context) -> NextAlarmEntry {

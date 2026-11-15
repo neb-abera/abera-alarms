@@ -118,6 +118,8 @@ final class WidgetUITests: XCTestCase {
     /// Reads the widget, taps it to open the app, then closes the app and
     /// reads it again: the widget draws from the snapshot with no app running.
     private func check(_ app: XCUIApplication, shows texts: [String]) {
+        // The empty state, when the widget cannot read the app group.
+        XCTAssertFalse(onHomeScreen("Open Alarms to load").waitForExistence(timeout: 5), "the widget read no snapshot")
         for text in texts {
             XCTAssertTrue(
                 onHomeScreen(text).waitForExistence(timeout: 20),
