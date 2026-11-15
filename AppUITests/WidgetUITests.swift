@@ -76,15 +76,26 @@ final class WidgetUITests: XCTestCase {
             poll(10) { row.exists || fallback.exists }, "no Alarms in the search:\n\(springboard.debugDescription)")
         (row.exists ? row : fallback).tap()
 
+        // One widget size per page: Next alarm first, then Countdown. A
+        // title on a page not shown yet is not in the tree, so swipe to it.
         let title = springboard.staticTexts[name].firstMatch
-        XCTAssertTrue(title.waitForExistence(timeout: 10), "no \(name) widget:\n\(springboard.debugDescription)")
-        for _ in 0..<6 where !title.isHittable {
+        XCTAssertTrue(
+            title.waitForExistence(timeout: 10) || springboard.staticTexts["Next alarm"].exists,
+            "no widget gallery:\n\(springboard.debugDescription)")
+        for _ in 0..<6 where !(title.exists && title.isHittable) {
             springboard.swipeLeft()
-            RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
         }
+        XCTAssertTrue(title.exists && title.isHittable, "no \(name) widget:\n\(springboard.debugDescription)")
+        // The gallery's Add Widget runs in another process, which the query
+        // often cannot read (kAXErrorServerNotFound in CI on 2026-11-15).
+        // The run's recording shows it centered, 90% down the screen.
         let place = springboard.buttons["Add Widget"].firstMatch
-        XCTAssertTrue(place.waitForExistence(timeout: 5), "no Add Widget:\n\(springboard.debugDescription)")
-        place.tap()
+        if place.waitForExistence(timeout: 3) {
+            place.tap()
+        } else {
+            springboard.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.904)).tap()
+        }
         let done = springboard.buttons["Done"].firstMatch
         if done.waitForExistence(timeout: 5) { done.tap() }
     }
