@@ -110,4 +110,9 @@ echo "Lock Screen intents, from the simulator's log:"
 xcrun simctl spawn "$device" log show --last 90m --style compact \
   --predicate 'subsystem == "tech.abera.alarms" OR eventMessage CONTAINS[c] "NextSetIntent" OR eventMessage CONTAINS[c] "LiveActivityIntent"' \
   2>/dev/null | tail -150 || true
+# Why iOS refused a timer, when it did (SystemDevice.log, category timer).
+echo "Timer refusals, from the simulator's log:"
+xcrun simctl spawn "$device" log show --last 90m --style compact \
+  --predicate 'subsystem == "tech.abera.alarms" AND category == "timer"' \
+  2>/dev/null | tail -40 || true
 exit "$status"
