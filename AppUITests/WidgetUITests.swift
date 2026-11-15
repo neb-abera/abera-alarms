@@ -24,7 +24,10 @@ final class WidgetUITests: XCTestCase {
         app.launch()
         // The Calendar tab is up once the demo's first sync is done, and the
         // snapshot is written at its end.
-        XCTAssertTrue(app.tabBars.buttons["Calendar"].waitForExistence(timeout: 30), app.debugDescription)
+        let calendar = app.tabBars.buttons["Calendar"]
+        XCTAssertTrue(calendar.waitForExistence(timeout: 30), app.debugDescription)
+        // The app opens on the Alarms tab. The calendar rows are on Calendar.
+        calendar.tap()
         XCTAssertTrue(
             poll(15) { app.descendants(matching: .any)["alarm-standup"].exists }, app.debugDescription)
         XCUIDevice.shared.press(.home)
