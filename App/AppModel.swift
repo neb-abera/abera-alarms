@@ -400,6 +400,38 @@ final class AppModel {
         }
     }
 
+    /// Makes `child` a step of `parent`, at the time it rang on its own, and
+    /// deletes it as an alarm. Works offline like any alarm change.
+    func subordinate(_ child: Routine, under parent: Routine) async {
+        switch RoutineChaining.subordinate(child, under: parent) {
+        case .failure(let refusal):
+            routineError = refusal.message
+        case .success(let draft):
+            guard await saveRoutine(id: parent.id, draft) else { return }
+            await deleteRoutine(child)
+        }
+    }
+
+    /// Makes a step an alarm of its own, at the time it rang as a step.
+    func separate(_ step: RoutineStep, from parent: Routine) async {
+        guard let (remaining, alarm) = RoutineChaining.separate(step.id, from: parent) else { return }
+        guard await saveRoutine(id: nil, alarm) else { return }
+        await saveRoutine(id: parent.id, remaining)
+    }
+
+    /// Deletes one step. The step after it keeps its time.
+    func deleteStep(_ step: RoutineStep, from parent: Routine) async {
+        var draft = parent.draft
+        draft.steps = RoutineChaining.remove(step.id, from: parent.steps)
+        await saveRoutine(id: parent.id, draft)
+    }
+
+    /// The cycle the Alarms tab shows under an alarm.
+    func shownCycle(_ routine: Routine, at now: Date) -> RoutineCycle? {
+        let window = TimeInterval((state?.stopAfterMinutes ?? AlertsState.defaultStopAfterMinutes) * 60)
+        return RoutineCycle.shown(routine, now: now, window: window, calendar: .current)
+    }
+
     /// The last two weeks from abera.tech, or why they could not be read.
     func history() async -> Result<RoutineHistory, APIError> {
         await dependencies.sync.history()

@@ -8,6 +8,11 @@ import UIKit
 struct StepsEditorSection: View {
     @Binding var steps: [EditableStep]
     let routineLabel: String
+    /// Alarms that can be made steps of this one, and what to do with one picked.
+    var existing: [Routine] = []
+    var addExisting: (Routine) -> Void = { _ in }
+    /// Alarms picked here, deleted as alarms on Save.
+    var absorbed: [Routine] = []
 
     var body: some View {
         Section {
@@ -29,6 +34,24 @@ struct StepsEditorSection: View {
             }
             .disabled(steps.count >= RoutineStep.maxSteps)
             .accessibilityIdentifier("add-step")
+            if !existing.isEmpty {
+                Menu {
+                    ForEach(existing) { alarm in
+                        Button("\(alarm.label), \(RoutineText.time(hour: alarm.hour, minute: alarm.minute))") {
+                            addExisting(alarm)
+                        }
+                    }
+                } label: {
+                    Label("Add an Existing Alarm as a Step", systemImage: "arrow.turn.down.right")
+                }
+                .disabled(steps.count >= RoutineStep.maxSteps)
+                .accessibilityIdentifier("add-existing-step")
+            }
+            ForEach(absorbed) { alarm in
+                Text("\(alarm.label) becomes a step at its own time and stops being an alarm of its own when you save.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         } header: {
             Text("Steps")
         } footer: {
@@ -74,27 +97,86 @@ struct EditableStep: Identifiable, Equatable {
     }
 }
 
-/// Under a routine with steps on the Alarms tab: how many of this cycle's
-/// steps are done. A tap opens the checklist.
-struct StepsSummaryRow: View {
+/// A routine's steps, indented under it on the Alarms tab, for the time
+/// under way, or the next time once its steps have rung out. The circle
+/// checks a step off in one tap. A tap on the step adds a note or a photo.
+/// A swipe separates it into an alarm of its own, or deletes it.
+struct StepRows: View {
     @Bindable var model: AppModel
     let routine: Routine
-    let now: Date
+    var ticking = true
+    let open: (RoutineCycle, RoutineCycle.StepRing) -> Void
 
+    /// Each step is its own row, so each swipes on its own. Only the time
+    /// line under a step ticks.
     var body: some View {
-        let cycles = RoutineCycle.around(routine, now: now, calendar: .current)
-        let cycle = cycles.current ?? cycles.next
-        let done = cycle?.steps.filter { model.completion(routine, $0) != nil }.count ?? 0
-        HStack {
-            Image(systemName: done == routine.steps.count ? "checkmark.circle.fill" : "checklist")
-                .foregroundStyle(done == routine.steps.count ? Color.green : Color.accentColor)
-            Text("\(routine.label) steps: \(done) of \(routine.steps.count) done")
-            Spacer()
-            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+        if let cycle = model.shownCycle(routine, at: Date()) {
+            ForEach(cycle.steps) { ring in
+                row(cycle, ring)
+            }
         }
-        .font(.subheadline)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("steps-\(routine.label)")
+    }
+
+    private func row(_ cycle: RoutineCycle, _ ring: RoutineCycle.StepRing) -> some View {
+        let done = model.completion(routine, ring)
+        return HStack(alignment: .top) {
+            Image(systemName: "arrow.turn.down.right")
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            Button {
+                Task {
+                    if done == nil {
+                        await model.completeStep(routine, cycle: cycle, step: ring.step)
+                    } else {
+                        await model.undoStep(routine, cycle: cycle, step: ring.step)
+                    }
+                }
+            } label: {
+                Image(systemName: done == nil ? "circle" : "checkmark.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(done == nil ? Color.secondary : Color.green)
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel(done == nil ? "Check off \(ring.step.label)" : "Undo \(ring.step.label)")
+            .accessibilityIdentifier("check-\(ring.step.label)-\(cycle.stamp)")
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ring.step.label)
+                        .strikethrough(done != nil)
+                    TimelineView(Ticking.schedule(ticking)) { context in
+                        Text(StepText.line(ring: ring, done: done, now: context.date))
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityIdentifier("step-\(ring.step.label)-\(cycle.stamp)")
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .onTapGesture { open(cycle, ring) }
+        }
+        .padding(.leading, 20)
+        .foregroundStyle(routine.enabled ? .primary : .secondary)
+        .swipeActions {
+            Button("Delete", role: .destructive) {
+                Task { await model.deleteStep(ring.step, from: routine) }
+            }
+            Button("Separate") {
+                Task { await model.separate(ring.step, from: routine) }
+            }
+            .tint(.blue)
+        }
+        .contextMenu {
+            Button("Note or Photo", systemImage: "square.and.pencil") { open(cycle, ring) }
+            Button("Make a Separate Alarm", systemImage: "arrow.uturn.left") {
+                Task { await model.separate(ring.step, from: routine) }
+            }
+            .accessibilityIdentifier("separate-step")
+            Button("Delete Step", systemImage: "trash", role: .destructive) {
+                Task { await model.deleteStep(ring.step, from: routine) }
+            }
+        }
     }
 }
 

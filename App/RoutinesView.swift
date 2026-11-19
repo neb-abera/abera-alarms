@@ -15,6 +15,23 @@ struct RoutinesView: View {
     @State private var selected = Set<UUID>()
     @State private var confirmingDelete: Set<UUID>?
     @State private var showingHistory = false
+    @State private var openedStep: StepOpened?
+    @State private var checklist: Routine?
+    @State private var moving: Moving?
+
+    struct StepOpened: Identifiable {
+        var routine: Routine
+        var cycle: RoutineCycle
+        var ring: RoutineCycle.StepRing
+        var id: String { ring.key }
+    }
+
+    /// An alarm about to go under another as a step.
+    struct Moving: Identifiable {
+        var child: Routine
+        var parent: Routine
+        var id: String { child.id.uuidString + parent.id.uuidString }
+    }
     var onScreen = true
 
     var body: some View {
@@ -104,20 +121,32 @@ struct RoutinesView: View {
                     }
                     .contextMenu {
                         Button("Edit", systemImage: "pencil") { editing = routine }
+                        let others = model.routines.filter { $0.id != routine.id }
+                        if !others.isEmpty {
+                            Menu("Make a Step of…", systemImage: "arrow.turn.down.right") {
+                                ForEach(others) { parent in
+                                    Button(
+                                        "\(parent.label), \(RoutineText.time(hour: parent.hour, minute: parent.minute))"
+                                    ) {
+                                        moving = Moving(child: routine, parent: parent)
+                                    }
+                                }
+                            }
+                            .accessibilityIdentifier("make-step-of")
+                        }
+                        if !routine.steps.isEmpty {
+                            Button("Steps, This Time and Next", systemImage: "checklist") { checklist = routine }
+                                .accessibilityIdentifier("open-checklist")
+                        }
                         Button("Delete", systemImage: "trash", role: .destructive) {
                             Task { await model.deleteRoutine(routine) }
                         }
                         .accessibilityIdentifier("context-delete")
                     }
-                    if !routine.steps.isEmpty, !selecting {
-                        NavigationLink {
-                            ChecklistView(model: model, routineID: routine.id)
-                        } label: {
-                            TimelineView(.periodic(from: .now, by: 60)) { context in
-                                StepsSummaryRow(model: model, routine: routine, now: context.date)
-                            }
+                    if !selecting {
+                        StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
+                            openedStep = StepOpened(routine: routine, cycle: cycle, ring: ring)
                         }
-                        .accessibilityIdentifier("open-steps-\(routine.label)")
                     }
                 }
             }
@@ -193,6 +222,27 @@ struct RoutinesView: View {
             }
             .sheet(isPresented: $showingHistory) {
                 HistoryView(model: model)
+            }
+            .sheet(item: $openedStep) { opened in
+                CompletionSheet(model: model, routine: opened.routine, cycle: opened.cycle, ring: opened.ring)
+            }
+            .navigationDestination(item: $checklist) { routine in
+                ChecklistView(model: model, routineID: routine.id)
+            }
+            .confirmationDialog(
+                moving.map { "Make \($0.child.label) a step of \($0.parent.label)?" } ?? "",
+                isPresented: Binding(get: { moving != nil }, set: { if !$0 { moving = nil } }),
+                titleVisibility: .visible,
+                presenting: moving
+            ) { move in
+                Button("Make It a Step") {
+                    Task { await model.subordinate(move.child, under: move.parent) }
+                }
+                .accessibilityIdentifier("confirm-make-step")
+            } message: { move in
+                Text(
+                    "It rings at \(RoutineText.time(hour: move.child.hour, minute: move.child.minute)) as a step of \(move.parent.label), on \(move.parent.label)'s days: \(move.parent.daysText). It is no longer an alarm of its own. Separate it to undo."
+                )
             }
             .sheet(item: $editing) { routine in
                 RoutineEditor(model: model, routine: routine)
@@ -312,6 +362,8 @@ struct RoutineEditor: View {
     @State private var label: String
     @State private var snoozeMinutes: Int
     @State private var steps: [EditableStep]
+    @State private var absorbed: [Routine] = []
+    @State private var stepRefusal: String?
 
     init(model: AppModel, routine: Routine?) {
         self.model = model
@@ -350,7 +402,15 @@ struct RoutineEditor: View {
                         .accessibilityIdentifier("routine-label")
                     Stepper("Snooze: \(snoozeMinutes) min", value: $snoozeMinutes, in: 1...30)
                 }
-                StepsEditorSection(steps: $steps, routineLabel: label)
+                StepsEditorSection(
+                    steps: $steps, routineLabel: label,
+                    existing: model.routines.filter { alarm in
+                        alarm.id != routine?.id && !absorbed.contains { $0.id == alarm.id }
+                    },
+                    addExisting: absorb, absorbed: absorbed)
+                if let stepRefusal {
+                    Text(stepRefusal).foregroundStyle(.red)
+                }
                 ForEach(RoutineStep.problems(steps.map(\.step)), id: \.self) { problem in
                     Text(problem).foregroundStyle(.red)
                 }
@@ -376,7 +436,12 @@ struct RoutineEditor: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         let draft = draft
-                        Task { await model.saveRoutine(id: routine?.id, draft) }
+                        let absorbed = absorbed
+                        Task {
+                            // The picked alarms go only once their steps are saved.
+                            guard await model.saveRoutine(id: routine?.id, draft) else { return }
+                            for alarm in absorbed { await model.deleteRoutine(alarm) }
+                        }
                         dismiss()
                     }
                     .disabled(!draft.problems.isEmpty)
@@ -384,6 +449,21 @@ struct RoutineEditor: View {
                 }
             }
             .onAppear { model.clearRoutineError() }
+        }
+    }
+
+    /// Puts an existing alarm into the steps at the time it rings.
+    private func absorb(_ alarm: Routine) {
+        let shape = Routine(
+            id: routine?.id ?? UUID(), label: label, hour: draft.hour, minute: draft.minute, days: draft.days,
+            steps: steps.map(\.step))
+        switch RoutineChaining.subordinate(alarm, under: shape) {
+        case .success(let made):
+            steps = made.steps.map(EditableStep.init)
+            absorbed.append(alarm)
+            stepRefusal = nil
+        case .failure(let refusal):
+            stepRefusal = refusal.message
         }
     }
 

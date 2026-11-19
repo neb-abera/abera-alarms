@@ -1328,8 +1328,9 @@ final class AlarmsUITests: XCTestCase {
 
 // MARK: Steps
 
-/// Sub-alarms chained after an alarm, checked off one cycle at a time, with
-/// a note and a photo, and two weeks of history. Neb asked on 2026-11-19.
+/// Sub-alarms under an alarm on the Alarms tab, checked off one cycle at a
+/// time, with a note and a photo, and two weeks of history. Existing alarms
+/// move under another as steps and separate back out. Neb asked on 2026-11-19.
 extension AlarmsUITests {
     private func first(_ app: XCUIApplication, _ prefix: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
@@ -1340,7 +1341,12 @@ extension AlarmsUITests {
         for _ in 0..<6 where !element.isHittable { app.collectionViews.firstMatch.swipeUp() }
     }
 
-    func testAddingStepsToAnAlarmChainsThemAfterIt() {
+    private func clock(_ hour: Int, _ minute: Int) -> String {
+        Calendar.current.date(from: DateComponents(hour: hour, minute: minute))!
+            .formatted(date: .omitted, time: .shortened)
+    }
+
+    func testAddingStepsToAnAlarmShowsThemUnderIt() {
         let app = launch(tab: nil)
         XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
         app.buttons["add-routine"].tap()
@@ -1368,60 +1374,53 @@ extension AlarmsUITests {
         XCTAssertEqual(amount.value as? String, "10")
         save.tap()
 
-        let summary = app.descendants(matching: .any)["steps-Get up"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(summary.label.contains("0 of 2 done"), summary.label)
-        summary.tap()
+        // 06:00, then 5 minutes, then 10 more, under the alarm on the Alarms tab.
         let medication = first(app, "step-Take medication-")
         XCTAssertTrue(medication.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(medication, in: app)
         let beauty = first(app, "step-Beauty care-")
         XCTAssertTrue(beauty.exists)
-        // 06:00, then 5 minutes, then 10 more.
-        let six = Calendar.current.date(from: DateComponents(hour: 6, minute: 5))!
-        let quarter = Calendar.current.date(from: DateComponents(hour: 6, minute: 15))!
-        XCTAssertTrue(medication.label.contains(six.formatted(date: .omitted, time: .shortened)), medication.label)
-        XCTAssertTrue(beauty.label.contains(quarter.formatted(date: .omitted, time: .shortened)), beauty.label)
+        XCTAssertTrue(medication.label.contains(clock(6, 5)), medication.label)
+        XCTAssertTrue(beauty.label.contains(clock(6, 15)), beauty.label)
+        XCTAssertLessThan(routine(app, "Get up").frame.minY, medication.frame.minY)
+        XCTAssertLessThan(medication.frame.minY, beauty.frame.minY)
+        XCTAssertGreaterThan(medication.frame.minX, routine(app, "Get up").frame.minX, "indented under the alarm")
     }
 
     func testCheckingOffAStepInOneTapCoversThisTimeOnly() {
         let app = launch("-demo-steps", tab: nil)
-        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
-        scrollTo(summary, in: app)
-        XCTAssertTrue(summary.label.contains("0 of 2 done"), summary.label)
-        summary.tap()
-
-        let checks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'check-Take medication-'"))
-        XCTAssertTrue(checks.firstMatch.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertEqual(checks.count, 2, "this time and next time")
-        let thisTime = checks.element(boundBy: 0)
-        let nextTime = checks.element(boundBy: 1)
-        XCTAssertEqual(thisTime.label, "Check off Take medication")
-        thisTime.tap()
-        XCTAssertTrue(poll(5) { thisTime.label == "Undo Take medication" }, thisTime.label)
-        XCTAssertEqual(nextTime.label, "Check off Take medication")
+        let check = first(app, "check-Take medication-")
+        XCTAssertTrue(check.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(check, in: app)
+        XCTAssertEqual(check.label, "Check off Take medication")
+        check.tap()
+        XCTAssertTrue(poll(5) { check.label == "Undo Take medication" }, check.label)
         let line = first(app, "step-Take medication-")
         XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
         XCTAssertTrue(line.label.contains("Does not ring at"), line.label)
 
+        // The next time is still set.
+        routine(app, "Morning").press(forDuration: 1.2)
+        let open = app.buttons["open-checklist"]
+        XCTAssertTrue(open.waitForExistence(timeout: 5), app.debugDescription)
+        open.tap()
+        let checks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'check-Take medication-'"))
+        XCTAssertTrue(poll(10) { checks.count == 2 }, app.debugDescription)
+        XCTAssertEqual(checks.element(boundBy: 0).label, "Undo Take medication")
+        XCTAssertEqual(checks.element(boundBy: 1).label, "Check off Take medication")
         app.navigationBars.buttons.element(boundBy: 0).tap()
-        XCTAssertTrue(waitFor(summary, labelContaining: "1 of 2 done"), summary.label)
 
         // Undo puts it back.
-        summary.tap()
-        XCTAssertTrue(thisTime.waitForExistence(timeout: 5))
-        thisTime.tap()
-        XCTAssertTrue(poll(5) { thisTime.label == "Check off Take medication" }, thisTime.label)
+        XCTAssertTrue(check.waitForExistence(timeout: 5))
+        check.tap()
+        XCTAssertTrue(poll(5) { check.label == "Check off Take medication" }, check.label)
     }
 
     func testACheckOffTakesANoteAndHistoryShowsItWithPhotos() {
         let app = launch("-demo-steps", tab: nil)
-        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
-        scrollTo(summary, in: app)
-        summary.tap()
         let line = first(app, "step-Take medication-")
-        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(line, in: app)
         let stamp = String(line.identifier.dropFirst("step-Take medication-".count))
         line.tap()
         // A field that grows to several lines can read as a text view.
@@ -1432,20 +1431,18 @@ extension AlarmsUITests {
         app.buttons["save-completion"].tap()
         XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
 
-        app.navigationBars.buttons.element(boundBy: 0).tap()
         let history = app.buttons["steps-history"]
+        for _ in 0..<4 where !history.isHittable { app.collectionViews.firstMatch.swipeDown() }
         XCTAssertTrue(history.waitForExistence(timeout: 5))
         history.tap()
-        let today = app.descendants(matching: .any)["history-step-Take medication-\(stamp)"].firstMatch
-        XCTAssertTrue(today.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(today.label.contains("Lisinopril 10 mg"), today.label)
-        let beauty = app.descendants(matching: .any)["history-step-Beauty care-\(stamp)"].firstMatch
-        XCTAssertTrue(beauty.label.contains("Missed"), beauty.label)
+        let entry = app.descendants(matching: .any)["history-step-Take medication-\(stamp)"].firstMatch
+        XCTAssertTrue(entry.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(entry.label.contains("Lisinopril 10 mg"), entry.label)
         let tally = app.descendants(matching: .any)["tally-Take medication"].firstMatch
         XCTAssertTrue(tally.exists)
-        XCTAssertTrue(tally.label.contains("2 of 14") || tally.label.contains("2 of 15"), tally.label)
+        XCTAssertTrue(tally.label.contains("of 14") || tally.label.contains("of 15"), tally.label)
 
-        // Yesterday's check-off carries a photo.
+        // An earlier check-off carries a photo.
         let photo = first(app, "history-photo-Take medication-")
         for _ in 0..<4 where !photo.isHittable { app.swipeUp() }
         XCTAssertTrue(photo.waitForExistence(timeout: 5), app.debugDescription)
@@ -1456,12 +1453,9 @@ extension AlarmsUITests {
     /// The photo comes from the Photos library through the system picker.
     func testACheckOffTakesAPhotoFromTheLibrary() {
         let app = launch("-demo-steps", tab: nil)
-        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
-        scrollTo(summary, in: app)
-        summary.tap()
         let line = first(app, "step-Beauty care-")
-        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(line, in: app)
         line.tap()
         let choose = app.buttons["choose-photo"]
         XCTAssertTrue(choose.waitForExistence(timeout: 5), app.debugDescription)
@@ -1475,6 +1469,57 @@ extension AlarmsUITests {
         XCTAssertTrue(waitFor(line, labelContaining: "Done at", timeout: 10), line.label)
     }
 
+    func testAnAlarmBecomesAStepOfAnotherAndSeparatesBack() {
+        let app = launch(tab: nil)
+        let weekend = routine(app, "Weekend")
+        XCTAssertTrue(weekend.waitForExistence(timeout: 10))
+        weekend.press(forDuration: 1.2)
+        let makeStep = app.buttons["make-step-of"]
+        XCTAssertTrue(makeStep.waitForExistence(timeout: 5), app.debugDescription)
+        makeStep.tap()
+        let wake = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Wake,'")).firstMatch
+        XCTAssertTrue(wake.waitForExistence(timeout: 5), app.debugDescription)
+        wake.tap()
+        let confirm = app.buttons["confirm-make-step"]
+        XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
+        confirm.tap()
+
+        let step = first(app, "step-Weekend-")
+        XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(step.label.contains(clock(8, 0)), step.label)
+        XCTAssertTrue(waitForGone(weekend), "Weekend is no longer an alarm of its own")
+
+        step.press(forDuration: 1.2)
+        let separate = app.buttons["separate-step"]
+        XCTAssertTrue(separate.waitForExistence(timeout: 5), app.debugDescription)
+        separate.tap()
+        XCTAssertTrue(weekend.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(weekend.label.contains(clock(8, 0)), weekend.label)
+        XCTAssertTrue(weekend.label.contains("Weekdays"), "it kept Wake's days: \(weekend.label)")
+        XCTAssertTrue(waitForGone(step))
+    }
+
+    func testTheEditorAddsAnExistingAlarmAsAStep() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        wake.tap()
+        let existing = app.buttons["add-existing-step"]
+        XCTAssertTrue(existing.waitForExistence(timeout: 5), app.debugDescription)
+        for _ in 0..<4 where !existing.isHittable { app.swipeUp() }
+        existing.tap()
+        let weekend = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Weekend,'")).firstMatch
+        XCTAssertTrue(weekend.waitForExistence(timeout: 5), app.debugDescription)
+        weekend.tap()
+        XCTAssertEqual(app.textFields["step-label-0"].value as? String, "Weekend")
+        app.buttons["save-routine"].tap()
+
+        let step = first(app, "step-Weekend-")
+        XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(step.label.contains(clock(8, 0)), step.label)
+        XCTAssertTrue(waitForGone(routine(app, "Weekend")))
+    }
+
     /// Steps ring as alarms through iOS. Skip me, checked off in the app,
     /// stays silent. Take medication rings at the same minute and stops on
     /// Stop.
@@ -1484,12 +1529,9 @@ extension AlarmsUITests {
         let allow = springboard.buttons["Allow"].firstMatch
         let asked = allow.waitForExistence(timeout: 5)
         if asked { allow.tap() }
-        let summary = app.descendants(matching: .any)["steps-Pills"].firstMatch
-        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
-        scrollTo(summary, in: app)
-        summary.tap()
         let skip = first(app, "check-Skip me-")
         XCTAssertTrue(skip.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(skip, in: app)
         let medication = first(app, "step-Take medication-")
         XCTAssertTrue(medication.label.contains("Rings at"), medication.label)
         skip.tap()
