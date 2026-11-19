@@ -124,7 +124,8 @@ public enum Reconciler {
                 alarm.snoozeMinutes = state.phone.snoozeMinutes
                 return alarm
             }
-            + routines(from: state, now: now, calendar: calendar))
+            + routines(from: state, now: now, calendar: calendar)
+            + steps(from: state, now: now, acknowledgedHere: acknowledgedHere, calendar: calendar))
             .map { alarm in
                 var alarm = alarm
                 alarm.sound = sound
@@ -144,6 +145,42 @@ public enum Reconciler {
                     title: routine.label, location: nil, fireAt: next, startsAt: next, routine: routine.schedule)
             }
             .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
+    }
+
+    /// How far ahead the phone holds step alarms, so they ring offline.
+    public static let stepsAhead: TimeInterval = 48 * 3600
+
+    /// The step rings still to come in the cycle under way and the cycles
+    /// of the next two days, each a one-time alarm. A step checked off for
+    /// a cycle, or stopped anywhere, has no alarm in that cycle.
+    static func steps(from state: AlertsState, now: Date, acknowledgedHere: Set<String>, calendar: Calendar)
+        -> [DesiredAlarm]
+    {
+        let answered = answeredSteps(state, acknowledgedHere: acknowledgedHere)
+        let window = TimeInterval(state.stopAfterMinutes * 60)
+        var seen = Set<UUID>()
+        return state.routines
+            .filter { $0.enabled && !$0.steps.isEmpty }
+            .flatMap { routine in
+                RoutineCycle.upcoming(routine, now: now, ahead: stepsAhead, calendar: calendar).flatMap { cycle in
+                    cycle.steps.compactMap { ring -> DesiredAlarm? in
+                        guard ring.at > now, !answered.contains(ring.key) else { return nil }
+                        let id = AlarmID.of(key: ring.key)
+                        guard seen.insert(id).inserted else { return nil }
+                        return DesiredAlarm(
+                            id: id, key: ring.key, title: ring.step.sentLabel, location: nil, fireAt: ring.at,
+                            startsAt: ring.at.addingTimeInterval(window), snoozeMinutes: routine.snoozeMinutes)
+                    }
+                }
+            }
+            .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
+    }
+
+    /// The step rings that need no alarm: checked off, or stopped on abera.tech or here.
+    static func answeredSteps(_ state: AlertsState, acknowledgedHere: Set<String>) -> Set<String> {
+        Set(state.routineCompletions.map(\.stepKey))
+            .union(state.routineRings.filter { $0.acknowledged && $0.stepId != nil }.map(\.key))
+            .union(acknowledgedHere)
     }
 
     static func alerts(from state: AlertsState, now: Date, acknowledgedHere: Set<String>) -> [DesiredAlarm] {
@@ -181,9 +218,16 @@ public enum Reconciler {
                         && !acknowledgedHere.contains(alert.key)
                 }
                 .map(\.key))
+        let answered = answeredSteps(state, acknowledgedHere: acknowledgedHere)
+        let routines = Set(state.routines.filter(\.enabled).map(\.id))
         return ringing.sorted { $0.uuidString < $1.uuidString }.compactMap { id in
-            guard let held = ledger[id], !held.isRoutine, open.contains(held.key) else { return nil }
-            return held
+            guard let held = ledger[id], !held.isRoutine else { return nil }
+            if let step = RoutineCycle.parseStepKey(held.key) {
+                // A step ringing or snoozed rings on until Stop, a check-off,
+                // or a Stop elsewhere, or until its routine is switched off.
+                return routines.contains(step.routineID) && !answered.contains(held.key) ? held : nil
+            }
+            return open.contains(held.key) ? held : nil
         }
     }
 

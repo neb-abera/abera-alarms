@@ -31,6 +31,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var stopAfterMinutes: Int
     /// The rules for what an event sends, in order. An older server sends none.
     public var rules: [TypeRule]
+    /// The steps checked off, for cycles from two days ago on. An older
+    /// server sends none.
+    public var routineCompletions: [RoutineCompletion]
 
     /// abera.tech's own default.
     public static let defaultStopAfterMinutes = 180
@@ -49,7 +52,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         phone: PhoneSettings = PhoneSettings(),
         routineRings: [RoutineRing] = [],
         stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes,
-        rules: [TypeRule] = []
+        rules: [TypeRule] = [],
+        routineCompletions: [RoutineCompletion] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -65,11 +69,12 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.routineRings = routineRings
         self.stopAfterMinutes = stopAfterMinutes
         self.rules = rules
+        self.routineCompletions = routineCompletions
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
-            routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules
+            routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules, routineCompletions
     }
 
     private struct ServerSettings: Decodable {
@@ -92,6 +97,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encode(routineRings, forKey: .routineRings)
         try container.encode(stopAfterMinutes, forKey: .stopAfterMinutes)
         try container.encode(rules, forKey: .rules)
+        try container.encode(routineCompletions, forKey: .routineCompletions)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -120,6 +126,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
             ?? container.decodeIfPresent(ServerSettings.self, forKey: .settings)?.stopAfterMinutes
         stopAfterMinutes = stop.map { max(1, $0) } ?? Self.defaultStopAfterMinutes
         rules = try container.decodeIfPresent([TypeRule].self, forKey: .rules) ?? []
+        routineCompletions =
+            try container.decodeIfPresent([RoutineCompletion].self, forKey: .routineCompletions) ?? []
     }
 }
 

@@ -15,6 +15,8 @@ public struct SyncReport: Equatable, Sendable {
     public var waitingRoutineChanges: Int = 0
     /// Ringing alarms silenced because they were acknowledged elsewhere.
     public var stopped: Int = 0
+    /// Steps checked off or taken back on the phone that abera.tech has not taken yet.
+    public var waitingCompletions: Int = 0
 }
 
 /// The one path from the server's state to the phone's alarms. The app's
@@ -129,6 +131,8 @@ public actor AlarmSync {
         try? await documents.remove(Self.pendingName)
         try? await documents.remove(Self.pendingOffName)
         try? await documents.remove(Self.routineChangesName)
+        await removeUnusedPhotos(await completionChanges(), [])
+        try? await documents.remove(Self.completionChangesName)
         _ = await apply(AlertsState(configured: false))
         try? await documents.remove(Self.stateName)
         try? await documents.remove(Self.syncedName)
@@ -170,19 +174,29 @@ public actor AlarmSync {
             var state = try await client.status()
             // Routine changes made on the phone, in order, then the answer
             // to the last one is the state.
-            var refusal: APIError?
-            (state, refusal) = await flushRoutineChanges(client, from: state)
+            let (afterRoutines, routineRefusal, ids) = await flushRoutineChanges(client, from: state)
+            // Then the check-offs, naming a routine made offline by abera.tech's id.
+            let completionRefusal: APIError?
+            (state, completionRefusal) = await flushCompletionChanges(client, from: afterRoutines, renaming: ids)
+            let refusal = routineRefusal ?? completionRefusal
             // A ring-once routine that rang is deleted on abera.tech. Neb
             // asked on 2026-11-03 for a one-time alarm to delete itself once
             // it goes off and is stopped. abera.tech deletes it too when the
             // Stop reaches it, so this covers a ring stopped offline.
             for id in await pendingOff() {
-                if let routine = state.routines.first(where: { $0.id == id }), routine.enabled, !routine.repeats {
+                if let routine = state.routines.first(where: { $0.id == id }), routine.enabled, !routine.repeats,
+                    !Self.stepsStillDue(routine, state: state, at: now(), calendar: calendar)
+                {
                     do {
                         state = try await client.deleteRoutine(id: id)
                     } catch .notFound {
                         // Deleted meanwhile: nothing left to do.
                     }
+                } else if let routine = state.routines.first(where: { $0.id == id }), routine.enabled,
+                    !routine.repeats
+                {
+                    // Its steps ring first. The routine goes once they are done.
+                    continue
                 }
                 await removePendingOff(id)
             }
@@ -276,8 +290,30 @@ public actor AlarmSync {
         let changes = await routineChanges()
         // A phone that has never reached abera.tech still shows the alarms
         // made on it.
-        guard let raw = await lastServerState() ?? (changes.isEmpty ? nil : AlertsState()) else { return nil }
-        return RoutineChange.overlay(raw, changes)
+        let completions = await completionChanges()
+        guard let raw = await lastServerState() ?? (changes.isEmpty && completions.isEmpty ? nil : AlertsState())
+        else { return nil }
+        return Self.shown(raw, changes, completions)
+    }
+
+    /// The server's state with the phone's waiting changes laid over it.
+    static func shown(_ server: AlertsState, _ routines: [RoutineChange], _ completions: [CompletionChange])
+        -> AlertsState
+    {
+        var state = RoutineChange.overlay(server, routines)
+        state.routineCompletions = CompletionChange.overlay(state.routineCompletions, completions)
+        return state
+    }
+
+    /// A ring-once routine with steps stays until its last step has rung
+    /// out its stop window, or every step of its cycle is answered.
+    static func stepsStillDue(_ routine: Routine, state: AlertsState, at: Date, calendar: Calendar) -> Bool {
+        guard !routine.steps.isEmpty, let cycle = RoutineCycle.around(routine, now: at, calendar: calendar).current,
+            let last = cycle.steps.last
+        else { return false }
+        let answered = Reconciler.answeredSteps(state, acknowledgedHere: [])
+        if cycle.steps.allSatisfy({ answered.contains($0.key) }) { return false }
+        return last.at.addingTimeInterval(TimeInterval(state.stopAfterMinutes * 60)) > at
     }
 
     /// The alarms this app scheduled that the alarm system still holds: the
@@ -342,8 +378,9 @@ public actor AlarmSync {
     /// Sends the waiting routine changes in order. Stops at the first that
     /// cannot reach abera.tech, which waits for the next sync. A change
     /// abera.tech refuses is dropped and its reason returned.
-    private func flushRoutineChanges(_ client: AlertsClient, from start: AlertsState) async -> (AlertsState, APIError?)
-    {
+    private func flushRoutineChanges(_ client: AlertsClient, from start: AlertsState) async -> (
+        AlertsState, APIError?, [UUID: UUID]
+    ) {
         var state = start
         var refusal: APIError?
         var ids: [UUID: UUID] = [:]
@@ -372,7 +409,124 @@ public actor AlarmSync {
             changes = changes.map { $0.renaming(ids) }
             await saveRoutineChanges(changes)
         }
+        return (state, refusal, ids)
+    }
+
+    // MARK: Step check-offs
+
+    static let completionChangesName = "pending-completions.json"
+    static let photoPrefix = "completion-photo-"
+
+    /// Checks a step off for one cycle, with a note and a photo. The phone
+    /// cancels the step's alarm for that cycle at once, offline too, and
+    /// sends the check-off when it can. The photo waits on the phone until then.
+    public func completeStep(_ draft: CompletionDraft, photo: Data?) async -> SyncReport {
+        await oneAtATime { await self.completeStepNow(draft, photo: photo) }
+    }
+
+    private func completeStepNow(_ draft: CompletionDraft, photo: Data?) async -> SyncReport {
+        guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
+        var draft = draft
+        draft.photoName = nil
+        if let photo, !draft.removePhoto {
+            let name = Self.photoPrefix + UUID().uuidString.lowercased() + ".jpg"
+            try? await documents.save(photo, as: name)
+            draft.photoName = name
+        }
+        return await queueCompletion(.complete(draft))
+    }
+
+    /// Takes a check-off back. The step rings again in that cycle if its time is still ahead.
+    public func undoStep(routineId: UUID, stepId: UUID, cycle: String) async -> SyncReport {
+        await oneAtATime { await self.undoStepNow(routineId: routineId, stepId: stepId, cycle: cycle) }
+    }
+
+    private func undoStepNow(routineId: UUID, stepId: UUID, cycle: String) async -> SyncReport {
+        guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
+        return await queueCompletion(.undo(routineId: routineId, stepId: stepId, cycle: cycle))
+    }
+
+    private func queueCompletion(_ change: CompletionChange) async -> SyncReport {
+        let before = await completionChanges()
+        let after = CompletionChange.coalesce(before + [change])
+        await saveCompletionChanges(after)
+        await removeUnusedPhotos(before, after)
+        _ = await apply(await lastServerState() ?? AlertsState(), keep: false)
+        return await syncNow()
+    }
+
+    public func completionChanges() async -> [CompletionChange] {
+        guard let data = try? await documents.load(Self.completionChangesName),
+            let changes = try? ServerDates.decoder().decode([CompletionChange].self, from: data)
+        else { return [] }
+        return changes
+    }
+
+    private func saveCompletionChanges(_ changes: [CompletionChange]) async {
+        if let data = try? ServerDates.encoder().encode(changes) {
+            try? await documents.save(data, as: Self.completionChangesName)
+        }
+    }
+
+    private func removeUnusedPhotos(_ before: [CompletionChange], _ after: [CompletionChange]) async {
+        func names(_ changes: [CompletionChange]) -> Set<String> {
+            Set(changes.compactMap { if case .complete(let draft) = $0 { draft.photoName } else { nil } })
+        }
+        for name in names(before).subtracting(names(after)) { try? await documents.remove(name) }
+    }
+
+    /// Sends the waiting check-offs in order. A routine made offline is
+    /// named by abera.tech's id. One abera.tech refuses, or whose step is
+    /// gone, is dropped. The rest wait for a connection.
+    private func flushCompletionChanges(_ client: AlertsClient, from start: AlertsState, renaming ids: [UUID: UUID])
+        async -> (AlertsState, APIError?)
+    {
+        var state = start
+        var refusal: APIError?
+        var changes = await completionChanges().map { $0.renaming(ids) }
+        let all = changes
+        while let change = changes.first {
+            do {
+                switch change {
+                case .complete(let draft):
+                    var photo: Data?
+                    if let name = draft.photoName { photo = try? await documents.load(name) }
+                    state = try await client.completeStep(draft, photo: photo)
+                case .undo(let routineId, let stepId, let cycle):
+                    state = try await client.undoStep(routineId: routineId, stepId: stepId, cycle: cycle)
+                }
+            } catch .notFound {
+                // The routine or the step is gone: nothing left to check off.
+            } catch .refused(let reason) {
+                refusal = .refused(reason)
+            } catch {
+                break
+            }
+            changes.removeFirst()
+            await saveCompletionChanges(changes)
+        }
+        await removeUnusedPhotos(all, changes)
         return (state, refusal)
+    }
+
+    /// The last two weeks, read from abera.tech. Needs a connection.
+    public func history() async -> Result<RoutineHistory, APIError> {
+        guard let pairing = await pairing() else { return .failure(.unpaired) }
+        do {
+            return .success(try await makeClient(pairing).history())
+        } catch {
+            return .failure(error)
+        }
+    }
+
+    /// A check-off's photo, from abera.tech.
+    public func photo(completionId: UUID) async -> Result<Data, APIError> {
+        guard let pairing = await pairing() else { return .failure(.unpaired) }
+        do {
+            return .success(try await makeClient(pairing).photo(completionId: completionId))
+        } catch {
+            return .failure(error)
+        }
     }
 
     // MARK: Applying
@@ -381,7 +535,7 @@ public actor AlarmSync {
     /// empty one a phone that never synced starts from.
     private func apply(_ server: AlertsState, keep: Bool = true) async -> SyncReport {
         let at = now()
-        let state = RoutineChange.overlay(server, await routineChanges())
+        let state = Self.shown(server, await routineChanges(), await completionChanges())
         let ledger = await loadLedger()
         let system: Set<UUID>
         do {
@@ -447,7 +601,8 @@ public actor AlarmSync {
             at: at, state: state, scheduled: scheduled, cancelled: cancelled,
             held: held.values.sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) },
             waitingAcknowledgements: await pending().count, error: nil, refused: refused,
-            waitingRoutineChanges: await routineChanges().count, stopped: stopped)
+            waitingRoutineChanges: await routineChanges().count, stopped: stopped,
+            waitingCompletions: await completionChanges().count)
     }
 
     /// The ringing routine alarms whose current ring abera.tech lists as
