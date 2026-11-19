@@ -75,7 +75,9 @@ xcodebuild test-without-building \
   > build/warm-up.log 2>&1
 echo "warm-up: xcodebuild exited $?"
 
-# Streamed, so a hung test shows where it hung. Each test gets two minutes.
+# Streamed, so a hung test shows where it hung. Each test gets two minutes,
+# unless it asks for more with executionTimeAllowance, up to five: a step
+# alarm rings up to 2 minutes after its test launches the app.
 # A test that fails runs once more: on 2026-11-09 the Xcode 27 simulator
 # failed four runs in a row at launch, in a different test each time ("does
 # not have a process ID", "Failed to terminate", 105 s to idle, no card in
@@ -91,7 +93,7 @@ xcodebuild test-without-building \
   -retry-tests-on-failure -test-iterations 2 \
   -test-timeouts-enabled YES \
   -default-test-execution-time-allowance 120 \
-  -maximum-test-execution-time-allowance 120 \
+  -maximum-test-execution-time-allowance 300 \
   "${signing[@]}" \
   2>&1 | tee build/xcodebuild.log \
   | grep --line-buffered -E '^(Test Case|Test Suite|\*\*)|error:|warning:|t = .*(Launch|Wait|Tap|Type|Find)'
