@@ -13,9 +13,15 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var days: [Int]
     public var enabled: Bool
     public var snoozeMinutes: Int
+    /// Sub-alarms chained after the ring, in order. An older server sends none.
+    public var steps: [RoutineStep]
+    /// When abera.tech last saved it. A ring-once routine rings at the
+    /// first hour:minute after it. Nil from an older server.
+    public var updatedAt: Date?
 
     public init(
-        id: UUID, label: String, hour: Int, minute: Int, days: [Int], enabled: Bool = true, snoozeMinutes: Int = 9
+        id: UUID, label: String, hour: Int, minute: Int, days: [Int], enabled: Bool = true, snoozeMinutes: Int = 9,
+        steps: [RoutineStep] = [], updatedAt: Date? = nil
     ) {
         self.id = id
         self.label = label
@@ -24,6 +30,8 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.days = days
         self.enabled = enabled
         self.snoozeMinutes = snoozeMinutes
+        self.steps = steps
+        self.updatedAt = updatedAt
     }
 
     public init(from decoder: any Decoder) throws {
@@ -35,6 +43,8 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         days = try container.decodeIfPresent([Int].self, forKey: .days) ?? []
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         snoozeMinutes = try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? 9
+        steps = try container.decodeIfPresent([RoutineStep].self, forKey: .steps) ?? []
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
     }
 
     public var repeats: Bool { !days.isEmpty }
@@ -46,7 +56,8 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// The draft that recreates this routine, for an edit or a switch.
     public var draft: RoutineDraft {
         RoutineDraft(
-            label: label, hour: hour, minute: minute, days: days, enabled: enabled, snoozeMinutes: snoozeMinutes)
+            label: label, hour: hour, minute: minute, days: days, enabled: enabled, snoozeMinutes: snoozeMinutes,
+            steps: steps)
     }
 
     /// The next time it rings after `now`, in the phone's calendar.
@@ -137,10 +148,11 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
     public var days: [Int]
     public var enabled: Bool
     public var snoozeMinutes: Int
+    public var steps: [RoutineStep]
 
     public init(
         label: String = RoutineDraft.defaultLabel, hour: Int, minute: Int, days: [Int] = [], enabled: Bool = true,
-        snoozeMinutes: Int = 9
+        snoozeMinutes: Int = 9, steps: [RoutineStep] = []
     ) {
         self.label = label
         self.hour = hour
@@ -148,6 +160,19 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         self.days = days
         self.enabled = enabled
         self.snoozeMinutes = snoozeMinutes
+        self.steps = steps
+    }
+
+    /// A draft queued by a build before steps decodes with none.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        label = try container.decode(String.self, forKey: .label)
+        hour = try container.decode(Int.self, forKey: .hour)
+        minute = try container.decode(Int.self, forKey: .minute)
+        days = try container.decodeIfPresent([Int].self, forKey: .days) ?? []
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
+        snoozeMinutes = try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? 9
+        steps = try container.decodeIfPresent([RoutineStep].self, forKey: .steps) ?? []
     }
 
     /// The label as sent: trimmed, and "Alarm" when empty.
@@ -163,6 +188,7 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         if !(0...23).contains(hour) || !(0...59).contains(minute) { problems.append("Choose a time.") }
         if days.contains(where: { !(1...7).contains($0) }) { problems.append("Choose days from Monday to Sunday.") }
         if !(1...30).contains(snoozeMinutes) { problems.append("Snooze must be 1 to 30 minutes.") }
+        problems += RoutineStep.problems(steps)
         return problems
     }
 
@@ -171,6 +197,7 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         var body = self
         body.label = sentLabel
         body.days = Array(Set(days)).sorted()
+        body.steps = steps.map(\.sent)
         return body
     }
 }
@@ -239,7 +266,7 @@ public enum RoutineChange: Codable, Equatable, Sendable {
                 state.routines.append(
                     Routine(
                         id: local, label: body.label, hour: body.hour, minute: body.minute, days: body.days,
-                        enabled: body.enabled, snoozeMinutes: body.snoozeMinutes))
+                        enabled: body.enabled, snoozeMinutes: body.snoozeMinutes, steps: body.steps))
             case .update(let id, let draft):
                 guard let index = state.routines.firstIndex(where: { $0.id == id }) else { continue }
                 let body = draft.body
@@ -249,6 +276,9 @@ public enum RoutineChange: Codable, Equatable, Sendable {
                 state.routines[index].days = body.days
                 state.routines[index].enabled = body.enabled
                 state.routines[index].snoozeMinutes = body.snoozeMinutes
+                state.routines[index].steps = body.steps
+                // Saved again when abera.tech takes it: a ring-once routine rings after that.
+                state.routines[index].updatedAt = nil
             case .delete(let id):
                 state.routines.removeAll { $0.id == id }
             }

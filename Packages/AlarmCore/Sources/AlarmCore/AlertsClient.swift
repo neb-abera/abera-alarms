@@ -125,6 +125,67 @@ public struct AlertsClient: Sendable {
         try await call("DELETE", "routines/\(id.uuidString.lowercased())", body: nil)
     }
 
+    static func completionPath(routineId: UUID, stepId: UUID, cycle: String) -> String {
+        "routines/\(routineId.uuidString.lowercased())/steps/\(stepId.uuidString.lowercased())/cycles/\(cycle)/completion"
+    }
+
+    /// Checks a step off for one cycle, with a note and a JPEG. A nil photo
+    /// keeps the one abera.tech holds, an empty one removes it.
+    public func completeStep(_ draft: CompletionDraft, photo: Data?) async throws(APIError) -> AlertsState {
+        let body = CompletionBody(
+            note: draft.sentNote, photo: draft.removePhoto ? "" : photo?.base64EncodedString(),
+            completedAt: draft.completedAt)
+        return try await call(
+            "PUT", Self.completionPath(routineId: draft.routineId, stepId: draft.stepId, cycle: draft.cycle),
+            body: body)
+    }
+
+    /// Takes a check-off back. The step rings again in that cycle if its time is ahead.
+    public func undoStep(routineId: UUID, stepId: UUID, cycle: String) async throws(APIError) -> AlertsState {
+        try await call("DELETE", Self.completionPath(routineId: routineId, stepId: stepId, cycle: cycle), body: nil)
+    }
+
+    /// The last two weeks of cycles of the routines with steps.
+    public func history() async throws(APIError) -> RoutineHistory {
+        let data = try await fetch("history", accept: "application/json", limit: Self.maxResponseBytes * 4)
+        guard let history = try? ServerDates.decoder().decode(RoutineHistory.self, from: data) else {
+            throw .badResponse
+        }
+        return history
+    }
+
+    /// The photo of a check-off, as the JPEG abera.tech holds.
+    public func photo(completionId: UUID) async throws(APIError) -> Data {
+        let data = try await fetch(
+            "completions/\(completionId.uuidString.lowercased())/photo", accept: "image/jpeg",
+            limit: CompletionDraft.maxPhotoBytes)
+        guard CompletionDraft.isJPEG(data) else { throw .badResponse }
+        return data
+    }
+
+    private func fetch(_ action: String, accept: String, limit: Int) async throws(APIError) -> Data {
+        var request = request("GET", action, body: nil)
+        request.setValue(accept, forHTTPHeaderField: "Accept")
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.send(request)
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw .offline
+        }
+        switch response.statusCode {
+        case 200:
+            guard data.count <= limit else { throw .badResponse }
+            return data
+        case 401: throw .unpaired
+        case 404: throw .notFound
+        case 429: throw .rateLimited
+        default: throw .status(response.statusCode)
+        }
+    }
+
     public func createCountdown(_ draft: CountdownDraft) async throws(APIError) -> AlertsState {
         try await call("POST", "countdowns", body: draft.body)
     }
@@ -184,7 +245,7 @@ public struct AlertsClient: Sendable {
             return state
         case 401: throw .unpaired
         case 404: throw .notFound
-        case 400, 409: throw .refused(Self.reason(data))
+        case 400, 409, 413, 415, 422: throw .refused(Self.reason(data))
         case 429: throw .rateLimited
         default: throw .status(response.statusCode)
         }

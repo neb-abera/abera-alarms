@@ -53,6 +53,7 @@ targets:
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
         NSAlarmKitUsageDescription: Rings the alarms you set on abera.tech/alerts, with or without a connection.
+        NSCameraUsageDescription: Takes a photo when you check off a step, to show later what you did.
         UIBackgroundModes:
           # audio: the workout timer speaks with the phone locked.
           - audio

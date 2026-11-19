@@ -354,6 +354,93 @@ final class AppModel {
         }
     }
 
+    // MARK: Steps
+
+    /// The steps checked off, with the phone's own check-offs not yet sent laid over them.
+    var completions: [RoutineCompletion] { state?.routineCompletions ?? [] }
+    /// Check-offs waiting for a connection to reach abera.tech.
+    private(set) var waitingCompletions = 0
+    private(set) var stepError: String?
+
+    func completion(_ routine: Routine, _ ring: RoutineCycle.StepRing) -> RoutineCompletion? {
+        completions.first { $0.stepKey == ring.key }
+    }
+
+    /// Checks a step off for one cycle. Its alarm for that cycle is cancelled
+    /// at once, offline too. The photo is a JPEG.
+    func completeStep(
+        _ routine: Routine, cycle: RoutineCycle, step: RoutineStep, note: String? = nil, photo: Data? = nil,
+        removePhoto: Bool = false
+    ) async {
+        stepError = nil
+        let draft = CompletionDraft(
+            routineId: routine.id, stepId: step.id, cycle: cycle.stamp, note: note, removePhoto: removePhoto,
+            completedAt: completion(routine, cycle, step)?.completedAt ?? Date())
+        let result = await runReturning { await self.dependencies.sync.completeStep(draft, photo: photo) }
+        noteStepError(result.error)
+    }
+
+    func undoStep(_ routine: Routine, cycle: RoutineCycle, step: RoutineStep) async {
+        stepError = nil
+        let result = await runReturning {
+            await self.dependencies.sync.undoStep(routineId: routine.id, stepId: step.id, cycle: cycle.stamp)
+        }
+        noteStepError(result.error)
+    }
+
+    private func completion(_ routine: Routine, _ cycle: RoutineCycle, _ step: RoutineStep) -> RoutineCompletion? {
+        completions.first { $0.routineId == routine.id && $0.stepId == step.id && $0.cycle == cycle.stamp }
+    }
+
+    private func noteStepError(_ error: APIError?) {
+        switch error {
+        case .refused(let reason)?: stepError = reason
+        case .unpaired?: stepError = Self.describe(APIError.unpaired)
+        default: break
+        }
+    }
+
+    /// Makes `child` a step of `parent`, at the time it rang on its own, and
+    /// deletes it as an alarm. Works offline like any alarm change.
+    func subordinate(_ child: Routine, under parent: Routine) async {
+        switch RoutineChaining.subordinate(child, under: parent) {
+        case .failure(let refusal):
+            routineError = refusal.message
+        case .success(let draft):
+            guard await saveRoutine(id: parent.id, draft) else { return }
+            await deleteRoutine(child)
+        }
+    }
+
+    /// Makes a step an alarm of its own, at the time it rang as a step.
+    func separate(_ step: RoutineStep, from parent: Routine) async {
+        guard let (remaining, alarm) = RoutineChaining.separate(step.id, from: parent) else { return }
+        guard await saveRoutine(id: nil, alarm) else { return }
+        await saveRoutine(id: parent.id, remaining)
+    }
+
+    /// Deletes one step. The step after it keeps its time.
+    func deleteStep(_ step: RoutineStep, from parent: Routine) async {
+        var draft = parent.draft
+        draft.steps = RoutineChaining.remove(step.id, from: parent.steps)
+        await saveRoutine(id: parent.id, draft)
+    }
+
+    /// The cycle the Alarms tab shows under an alarm.
+    func shownCycle(_ routine: Routine, at now: Date) -> RoutineCycle? {
+        let window = TimeInterval((state?.stopAfterMinutes ?? AlertsState.defaultStopAfterMinutes) * 60)
+        return RoutineCycle.shown(routine, now: now, window: window, calendar: .current)
+    }
+
+    /// The last two weeks from abera.tech, or why they could not be read.
+    func history() async -> Result<RoutineHistory, APIError> {
+        await dependencies.sync.history()
+    }
+
+    func photo(_ id: UUID) async -> Data? {
+        try? await dependencies.sync.photo(completionId: id).get()
+    }
+
     // MARK: Countdowns
 
     /// The dates counted down to, as abera.tech holds them.
@@ -444,6 +531,7 @@ final class AppModel {
         if result.error == .unpaired, await dependencies.sync.pairing() == nil { paired = false }
         let waiting = await dependencies.sync.routineChanges().map(\.id)
         waitingRoutineChanges = waiting.count
+        waitingCompletions = await dependencies.sync.completionChanges().count
         let before = sending.status
         sending.settle(waiting: Set(waiting))
         for (id, status) in sending.status where status == .saved && before[id] != .saved { clearSavedSoon(id) }

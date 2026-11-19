@@ -15,12 +15,14 @@ public struct RoutineRing: Codable, Equatable, Hashable, Sendable, Identifiable 
     public var acknowledgedAt: Date?
     /// "phone", "browser" or "pushover".
     public var acknowledgedVia: String?
+    /// The step this ring is for. Nil for the routine's own ring.
+    public var stepId: UUID?
 
     public var id: String { key }
 
     public init(
         key: String, routineId: UUID, label: String, alertAt: Date, startsAt: Date, acknowledged: Bool = false,
-        acknowledgedAt: Date? = nil, acknowledgedVia: String? = nil
+        acknowledgedAt: Date? = nil, acknowledgedVia: String? = nil, stepId: UUID? = nil
     ) {
         self.key = key
         self.routineId = routineId
@@ -30,6 +32,7 @@ public struct RoutineRing: Codable, Equatable, Hashable, Sendable, Identifiable 
         self.acknowledged = acknowledged
         self.acknowledgedAt = acknowledgedAt
         self.acknowledgedVia = acknowledgedVia
+        self.stepId = stepId
     }
 
     public init(from decoder: any Decoder) throws {
@@ -42,6 +45,7 @@ public struct RoutineRing: Codable, Equatable, Hashable, Sendable, Identifiable 
         acknowledged = try container.decodeIfPresent(Bool.self, forKey: .acknowledged) ?? false
         acknowledgedAt = try container.decodeIfPresent(Date.self, forKey: .acknowledgedAt)
         acknowledgedVia = try container.decodeIfPresent(String.self, forKey: .acknowledgedVia)
+        stepId = try container.decodeIfPresent(UUID.self, forKey: .stepId)
     }
 
     /// The key of the ring being stopped at `now`: the latest scheduled ring

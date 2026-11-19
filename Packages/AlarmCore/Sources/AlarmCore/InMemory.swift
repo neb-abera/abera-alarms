@@ -199,6 +199,137 @@ public actor FakeAlertsServer: HTTPTransport {
 
     public func setRoutines(_ routines: [Routine]) { state.routines = routines }
 
+    /// The zone abera.tech plans in: the phone's.
+    public private(set) var calendar = Calendar.current
+    public func setCalendar(_ calendar: Calendar) { self.calendar = calendar }
+
+    static func hasKey(_ key: String, in request: URLRequest) -> Bool {
+        guard let data = request.httpBody,
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return false }
+        return object[key] != nil && !(object[key] is NSNull)
+    }
+
+    /// A check-off as abera.tech stores it.
+    public struct StoredCompletion: Sendable, Equatable {
+        public var id: UUID
+        public var routineId: UUID
+        public var stepId: UUID
+        public var cycle: String
+        public var completedAt: Date
+        public var note: String?
+        public var photo: Data?
+
+        public init(
+            id: UUID, routineId: UUID, stepId: UUID, cycle: String, completedAt: Date, note: String? = nil,
+            photo: Data? = nil
+        ) {
+            self.id = id
+            self.routineId = routineId
+            self.stepId = stepId
+            self.cycle = cycle
+            self.completedAt = completedAt
+            self.note = note
+            self.photo = photo
+        }
+    }
+
+    public private(set) var completions: [StoredCompletion] = []
+
+    public func setCompletions(_ completions: [StoredCompletion]) {
+        self.completions = completions
+        publishCompletions()
+    }
+
+    private func publishCompletions() {
+        state.routineCompletions = completions.map {
+            RoutineCompletion(
+                routineId: $0.routineId, stepId: $0.stepId, cycle: $0.cycle, completedAt: $0.completedAt, id: $0.id,
+                note: $0.note, hasPhoto: $0.photo != nil)
+        }
+    }
+
+    private struct CompletionRequest: Decodable {
+        var note: String?
+        var photo: String?
+        var completedAt: Date?
+    }
+
+    /// PUT or DELETE `routines/{id}/steps/{stepId}/cycles/{cycle}/completion`.
+    private func completion(_ request: URLRequest, path: String, remove: Bool) -> (Data, HTTPURLResponse) {
+        let parts = path.split(separator: "/").map(String.init)
+        // api alerts routines {id} steps {stepId} cycles {cycle} completion
+        guard parts.count == 9, let routineId = UUID(uuidString: parts[3]), let stepId = UUID(uuidString: parts[5])
+        else { return respond(request, 404, Data()) }
+        let cycle = parts[7].removingPercentEncoding ?? parts[7]
+        guard let routine = state.routines.first(where: { $0.id == routineId }),
+            routine.steps.contains(where: { $0.id == stepId })
+        else { return respond(request, 404, Data()) }
+        let existing = completions.firstIndex { $0.routineId == routineId && $0.stepId == stepId && $0.cycle == cycle }
+        if remove {
+            if let existing { completions.remove(at: existing) }
+        } else {
+            guard let data = request.httpBody,
+                let body = try? ServerDates.decoder().decode(CompletionRequest.self, from: data)
+            else { return respond(request, 400, Data()) }
+            var photo: Data? = existing.flatMap { completions[$0].photo }
+            if let text = body.photo {
+                if text.isEmpty {
+                    photo = nil
+                } else {
+                    guard let bytes = Data(base64Encoded: text), CompletionDraft.isJPEG(bytes),
+                        bytes.count <= CompletionDraft.maxPhotoBytes
+                    else {
+                        return respond(request, 400, Data(#"{"errors":{"photo":["A JPEG of at most 2 MB."]}}"#.utf8))
+                    }
+                    photo = bytes
+                }
+            }
+            let stored = StoredCompletion(
+                id: existing.map { completions[$0].id } ?? UUID(), routineId: routineId, stepId: stepId, cycle: cycle,
+                completedAt: body.completedAt ?? now(), note: body.note, photo: photo)
+            if let existing { completions[existing] = stored } else { completions.append(stored) }
+        }
+        publishCompletions()
+        return respond(request, 200, (try? ServerDates.encoder().encode(state)) ?? Data())
+    }
+
+    /// Two weeks of cycles of the routines with steps, newest first.
+    func history() -> RoutineHistory {
+        let at = now()
+        let from = at.addingTimeInterval(-Double(RoutineHistory.days) * 86_400)
+        let acknowledged = Dictionary(
+            state.routineRings.filter(\.acknowledged).map { ($0.key, $0.acknowledgedAt ?? at) },
+            uniquingKeysWith: { first, _ in first })
+        var cycles: [RoutineHistory.Cycle] = []
+        for routine in state.routines where !routine.steps.isEmpty {
+            var ring = routine.schedule.nextFire(after: from, calendar: calendar)
+            while let time = ring, time <= at {
+                let cycle = RoutineCycle.make(routine, at: time, calendar: calendar)
+                cycles.append(
+                    RoutineHistory.Cycle(
+                        routineId: routine.id, label: routine.label, cycle: cycle.stamp, at: time,
+                        acknowledgedAt: acknowledged[cycle.key],
+                        steps: cycle.steps.map { step in
+                            let done = completions.first {
+                                $0.routineId == routine.id && $0.stepId == step.step.id && $0.cycle == cycle.stamp
+                            }
+                            return RoutineHistory.Step(
+                                stepId: step.step.id, label: step.step.sentLabel, at: step.at,
+                                acknowledgedAt: acknowledged[step.key],
+                                completion: done.map {
+                                    RoutineHistory.Completion(
+                                        id: $0.id, completedAt: $0.completedAt, note: $0.note, hasPhoto: $0.photo != nil
+                                    )
+                                })
+                        }))
+                guard routine.repeats else { break }
+                ring = routine.schedule.nextFire(after: time, calendar: calendar)
+            }
+        }
+        return RoutineHistory(cycles: cycles.sorted { $0.at > $1.at })
+    }
+
     /// A countdown body checked as abera.tech checks it: nil and a 400 problem
     /// keyed by field when it is refused.
     private func countdownDraft(_ request: URLRequest) -> (CountdownDraft?, Data) {
@@ -324,6 +455,18 @@ public actor FakeAlertsServer: HTTPTransport {
             let event = Self.event(of: key)
             state.alerts.removeAll { scope == .series ? Self.event(of: $0.key) == event : $0.key == key }
             deletions.append("\(key) \(scope.rawValue)")
+        case ("PUT", _) where path.hasSuffix("/completion"):
+            return completion(request, path: path, remove: false)
+        case ("DELETE", _) where path.hasSuffix("/completion"):
+            return completion(request, path: path, remove: true)
+        case ("GET", "/api/alerts/history"):
+            return respond(request, 200, (try? ServerDates.encoder().encode(history())) ?? Data())
+        case ("GET", _) where path.hasPrefix("/api/alerts/completions/") && path.hasSuffix("/photo"):
+            let id = path.split(separator: "/").dropLast().last.flatMap { UUID(uuidString: String($0)) }
+            guard let id, let photo = completions.first(where: { $0.id == id })?.photo else {
+                return respond(request, 404, Data())
+            }
+            return respond(request, 200, photo)
         case ("POST", "/api/alerts/routines"):
             guard let draft = routineDraft(request) else { return respond(request, 400, Data()) }
             guard state.routines.count < RoutineDraft.maxRoutines else {
@@ -332,7 +475,8 @@ public actor FakeAlertsServer: HTTPTransport {
             state.routines.append(
                 Routine(
                     id: UUID(), label: draft.sentLabel, hour: draft.hour, minute: draft.minute, days: draft.days,
-                    enabled: draft.enabled, snoozeMinutes: draft.snoozeMinutes))
+                    enabled: draft.enabled, snoozeMinutes: draft.snoozeMinutes, steps: draft.steps.map(\.sent),
+                    updatedAt: now()))
             sortRoutines()
             return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
         case ("PUT", _) where path.hasPrefix("/api/alerts/routines/"):
@@ -344,6 +488,9 @@ public actor FakeAlertsServer: HTTPTransport {
             state.routines[index].days = draft.days
             state.routines[index].enabled = draft.enabled
             state.routines[index].snoozeMinutes = draft.snoozeMinutes
+            // As abera.tech: a body with no steps keeps the ones stored.
+            if Self.hasKey("steps", in: request) { state.routines[index].steps = draft.steps.map(\.sent) }
+            state.routines[index].updatedAt = now()
             routineUpdates.append(state.routines[index])
             sortRoutines()
         case ("DELETE", _) where path.hasPrefix("/api/alerts/routines/"):

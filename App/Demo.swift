@@ -3,6 +3,7 @@
     import AlarmKit
     import Foundation
     import Synchronization
+    import UIKit
 
     /// The app with abera.tech and AlarmKit in memory, for the UI tests and
     /// for trying the screens in the simulator. Debug builds only.
@@ -16,29 +17,96 @@
     /// `-demo-started` adds an event that started 10 minutes ago and ends in 20.
     /// `-demo-invited` refuses every event edit as Google refuses one of an
     /// event someone else organized.
+    /// `-demo-steps` adds Morning at 06:00 every day with two steps, and a
+    /// check-off yesterday with a note and a photo.
+    /// `-demo-step-soon` adds Pills at the current minute with two steps that
+    /// ring 2 minutes later. `-demo-real-alarms` gives every alarm to
+    /// AlarmKit, so a UI test hears a step ring through iOS.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
 
         static func fromLaunchArguments(_ arguments: [String] = ProcessInfo.processInfo.arguments) -> Dependencies? {
             guard arguments.contains("-demo") else { return nil }
+            var initial = state(now: Date(), started: arguments.contains("-demo-started"))
+            if arguments.contains("-demo-steps") { initial.routines.append(morning) }
+            if arguments.contains("-demo-step-soon") { initial.routines.append(pills(now: Date())) }
             let server = FakeAlertsServer(
-                state: state(now: Date(), started: arguments.contains("-demo-started")), token: token,
+                state: initial, token: token,
                 offline: arguments.contains("-demo-offline"),
                 latency: arguments.contains("-demo-slow") ? .seconds(8) : .zero)
             if arguments.contains("-demo-invited") {
                 Task { await server.refuseNewEvents("Only the organizer can change this event.") }
             }
+            if arguments.contains("-demo-steps") {
+                Task { @MainActor in
+                    let seed = yesterdaysPills()
+                    await server.setCompletions([seed])
+                }
+            }
             let pairing = Pairing(server: Pairing.production, token: token)
+            let alarms: any AlarmScheduling =
+                arguments.contains("-demo-real-alarms") ? AuthorizingScheduler() : MemoryAlarms()
             return Dependencies(
                 sync: AlarmSync(
                     credentials: MemoryCredentials(arguments.contains("-demo-unpaired") ? nil : pairing),
                     transport: server,
-                    alarms: MemoryAlarms(),
+                    alarms: alarms,
                     documents: MemoryDocuments()),
                 permissions: DemoPermissions(),
                 allowedServers: [Pairing.production],
                 device: DemoDevice(arguments))
+        }
+
+        static let morningID = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!
+        static let medicationID = UUID(uuidString: "00000000-0000-4000-8000-000000000031")!
+
+        static let morning = Routine(
+            id: morningID, label: "Morning", hour: 6, minute: 0, days: [1, 2, 3, 4, 5, 6, 7],
+            steps: [
+                RoutineStep(id: medicationID, label: "Take medication", offsetMinutes: 5),
+                RoutineStep(
+                    id: UUID(uuidString: "00000000-0000-4000-8000-000000000032")!, label: "Beauty care",
+                    offsetMinutes: 5),
+            ], updatedAt: Date(timeIntervalSinceNow: -30 * 86_400))
+
+        /// The medication of the cycle before the one under way, checked off
+        /// with a note and a photo.
+        @MainActor static func yesterdaysPills() -> FakeAlertsServer.StoredCompletion {
+            let now = Date()
+            let current = RoutineCycle.around(morning, now: now, calendar: .current).current?.at ?? now
+            let before = RoutineCycle.around(morning, now: current.addingTimeInterval(-60), calendar: .current).current
+            return FakeAlertsServer.StoredCompletion(
+                id: UUID(), routineId: morningID, stepId: medicationID, cycle: before?.stamp ?? "",
+                completedAt: (before?.at ?? now).addingTimeInterval(360), note: "Vitamin D, 2000 IU",
+                photo: samplePhoto)
+        }
+
+        /// A 64 by 64 green square as a JPEG.
+        @MainActor static var samplePhoto: Data? {
+            let size = CGSize(width: 64, height: 64)
+            let image = UIGraphicsImageRenderer(size: size).image { context in
+                UIColor.systemGreen.setFill()
+                context.fill(CGRect(origin: .zero, size: size))
+            }
+            return image.jpegData(compressionQuality: 0.8)
+        }
+
+        /// Pills at the current minute, every day. Skip me and Take
+        /// medication both ring 2 minutes after it.
+        static func pills(now: Date) -> Routine {
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: now)
+            return Routine(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000004")!, label: "Pills",
+                hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: [1, 2, 3, 4, 5, 6, 7],
+                steps: [
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000041")!, label: "Skip me",
+                        offsetMinutes: 2),
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000042")!, label: "Take medication",
+                        offsetMinutes: 0),
+                ], updatedAt: now.addingTimeInterval(-86_400))
         }
 
         static func state(now: Date, started: Bool = false) -> AlertsState {
@@ -145,6 +213,22 @@
             realTimer ? await SystemDevice().timerEndsAt() : timer.withLock { $0 }
         }
         func timerLabel() async -> String { label.withLock { $0 } }
+    }
+
+    /// AlarmKit, after asking once for permission to set alarms.
+    struct AuthorizingScheduler: AlarmScheduling {
+        let real = AlarmKitScheduler()
+
+        func scheduledIDs() async throws -> Set<UUID> { try await real.scheduledIDs() }
+        func schedule(_ alarm: DesiredAlarm) async throws {
+            if AlarmManager.shared.authorizationState == .notDetermined {
+                _ = try? await AlarmManager.shared.requestAuthorization()
+            }
+            try await real.schedule(alarm)
+        }
+        func cancel(_ id: UUID) async throws { try await real.cancel(id) }
+        func ringingIDs() async throws -> Set<UUID> { try await real.ringingIDs() }
+        func stop(_ id: UUID) async throws { try await real.stop(id) }
     }
 
     struct DemoPermissions: AlarmPermissions {
