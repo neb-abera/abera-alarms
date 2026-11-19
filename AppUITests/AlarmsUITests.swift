@@ -870,7 +870,10 @@ final class AlarmsUITests: XCTestCase {
 
         gym.tap()
         let delete = app.buttons["delete-routine"]
-        XCTAssertTrue(delete.waitForExistence(timeout: 5))
+        // It sits below the Steps section.
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        for _ in 0..<5 where !delete.isHittable { app.swipeUp() }
+        XCTAssertTrue(delete.waitForExistence(timeout: 5), app.debugDescription)
         delete.tap()
         XCTAssertTrue(waitForGone(routine(app, "Gym")))
     }
@@ -1393,6 +1396,7 @@ extension AlarmsUITests {
         XCTAssertTrue(check.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(check, in: app)
         XCTAssertEqual(check.label, "Check off Take medication")
+        let checked = check.identifier
         check.tap()
         XCTAssertTrue(poll(5) { check.label == "Undo Take medication" }, check.label)
         let line = first(app, "step-Take medication-")
@@ -1404,10 +1408,14 @@ extension AlarmsUITests {
         let open = app.buttons["open-checklist"]
         XCTAssertTrue(open.waitForExistence(timeout: 5), app.debugDescription)
         open.tap()
+        // The list under the alarm shows the time under way until its steps
+        // ring out, then the next. The checklist shows both: the one checked
+        // off, and the other still to check.
         let checks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'check-Take medication-'"))
         XCTAssertTrue(poll(10) { checks.count == 2 }, app.debugDescription)
-        XCTAssertEqual(checks.element(boundBy: 0).label, "Undo Take medication")
-        XCTAssertEqual(checks.element(boundBy: 1).label, "Check off Take medication")
+        XCTAssertEqual(app.buttons[checked].label, "Undo Take medication")
+        let other = (0..<2).map { checks.element(boundBy: $0) }.first { $0.identifier != checked }
+        XCTAssertEqual(other?.label, "Check off Take medication")
         app.navigationBars.buttons.element(boundBy: 0).tap()
 
         // Undo puts it back.
@@ -1416,12 +1424,11 @@ extension AlarmsUITests {
         XCTAssertTrue(poll(5) { check.label == "Check off Take medication" }, check.label)
     }
 
-    func testACheckOffTakesANoteAndHistoryShowsItWithPhotos() {
+    func testACheckOffKeepsItsNote() {
         let app = launch("-demo-steps", tab: nil)
         let line = first(app, "step-Take medication-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(line, in: app)
-        let stamp = String(line.identifier.dropFirst("step-Take medication-".count))
         line.tap()
         // A field that grows to several lines can read as a text view.
         let note = app.descendants(matching: .any).matching(identifier: "completion-note").firstMatch
@@ -1431,18 +1438,29 @@ extension AlarmsUITests {
         app.buttons["save-completion"].tap()
         XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
 
-        let history = app.buttons["steps-history"]
-        for _ in 0..<4 where !history.isHittable { app.collectionViews.firstMatch.swipeDown() }
-        XCTAssertTrue(history.waitForExistence(timeout: 5))
-        history.tap()
-        let entry = app.descendants(matching: .any)["history-step-Take medication-\(stamp)"].firstMatch
-        XCTAssertTrue(entry.waitForExistence(timeout: 10), app.debugDescription)
-        XCTAssertTrue(entry.label.contains("Lisinopril 10 mg"), entry.label)
-        let tally = app.descendants(matching: .any)["tally-Take medication"].firstMatch
-        XCTAssertTrue(tally.exists)
-        XCTAssertTrue(tally.label.contains("of 14") || tally.label.contains("of 15"), tally.label)
+        line.tap()
+        XCTAssertTrue(note.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(poll(5) { (note.value as? String) == "Lisinopril 10 mg" }, String(describing: note.value))
+    }
 
-        // An earlier check-off carries a photo.
+    func testHistoryListsEachStepWithItsNoteAndPhoto() {
+        let app = launch("-demo-steps", tab: nil)
+        let history = app.buttons["steps-history"]
+        XCTAssertTrue(history.waitForExistence(timeout: 10), app.debugDescription)
+        history.tap()
+        let tally = app.descendants(matching: .any)["tally-Take medication"].firstMatch
+        XCTAssertTrue(tally.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(tally.label.contains("1 of"), tally.label)
+        let earlier = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'history-step-Take medication-' AND label CONTAINS 'Vitamin D'")
+        ).firstMatch
+        for _ in 0..<4 where !earlier.exists { app.swipeUp() }
+        XCTAssertTrue(earlier.waitForExistence(timeout: 5), app.debugDescription)
+        let missed = app.descendants(matching: .any).matching(
+            NSPredicate(format: "identifier BEGINSWITH 'history-step-Beauty care-' AND label CONTAINS 'Missed'")
+        ).firstMatch
+        XCTAssertTrue(missed.exists, app.debugDescription)
+
         let photo = first(app, "history-photo-Take medication-")
         for _ in 0..<4 where !photo.isHittable { app.swipeUp() }
         XCTAssertTrue(photo.waitForExistence(timeout: 5), app.debugDescription)
@@ -1460,11 +1478,22 @@ extension AlarmsUITests {
         let choose = app.buttons["choose-photo"]
         XCTAssertTrue(choose.waitForExistence(timeout: 5), app.debugDescription)
         choose.tap()
-        // The picker runs in another process. Its grid shows in the app's tree.
+        // The picker runs in another process. iOS 26 lists its grid in the
+        // app's tree and calls the first photo not hittable while the
+        // privacy note animates. iOS 27 lists none of it and shows Loading
+        // for several seconds (CI recording, 2026-11-19). Both draw the first
+        // photo at the left, 72% down the screen, once loaded.
         let picture = app.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
-        XCTAssertTrue(picture.waitForExistence(timeout: 20), app.debugDescription)
-        picture.tap()
-        XCTAssertTrue(app.images["completion-photo"].waitForExistence(timeout: 20), app.debugDescription)
+        let shown = app.images["completion-photo"]
+        for _ in 0..<3 where !shown.exists {
+            if picture.waitForExistence(timeout: 10) {
+                picture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+            } else {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.72)).tap()
+            }
+            _ = shown.waitForExistence(timeout: 10)
+        }
+        XCTAssertTrue(shown.exists, app.debugDescription)
         app.buttons["save-completion"].tap()
         XCTAssertTrue(waitFor(line, labelContaining: "Done at", timeout: 10), line.label)
     }
@@ -1480,7 +1509,8 @@ extension AlarmsUITests {
         let wake = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Wake,'")).firstMatch
         XCTAssertTrue(wake.waitForExistence(timeout: 5), app.debugDescription)
         wake.tap()
-        let confirm = app.buttons["confirm-make-step"]
+        // iOS 27 shows the confirmation as a popover, and lists its button twice.
+        let confirm = app.buttons["confirm-make-step"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
         confirm.tap()
 

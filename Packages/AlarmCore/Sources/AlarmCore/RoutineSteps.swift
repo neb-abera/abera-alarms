@@ -167,12 +167,33 @@ public struct RoutineCompletion: Codable, Equatable, Hashable, Sendable {
     /// The cycle's stamp, "yyyy-MM-ddTHH:mm".
     public var cycle: String
     public var completedAt: Date
+    /// abera.tech's id, for the photo. Nil until abera.tech has it, and from an older server.
+    public var id: UUID?
+    public var note: String?
+    public var hasPhoto: Bool
 
-    public init(routineId: UUID, stepId: UUID, cycle: String, completedAt: Date) {
+    public init(
+        routineId: UUID, stepId: UUID, cycle: String, completedAt: Date, id: UUID? = nil, note: String? = nil,
+        hasPhoto: Bool = false
+    ) {
         self.routineId = routineId
         self.stepId = stepId
         self.cycle = cycle
         self.completedAt = completedAt
+        self.id = id
+        self.note = note
+        self.hasPhoto = hasPhoto
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        routineId = try container.decode(UUID.self, forKey: .routineId)
+        stepId = try container.decode(UUID.self, forKey: .stepId)
+        cycle = try container.decode(String.self, forKey: .cycle)
+        completedAt = try container.decode(Date.self, forKey: .completedAt)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        hasPhoto = try container.decodeIfPresent(Bool.self, forKey: .hasPhoto) ?? false
     }
 
     /// The step ring it answers.
@@ -229,12 +250,15 @@ public enum CompletionChange: Codable, Equatable, Sendable {
     {
         var out = completions
         for change in changes {
+            let before = out.first { $0.stepKey == change.stepKey }
             out.removeAll { $0.stepKey == change.stepKey }
             if case .complete(let draft) = change {
+                // A photo waiting on the phone shows from there. One abera.tech holds stays unless removed.
                 out.append(
                     RoutineCompletion(
                         routineId: draft.routineId, stepId: draft.stepId, cycle: draft.cycle,
-                        completedAt: draft.completedAt))
+                        completedAt: draft.completedAt, id: before?.id, note: draft.sentNote,
+                        hasPhoto: !draft.removePhoto && (draft.photoName != nil || before?.hasPhoto == true)))
             }
         }
         return out
@@ -352,9 +376,10 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
             self.steps = steps
         }
 
-        /// "2 of 3 done".
-        public var doneText: String {
-            "\(steps.filter { $0.completion != nil }.count) of \(steps.count) done"
+        /// "2 of 3 done". A step still to ring counts once it is checked off.
+        public func doneText(now: Date) -> String {
+            let counted = steps.filter { $0.completion != nil || $0.at <= now }
+            return "\(counted.filter { $0.completion != nil }.count) of \(counted.count) done"
         }
     }
 
@@ -398,12 +423,13 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
         public var id: String { label }
     }
 
-    /// Per step label, how many of its cycles were checked off: the
-    /// weekend's compliance check. Steps in label order.
-    public var tally: [Tally] {
+    /// Per step label, how many of its rings were checked off: the
+    /// weekend's compliance check. A step still to ring counts only once it
+    /// is checked off. Steps in label order.
+    public func tally(now: Date) -> [Tally] {
         var counts: [String: (Int, Int)] = [:]
         for cycle in cycles {
-            for step in cycle.steps {
+            for step in cycle.steps where step.completion != nil || step.at <= now {
                 let (done, of) = counts[step.label] ?? (0, 0)
                 counts[step.label] = (done + (step.completion == nil ? 0 : 1), of + 1)
             }

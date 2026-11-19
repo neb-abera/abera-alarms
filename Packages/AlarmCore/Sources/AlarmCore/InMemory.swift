@@ -199,6 +199,10 @@ public actor FakeAlertsServer: HTTPTransport {
 
     public func setRoutines(_ routines: [Routine]) { state.routines = routines }
 
+    /// The zone abera.tech plans in: the phone's.
+    public private(set) var calendar = Calendar.current
+    public func setCalendar(_ calendar: Calendar) { self.calendar = calendar }
+
     static func hasKey(_ key: String, in request: URLRequest) -> Bool {
         guard let data = request.httpBody,
             let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -239,7 +243,9 @@ public actor FakeAlertsServer: HTTPTransport {
 
     private func publishCompletions() {
         state.routineCompletions = completions.map {
-            RoutineCompletion(routineId: $0.routineId, stepId: $0.stepId, cycle: $0.cycle, completedAt: $0.completedAt)
+            RoutineCompletion(
+                routineId: $0.routineId, stepId: $0.stepId, cycle: $0.cycle, completedAt: $0.completedAt, id: $0.id,
+                note: $0.note, hasPhoto: $0.photo != nil)
         }
     }
 
@@ -289,7 +295,7 @@ public actor FakeAlertsServer: HTTPTransport {
     }
 
     /// Two weeks of cycles of the routines with steps, newest first.
-    func history(calendar: Calendar = .current) -> RoutineHistory {
+    func history() -> RoutineHistory {
         let at = now()
         let from = at.addingTimeInterval(-Double(RoutineHistory.days) * 86_400)
         let acknowledged = Dictionary(

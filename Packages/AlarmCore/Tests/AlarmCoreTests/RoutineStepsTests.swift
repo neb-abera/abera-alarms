@@ -223,6 +223,15 @@ import Testing
         #expect(undone == [.undo(routineId: routineID, stepId: medication.id, cycle: "c")])
     }
 
+    @Test func aStatusFromAnOlderServerHasNoNoteOrPhoto() throws {
+        let completion = try ServerDates.decoder().decode(
+            RoutineCompletion.self,
+            from: Data(
+                #"{"routineId":"00000000-0000-4000-8000-0000000000a1","stepId":"00000000-0000-4000-8000-0000000000b1","cycle":"2026-11-19T06:00","completedAt":"2026-11-19T11:06:00Z"}"#
+                    .utf8))
+        #expect(completion.id == nil && completion.note == nil && !completion.hasPhoto)
+    }
+
     @Test func theNoteIsTrimmedAndBounded() {
         #expect(draft(medication, "c", note: "  ").sentNote == nil)
         #expect(draft(medication, "c", note: " Lisinopril ").sentNote == "Lisinopril")
@@ -265,6 +274,10 @@ import Testing
         #expect(await rig.sync.completionChanges().count == 1)
         #expect(await rig.alarms.alarms[AlarmID.of(key: key)] == nil)
         #expect(offline.state?.routineCompletions.map(\.stepKey) == [key])
+        // The note and photo show from the phone before abera.tech has them.
+        #expect(offline.state?.routineCompletions.first?.note == "Lisinopril 10 mg")
+        #expect(offline.state?.routineCompletions.first?.hasPhoto == true)
+        #expect(offline.state?.routineCompletions.first?.id == nil)
         #expect(await rig.sync.lastState()?.routineCompletions.map(\.stepKey) == [key])
         // The next cycle still rings.
         #expect(await rig.alarms.alarms[AlarmID.of(key: stepKey(medication, "2026-11-20T06:00"))] != nil)
@@ -300,6 +313,10 @@ import Testing
         _ = await rig.sync.completeStep(draft(medication, "2026-11-19T06:00", note: "Late"), photo: nil)
         #expect(await rig.server.completions.first?.photo == Self.jpeg)
         #expect(await rig.server.completions.first?.note == "Late")
+        let listed = try #require(await rig.sync.lastState()?.routineCompletions.first)
+        #expect(listed.note == "Late")
+        #expect(listed.hasPhoto)
+        #expect(listed.id == (await rig.server.completions.first?.id))
         var remove = draft(medication, "2026-11-19T06:00")
         remove.removePhoto = true
         _ = await rig.sync.completeStep(remove, photo: Self.jpeg)
@@ -413,22 +430,24 @@ import Testing
 
     @Test func historyListsEachCycleWithItsStepsDoneOrMissed() async throws {
         let rig = rig([wake], now: at(6, 6))
+        await rig.server.setCalendar(calendar)
         _ = await rig.sync.completeStep(draft(medication, "2026-11-19T06:00", note: "10 mg"), photo: Self.jpeg)
         let history = try await rig.sync.history().get()
         #expect(history.days == 14)
         #expect(history.cycles.count == 14)
         let today = try #require(history.cycles.first)
         #expect(today.cycle == "2026-11-19T06:00")
-        #expect(today.doneText == "1 of 2 done")
+        #expect(today.doneText(now: at(6, 6)) == "1 of 1 done", "beauty care rings at 06:10")
+        #expect(today.doneText(now: at(6, 11)) == "1 of 2 done")
         let done = try #require(today.steps.first?.completion)
         #expect(done.note == "10 mg")
         #expect(done.hasPhoto)
         #expect(try await rig.sync.photo(completionId: done.id).get() == Self.jpeg)
-        #expect(history.cycles[1].doneText == "0 of 2 done")
-        let tally = history.tally
+        #expect(history.cycles[1].doneText(now: at(6, 6)) == "0 of 2 done")
+        let tally = history.tally(now: at(6, 6))
         #expect(tally.map(\.label) == ["Beauty care routine", "Take medication"])
         #expect(tally.map(\.done) == [0, 1])
-        #expect(tally.map(\.of) == [14, 14])
+        #expect(tally.map(\.of) == [13, 14])
     }
 
     @Test func historyAndPhotosNeedAPairing() async {

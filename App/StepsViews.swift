@@ -400,14 +400,10 @@ struct CompletionSheet: View {
                     .ignoresSafeArea()
             }
             .task {
-                if let history = try? await model.history().get(),
-                    let stored = history.cycles.first(where: {
-                        $0.routineId == routine.id && $0.cycle == cycle.stamp
-                    })?.steps.first(where: { $0.stepId == ring.step.id })?.completion
-                {
-                    if note.isEmpty { note = stored.note ?? "" }
-                    if stored.hasPhoto { storedPhoto = await model.photo(stored.id) }
-                }
+                // The status carries the note and whether a photo is kept, offline too.
+                guard let done else { return }
+                if note.isEmpty { note = done.note ?? "" }
+                if done.hasPhoto, let id = done.id { storedPhoto = await model.photo(id) }
             }
         }
     }
@@ -508,7 +504,7 @@ struct HistoryView: View {
                             .accessibilityIdentifier("history-empty")
                     } else {
                         Section("Last \(history.days) days") {
-                            ForEach(history.tally) { row in
+                            ForEach(history.tally(now: Date())) { row in
                                 LabeledContent(row.label, value: "\(row.done) of \(row.of)")
                                     .accessibilityIdentifier("tally-\(row.label)")
                             }
@@ -524,7 +520,7 @@ struct HistoryView: View {
                                 HStack {
                                     Text("\(cycle.label), \(StepText.when(cycle.at))")
                                     Spacer()
-                                    Text(cycle.doneText)
+                                    Text(cycle.doneText(now: Date()))
                                 }
                                 .accessibilityElement(children: .combine)
                                 .accessibilityIdentifier("history-\(cycle.label)-\(cycle.cycle)")
@@ -571,8 +567,11 @@ struct HistoryStepRow: View {
 
     var body: some View {
         HStack(alignment: .top) {
-            Image(systemName: step.completion == nil ? "xmark.circle" : "checkmark.circle.fill")
-                .foregroundStyle(step.completion == nil ? Color.red : Color.green)
+            Image(
+                systemName: step.completion != nil
+                    ? "checkmark.circle.fill" : step.at > Date() ? "circle" : "xmark.circle"
+            )
+            .foregroundStyle(step.completion != nil ? Color.green : step.at > Date() ? Color.secondary : Color.red)
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.label)
                 if let done = step.completion {
@@ -582,6 +581,10 @@ struct HistoryStepRow: View {
                     if let note = done.note {
                         Text(note).font(.caption)
                     }
+                } else if step.at > Date() {
+                    Text("Rings at \(step.at.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     Text("Missed. It rang at \(step.at.formatted(date: .omitted, time: .shortened)).")
                         .font(.caption)
