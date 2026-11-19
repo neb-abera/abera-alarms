@@ -1554,6 +1554,8 @@ extension AlarmsUITests {
     /// stays silent. Take medication rings at the same minute and stops on
     /// Stop.
     func testAStepRingsThroughIOSAndACheckedOffStepDoesNot() throws {
+        // The step rings up to 2 minutes after launch, past the default allowance of 2 minutes.
+        executionTimeAllowance = 300
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let app = launch("-demo-step-soon", "-demo-real-alarms", tab: nil)
         let allow = springboard.buttons["Allow"].firstMatch
