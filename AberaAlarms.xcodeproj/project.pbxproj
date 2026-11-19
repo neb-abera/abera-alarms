@@ -15,6 +15,7 @@
 		2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875322B8C145E438EE7839FA /* RestView.swift */; };
 		3F2C4196F064F18529EC988F /* beacon.caf in Resources */ = {isa = PBXBuildFile; fileRef = 353CC3BC76C14D96A55388B0 /* beacon.caf */; };
 		3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */; };
+		42220319EE8008F3B60C5B17 /* StepsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44B5B7BA28B993F9C5F2EEE /* StepsViews.swift */; };
 		5EE8C24CEB42BE45177F402B /* AlarmKitScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */; };
 		6B7962F1731E152BBCED7696 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD10358D4297D739F6D33457 /* Assets.xcassets */; };
 		6D52A8647A8176E4DD28B934 /* RestActivity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75EC5437F55BD0851B427512 /* RestActivity.swift */; };
@@ -106,6 +107,7 @@
 		ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculatorView.swift; sourceTree = "<group>"; };
 		AF32BE35666133BE9BB5CF35 /* AberaAlarmsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AberaAlarmsApp.swift; sourceTree = "<group>"; };
 		B3D757DF0CE2B28CA2EF99FC /* AberaAlarms.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = AberaAlarms.entitlements; sourceTree = "<group>"; };
+		B44B5B7BA28B993F9C5F2EEE /* StepsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepsViews.swift; sourceTree = "<group>"; };
 		B890D84B86C41523A8B16CA1 /* WorkoutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutView.swift; sourceTree = "<group>"; };
 		CA375A6D175B012E7A00735A /* PushDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushDelegate.swift; sourceTree = "<group>"; };
 		CD10358D4297D739F6D33457 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -198,6 +200,7 @@
 				1B571278D349722D70FF8D3E /* RoutinesView.swift */,
 				1DDA1691D4C9004212B0B36B /* RulesView.swift */,
 				109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */,
+				B44B5B7BA28B993F9C5F2EEE /* StepsViews.swift */,
 				A783C0B2E1BA54C7B72F43B0 /* Views.swift */,
 				18942D83DFFA3BC6C8B7F613 /* WidgetFeed.swift */,
 				B890D84B86C41523A8B16CA1 /* WorkoutView.swift */,
@@ -386,6 +389,7 @@
 				AB31ED880A43259E46F1BCB6 /* RoutinesView.swift in Sources */,
 				F61EF2EE3611B68B6478F5DD /* RulesView.swift in Sources */,
 				3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */,
+				42220319EE8008F3B60C5B17 /* StepsViews.swift in Sources */,
 				EE865A5050DC3D50560C7919 /* Views.swift in Sources */,
 				863EED47AD906A64D07F5160 /* WidgetFeed.swift in Sources */,
 				E4DC7525B58540D4E190F542 /* WidgetStore.swift in Sources */,

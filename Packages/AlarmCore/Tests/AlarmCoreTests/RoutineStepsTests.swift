@@ -1,11 +1,11 @@
 import Foundation
 import Testing
 
+@testable import AlarmCore
+
 #if canImport(FoundationNetworking)
     import FoundationNetworking
 #endif
-
-@testable import AlarmCore
 
 /// Sub-alarms chained after a routine's ring, checked off per cycle.
 @Suite struct RoutineStepsTests {
@@ -119,7 +119,8 @@ import Testing
                 RoutineStep(label: "A", offsetMinutes: 1000), RoutineStep(label: "B", offsetMinutes: 441),
             ]) == ["The steps must all ring within 24 hours of the alarm."])
         #expect(RoutineStep.problems([medication, medication]) == ["Two steps have the same id."])
-        #expect(!RoutineStep.problems([RoutineStep(label: String(repeating: "x", count: 61), offsetMinutes: 1)]).isEmpty)
+        #expect(
+            !RoutineStep.problems([RoutineStep(label: String(repeating: "x", count: 61), offsetMinutes: 1)]).isEmpty)
         var draft = wake.draft
         draft.steps = many
         #expect(draft.problems.contains("At most 20 steps."))

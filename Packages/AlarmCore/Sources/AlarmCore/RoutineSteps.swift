@@ -194,7 +194,8 @@ public enum CompletionChange: Codable, Equatable, Sendable {
 
     public var stepKey: String {
         switch self {
-        case .complete(let draft): RoutineCycle.stepKey(routineID: draft.routineId, stamp: draft.cycle, stepID: draft.stepId)
+        case .complete(let draft):
+            RoutineCycle.stepKey(routineID: draft.routineId, stamp: draft.cycle, stepID: draft.stepId)
         case .undo(let routineId, let stepId, let cycle):
             RoutineCycle.stepKey(routineID: routineId, stamp: cycle, stepID: stepId)
         }
@@ -389,9 +390,17 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
         }
     }
 
+    /// One step's count over the two weeks.
+    public struct Tally: Equatable, Sendable, Identifiable {
+        public var label: String
+        public var done: Int
+        public var of: Int
+        public var id: String { label }
+    }
+
     /// Per step label, how many of its cycles were checked off: the
     /// weekend's compliance check. Steps in label order.
-    public var tally: [(label: String, done: Int, of: Int)] {
+    public var tally: [Tally] {
         var counts: [String: (Int, Int)] = [:]
         for cycle in cycles {
             for step in cycle.steps {
@@ -399,6 +408,6 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
                 counts[step.label] = (done + (step.completion == nil ? 0 : 1), of + 1)
             }
         }
-        return counts.keys.sorted().map { ($0, counts[$0]!.0, counts[$0]!.1) }
+        return counts.keys.sorted().map { Tally(label: $0, done: counts[$0]!.0, of: counts[$0]!.1) }
     }
 }

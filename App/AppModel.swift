@@ -354,6 +354,61 @@ final class AppModel {
         }
     }
 
+    // MARK: Steps
+
+    /// The steps checked off, with the phone's own check-offs not yet sent laid over them.
+    var completions: [RoutineCompletion] { state?.routineCompletions ?? [] }
+    /// Check-offs waiting for a connection to reach abera.tech.
+    private(set) var waitingCompletions = 0
+    private(set) var stepError: String?
+
+    func completion(_ routine: Routine, _ ring: RoutineCycle.StepRing) -> RoutineCompletion? {
+        completions.first { $0.stepKey == ring.key }
+    }
+
+    /// Checks a step off for one cycle. Its alarm for that cycle is cancelled
+    /// at once, offline too. The photo is a JPEG.
+    func completeStep(
+        _ routine: Routine, cycle: RoutineCycle, step: RoutineStep, note: String? = nil, photo: Data? = nil,
+        removePhoto: Bool = false
+    ) async {
+        stepError = nil
+        let draft = CompletionDraft(
+            routineId: routine.id, stepId: step.id, cycle: cycle.stamp, note: note, removePhoto: removePhoto,
+            completedAt: completion(routine, cycle, step)?.completedAt ?? Date())
+        let result = await runReturning { await self.dependencies.sync.completeStep(draft, photo: photo) }
+        noteStepError(result.error)
+    }
+
+    func undoStep(_ routine: Routine, cycle: RoutineCycle, step: RoutineStep) async {
+        stepError = nil
+        let result = await runReturning {
+            await self.dependencies.sync.undoStep(routineId: routine.id, stepId: step.id, cycle: cycle.stamp)
+        }
+        noteStepError(result.error)
+    }
+
+    private func completion(_ routine: Routine, _ cycle: RoutineCycle, _ step: RoutineStep) -> RoutineCompletion? {
+        completions.first { $0.routineId == routine.id && $0.stepId == step.id && $0.cycle == cycle.stamp }
+    }
+
+    private func noteStepError(_ error: APIError?) {
+        switch error {
+        case .refused(let reason)?: stepError = reason
+        case .unpaired?: stepError = Self.describe(APIError.unpaired)
+        default: break
+        }
+    }
+
+    /// The last two weeks from abera.tech, or why they could not be read.
+    func history() async -> Result<RoutineHistory, APIError> {
+        await dependencies.sync.history()
+    }
+
+    func photo(_ id: UUID) async -> Data? {
+        try? await dependencies.sync.photo(completionId: id).get()
+    }
+
     // MARK: Countdowns
 
     /// The dates counted down to, as abera.tech holds them.
@@ -444,6 +499,7 @@ final class AppModel {
         if result.error == .unpaired, await dependencies.sync.pairing() == nil { paired = false }
         let waiting = await dependencies.sync.routineChanges().map(\.id)
         waitingRoutineChanges = waiting.count
+        waitingCompletions = await dependencies.sync.completionChanges().count
         let before = sending.status
         sending.settle(waiting: Set(waiting))
         for (id, status) in sending.status where status == .saved && before[id] != .saved { clearSavedSoon(id) }

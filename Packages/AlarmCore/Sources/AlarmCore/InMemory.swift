@@ -215,6 +215,19 @@ public actor FakeAlertsServer: HTTPTransport {
         public var completedAt: Date
         public var note: String?
         public var photo: Data?
+
+        public init(
+            id: UUID, routineId: UUID, stepId: UUID, cycle: String, completedAt: Date, note: String? = nil,
+            photo: Data? = nil
+        ) {
+            self.id = id
+            self.routineId = routineId
+            self.stepId = stepId
+            self.cycle = cycle
+            self.completedAt = completedAt
+            self.note = note
+            self.photo = photo
+        }
     }
 
     public private(set) var completions: [StoredCompletion] = []
@@ -260,7 +273,9 @@ public actor FakeAlertsServer: HTTPTransport {
                 } else {
                     guard let bytes = Data(base64Encoded: text), CompletionDraft.isJPEG(bytes),
                         bytes.count <= CompletionDraft.maxPhotoBytes
-                    else { return respond(request, 400, Data(#"{"errors":{"photo":["A JPEG of at most 2 MB."]}}"#.utf8)) }
+                    else {
+                        return respond(request, 400, Data(#"{"errors":{"photo":["A JPEG of at most 2 MB."]}}"#.utf8))
+                    }
                     photo = bytes
                 }
             }
@@ -298,7 +313,8 @@ public actor FakeAlertsServer: HTTPTransport {
                                 acknowledgedAt: acknowledged[step.key],
                                 completion: done.map {
                                     RoutineHistory.Completion(
-                                        id: $0.id, completedAt: $0.completedAt, note: $0.note, hasPhoto: $0.photo != nil)
+                                        id: $0.id, completedAt: $0.completedAt, note: $0.note, hasPhoto: $0.photo != nil
+                                    )
                                 })
                         }))
                 guard routine.repeats else { break }

@@ -1325,3 +1325,192 @@ final class AlarmsUITests: XCTestCase {
         poll(5) { element.exists && element.value as? String == value }
     }
 }
+
+// MARK: Steps
+
+/// Sub-alarms chained after an alarm, checked off one cycle at a time, with
+/// a note and a photo, and two weeks of history. Neb asked on 2026-11-19.
+extension AlarmsUITests {
+    private func first(_ app: XCUIApplication, _ prefix: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(format: "identifier BEGINSWITH %@", prefix)).firstMatch
+    }
+
+    /// The Alarms tab scrolled until `element` shows.
+    private func scrollTo(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<6 where !element.isHittable { app.collectionViews.firstMatch.swipeUp() }
+    }
+
+    func testAddingStepsToAnAlarmChainsThemAfterIt() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.textFields["routine-label"].tap()
+        app.textFields["routine-label"].typeText("Get up")
+        let addStep = app.buttons["add-step"]
+        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        addStep.tap()
+        let firstLabel = app.textFields["step-label-0"]
+        XCTAssertTrue(firstLabel.waitForExistence(timeout: 5), app.debugDescription)
+        firstLabel.tap()
+        firstLabel.typeText("Take medication")
+        XCTAssertEqual(app.textFields["step-after-0-amount"].value as? String, "5")
+        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        addStep.tap()
+        let secondLabel = app.textFields["step-label-1"]
+        XCTAssertTrue(secondLabel.waitForExistence(timeout: 5))
+        secondLabel.tap()
+        secondLabel.typeText("Beauty care")
+        let amount = app.textFields["step-after-1-amount"]
+        amount.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "10")
+        XCTAssertEqual(amount.value as? String, "10")
+        save.tap()
+
+        let summary = app.descendants(matching: .any)["steps-Get up"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(summary.label.contains("0 of 2 done"), summary.label)
+        summary.tap()
+        let medication = first(app, "step-Take medication-")
+        XCTAssertTrue(medication.waitForExistence(timeout: 10), app.debugDescription)
+        let beauty = first(app, "step-Beauty care-")
+        XCTAssertTrue(beauty.exists)
+        // 06:00, then 5 minutes, then 10 more.
+        let six = Calendar.current.date(from: DateComponents(hour: 6, minute: 5))!
+        let quarter = Calendar.current.date(from: DateComponents(hour: 6, minute: 15))!
+        XCTAssertTrue(medication.label.contains(six.formatted(date: .omitted, time: .shortened)), medication.label)
+        XCTAssertTrue(beauty.label.contains(quarter.formatted(date: .omitted, time: .shortened)), beauty.label)
+    }
+
+    func testCheckingOffAStepInOneTapCoversThisTimeOnly() {
+        let app = launch("-demo-steps", tab: nil)
+        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(summary, in: app)
+        XCTAssertTrue(summary.label.contains("0 of 2 done"), summary.label)
+        summary.tap()
+
+        let checks = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH 'check-Take medication-'"))
+        XCTAssertTrue(checks.firstMatch.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(checks.count, 2, "this time and next time")
+        let thisTime = checks.element(boundBy: 0)
+        let nextTime = checks.element(boundBy: 1)
+        XCTAssertEqual(thisTime.label, "Check off Take medication")
+        thisTime.tap()
+        XCTAssertTrue(poll(5) { thisTime.label == "Undo Take medication" }, thisTime.label)
+        XCTAssertEqual(nextTime.label, "Check off Take medication")
+        let line = first(app, "step-Take medication-")
+        XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
+        XCTAssertTrue(line.label.contains("Does not ring at"), line.label)
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        XCTAssertTrue(waitFor(summary, labelContaining: "1 of 2 done"), summary.label)
+
+        // Undo puts it back.
+        summary.tap()
+        XCTAssertTrue(thisTime.waitForExistence(timeout: 5))
+        thisTime.tap()
+        XCTAssertTrue(poll(5) { thisTime.label == "Check off Take medication" }, thisTime.label)
+    }
+
+    func testACheckOffTakesANoteAndHistoryShowsItWithPhotos() {
+        let app = launch("-demo-steps", tab: nil)
+        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(summary, in: app)
+        summary.tap()
+        let line = first(app, "step-Take medication-")
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        let stamp = String(line.identifier.dropFirst("step-Take medication-".count))
+        line.tap()
+        // A field that grows to several lines can read as a text view.
+        let note = app.descendants(matching: .any).matching(identifier: "completion-note").firstMatch
+        XCTAssertTrue(note.waitForExistence(timeout: 5), app.debugDescription)
+        note.tap()
+        note.typeText("Lisinopril 10 mg")
+        app.buttons["save-completion"].tap()
+        XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
+
+        app.navigationBars.buttons.element(boundBy: 0).tap()
+        let history = app.buttons["steps-history"]
+        XCTAssertTrue(history.waitForExistence(timeout: 5))
+        history.tap()
+        let today = app.descendants(matching: .any)["history-step-Take medication-\(stamp)"].firstMatch
+        XCTAssertTrue(today.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(today.label.contains("Lisinopril 10 mg"), today.label)
+        let beauty = app.descendants(matching: .any)["history-step-Beauty care-\(stamp)"].firstMatch
+        XCTAssertTrue(beauty.label.contains("Missed"), beauty.label)
+        let tally = app.descendants(matching: .any)["tally-Take medication"].firstMatch
+        XCTAssertTrue(tally.exists)
+        XCTAssertTrue(tally.label.contains("2 of 14") || tally.label.contains("2 of 15"), tally.label)
+
+        // Yesterday's check-off carries a photo.
+        let photo = first(app, "history-photo-Take medication-")
+        for _ in 0..<4 where !photo.isHittable { app.swipeUp() }
+        XCTAssertTrue(photo.waitForExistence(timeout: 5), app.debugDescription)
+        photo.tap()
+        XCTAssertTrue(app.images["history-photo-full"].waitForExistence(timeout: 10), app.debugDescription)
+    }
+
+    /// The photo comes from the Photos library through the system picker.
+    func testACheckOffTakesAPhotoFromTheLibrary() {
+        let app = launch("-demo-steps", tab: nil)
+        let summary = app.descendants(matching: .any)["steps-Morning"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(summary, in: app)
+        summary.tap()
+        let line = first(app, "step-Beauty care-")
+        XCTAssertTrue(line.waitForExistence(timeout: 10))
+        line.tap()
+        let choose = app.buttons["choose-photo"]
+        XCTAssertTrue(choose.waitForExistence(timeout: 5), app.debugDescription)
+        choose.tap()
+        // The picker runs in another process. Its grid shows in the app's tree.
+        let picture = app.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
+        XCTAssertTrue(picture.waitForExistence(timeout: 20), app.debugDescription)
+        picture.tap()
+        XCTAssertTrue(app.images["completion-photo"].waitForExistence(timeout: 20), app.debugDescription)
+        app.buttons["save-completion"].tap()
+        XCTAssertTrue(waitFor(line, labelContaining: "Done at", timeout: 10), line.label)
+    }
+
+    /// Steps ring as alarms through iOS. Skip me, checked off in the app,
+    /// stays silent. Take medication rings at the same minute and stops on
+    /// Stop.
+    func testAStepRingsThroughIOSAndACheckedOffStepDoesNot() throws {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = launch("-demo-step-soon", "-demo-real-alarms", tab: nil)
+        let allow = springboard.buttons["Allow"].firstMatch
+        let asked = allow.waitForExistence(timeout: 5)
+        if asked { allow.tap() }
+        let summary = app.descendants(matching: .any)["steps-Pills"].firstMatch
+        XCTAssertTrue(summary.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(summary, in: app)
+        summary.tap()
+        let skip = first(app, "check-Skip me-")
+        XCTAssertTrue(skip.waitForExistence(timeout: 10), app.debugDescription)
+        let medication = first(app, "step-Take medication-")
+        XCTAssertTrue(medication.label.contains("Rings at"), medication.label)
+        skip.tap()
+        XCTAssertTrue(poll(5) { skip.label == "Undo Skip me" }, skip.label)
+
+        let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        XCUIDevice.shared.press(.home)
+        let stop = springboard.buttons["Stop"].firstMatch
+        if !stop.waitForExistence(timeout: 150) {
+            // As the timer test found: the iOS 27.0 simulator denies alarms
+            // with no prompt. The ring runs on the iOS 26.5 simulator.
+            if !asked && ios >= 27 { throw XCTSkip("The iOS \(ios) simulator denied alarms without asking") }
+            XCTFail("the step did not ring:\n\(springboard.debugDescription)")
+            return
+        }
+        let alert = springboard.debugDescription
+        XCTAssertTrue(alert.contains("Take medication"), alert)
+        XCTAssertFalse(alert.contains("Skip me"), alert)
+        stop.tap()
+        XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
+        // Nothing else rings for this minute.
+        XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
+    }
+}

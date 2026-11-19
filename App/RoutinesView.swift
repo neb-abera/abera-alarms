@@ -14,6 +14,7 @@ struct RoutinesView: View {
     @State private var selecting = false
     @State private var selected = Set<UUID>()
     @State private var confirmingDelete: Set<UUID>?
+    @State private var showingHistory = false
     var onScreen = true
 
     var body: some View {
@@ -64,6 +65,14 @@ struct RoutinesView: View {
                         .accessibilityIdentifier("routines-waiting")
                     }
                 }
+                if model.routines.contains(where: { !$0.steps.isEmpty }) {
+                    Button {
+                        showingHistory = true
+                    } label: {
+                        Label("Steps done, last 14 days", systemImage: "calendar.badge.checkmark")
+                    }
+                    .accessibilityIdentifier("steps-history")
+                }
                 if model.routines.isEmpty {
                     Text("No alarms. Tap + to add one.")
                         .foregroundStyle(.secondary)
@@ -99,6 +108,16 @@ struct RoutinesView: View {
                             Task { await model.deleteRoutine(routine) }
                         }
                         .accessibilityIdentifier("context-delete")
+                    }
+                    if !routine.steps.isEmpty, !selecting {
+                        NavigationLink {
+                            ChecklistView(model: model, routineID: routine.id)
+                        } label: {
+                            TimelineView(.periodic(from: .now, by: 60)) { context in
+                                StepsSummaryRow(model: model, routine: routine, now: context.date)
+                            }
+                        }
+                        .accessibilityIdentifier("open-steps-\(routine.label)")
                     }
                 }
             }
@@ -171,6 +190,9 @@ struct RoutinesView: View {
             }
             .sheet(isPresented: $settings) {
                 SoundSettingsView(model: model)
+            }
+            .sheet(isPresented: $showingHistory) {
+                HistoryView(model: model)
             }
             .sheet(item: $editing) { routine in
                 RoutineEditor(model: model, routine: routine)
@@ -289,6 +311,7 @@ struct RoutineEditor: View {
     @State private var days: Set<Int>
     @State private var label: String
     @State private var snoozeMinutes: Int
+    @State private var steps: [EditableStep]
 
     init(model: AppModel, routine: Routine?) {
         self.model = model
@@ -299,6 +322,7 @@ struct RoutineEditor: View {
         _days = State(initialValue: Set(routine?.days ?? []))
         _label = State(initialValue: routine?.label == RoutineDraft.defaultLabel ? "" : routine?.label ?? "")
         _snoozeMinutes = State(initialValue: routine?.snoozeMinutes ?? 9)
+        _steps = State(initialValue: routine?.steps.map(EditableStep.init) ?? [])
     }
 
     var body: some View {
@@ -325,6 +349,10 @@ struct RoutineEditor: View {
                     TextField("Label", text: $label, prompt: Text(RoutineDraft.defaultLabel))
                         .accessibilityIdentifier("routine-label")
                     Stepper("Snooze: \(snoozeMinutes) min", value: $snoozeMinutes, in: 1...30)
+                }
+                StepsEditorSection(steps: $steps, routineLabel: label)
+                ForEach(RoutineStep.problems(steps.map(\.step)), id: \.self) { problem in
+                    Text(problem).foregroundStyle(.red)
                 }
                 if let routine {
                     Section {
@@ -363,7 +391,7 @@ struct RoutineEditor: View {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: time)
         return RoutineDraft(
             label: label, hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: days.sorted(),
-            enabled: routine?.enabled ?? true, snoozeMinutes: snoozeMinutes)
+            enabled: routine?.enabled ?? true, snoozeMinutes: snoozeMinutes, steps: steps.map(\.step))
     }
 }
 
