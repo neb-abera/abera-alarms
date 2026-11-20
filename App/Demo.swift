@@ -22,6 +22,9 @@
     /// `-demo-step-soon` adds Pills at the current minute with two steps that
     /// ring 2 minutes later. `-demo-real-alarms` gives every alarm to
     /// AlarmKit, so a UI test hears a step ring through iOS.
+    /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
+    /// AlarmKit, so a test that rang real alarms leaves none ringing for the
+    /// tests after it.
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
@@ -45,6 +48,14 @@
                 }
             }
             let pairing = Pairing(server: Pairing.production, token: token)
+            if arguments.contains("-demo-clear-alarms") {
+                Task {
+                    for alarm in (try? AlarmManager.shared.alarms) ?? [] {
+                        try? AlarmManager.shared.stop(id: alarm.id)
+                        try? AlarmManager.shared.cancel(id: alarm.id)
+                    }
+                }
+            }
             let alarms: any AlarmScheduling =
                 arguments.contains("-demo-real-alarms") ? AuthorizingScheduler() : MemoryAlarms()
             return Dependencies(
