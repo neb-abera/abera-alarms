@@ -1470,6 +1470,9 @@ extension AlarmsUITests {
 
     /// The photo comes from the Photos library through the system picker.
     func testACheckOffTakesAPhotoFromTheLibrary() {
+        // The picker loads slowly on the iOS 27 simulator, after a launch
+        // that took 67 s on the xcode-27 runner (CI, 2026-11-20).
+        executionTimeAllowance = 240
         let app = launch("-demo-steps", tab: nil)
         let line = first(app, "step-Beauty care-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
@@ -1483,16 +1486,17 @@ extension AlarmsUITests {
         // privacy note animates. iOS 27 lists none of it and shows Loading
         // for several seconds (CI recording, 2026-11-19). Both draw the first
         // photo at the left, 72% down the screen, once loaded.
-        let picture = app.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo'")).firstMatch
+        // A library photo reads "Photo, March 30, 2018, 7:14 PM". The comma
+        // keeps out the Choose Photo button's own symbol, photo.on.rectangle,
+        // which a second pass found and tapped once the picker had closed.
+        let picture = app.images.matching(NSPredicate(format: "label BEGINSWITH 'Photo,'")).firstMatch
         let shown = app.images["completion-photo"]
-        for _ in 0..<3 where !shown.exists {
-            if picture.waitForExistence(timeout: 10) {
-                picture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
-            } else {
-                app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.72)).tap()
-            }
-            _ = shown.waitForExistence(timeout: 10)
+        if picture.waitForExistence(timeout: 20) {
+            picture.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        } else {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.17, dy: 0.72)).tap()
         }
+        _ = shown.waitForExistence(timeout: 30)
         XCTAssertTrue(shown.exists, app.debugDescription)
         app.buttons["save-completion"].tap()
         XCTAssertTrue(waitFor(line, labelContaining: "Done at", timeout: 10), line.label)

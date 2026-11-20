@@ -18,8 +18,9 @@ cd "$(dirname "$0")/.."
 # had used the iPhone 18 Pro.
 # The whole answer is kept, so an empty list says why.
 mkdir -p build
-xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms > build/destinations.log 2>&1 || true
-device="$(python3 -c '
+pick_device() {
+  xcodebuild -showdestinations -project AberaAlarms.xcodeproj -scheme AberaAlarms > build/destinations.log 2>&1 || true
+  device="$(python3 -c '
 import re, sys
 found = []
 for line in sys.stdin:
@@ -34,6 +35,22 @@ if pros:
 elif found:
     print(max(found)[2])
 ' < build/destinations.log)"
+}
+
+# Some runners list no simulator SDK at first: the iOS runtime's disk image
+# is not mounted yet. On 2026-11-19 and 2026-11-20 two Xcode 26.5 jobs, on
+# images 20261102.0473.1 and 20261117.0516.1, failed here, and the first
+# image passed in other runs the same day.
+# Wait up to 5 minutes, and ask Xcode to fetch the platform halfway.
+device=""
+for attempt in $(seq 1 10); do
+  pick_device
+  [ -n "$device" ] && break
+  echo "no iPhone simulator yet (attempt $attempt of 10)" >&2
+  xcrun simctl list runtimes >&2 || true
+  if [ "$attempt" -eq 5 ]; then xcodebuild -downloadPlatform iOS >&2 || true; fi
+  sleep 30
+done
 [ -n "$device" ] || { echo "error: no iPhone simulator available. xcodebuild -showdestinations said:" >&2; tail -40 build/destinations.log >&2; exit 1; }
 xcrun simctl list devices | grep "$device"
 
