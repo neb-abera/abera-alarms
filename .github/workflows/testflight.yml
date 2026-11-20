@@ -21,7 +21,8 @@ permissions:
 jobs:
   release:
     name: release (archive, and upload from main)
-    runs-on: macos-26
+    # The runner with Xcode 27, as the CI job that tests on it.
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       # harden-runner supports Linux runners only.
@@ -29,11 +30,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # The Xcode that .xcode-version names. Xcode 27 (27A266a) is Apple's
+      # release of 14 September 2026. GitHub lists its install on the image as
+      # a preview, and App Store Connect judges the Xcode, not the image.
+      # Built with Xcode 26.6, build 218 drew App Store Connect's warning that
+      # apps need the iOS 27 SDK from April 2027.
       - name: select Xcode
-        env:
-          # The newest GA Xcode on the GA image. App Store Connect refuses
-          # uploads built with a preview Xcode.
-          XCODE_VERSION: "26.6"
         run: scripts/select-xcode.sh
 
       # Signing on a fresh runner makes a development certificate, and Apple
