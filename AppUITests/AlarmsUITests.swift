@@ -1560,6 +1560,17 @@ extension AlarmsUITests {
     func testAStepRingsThroughIOSAndACheckedOffStepDoesNot() throws {
         // The step rings up to 2 minutes after launch, past the default allowance of 2 minutes.
         executionTimeAllowance = 300
+        // A step that rings keeps ringing until it is stopped, as it should.
+        // A run that failed before Stop left one ringing, and the Lock Screen
+        // tests after it found no workout card (CI, 2026-11-20). Pass or
+        // fail, every real alarm goes when this test ends.
+        addTeardownBlock { @MainActor in
+            let cleaner = XCUIApplication()
+            cleaner.launchArguments = ["-demo", "-demo-clear-alarms"]
+            cleaner.launch()
+            RunLoop.current.run(until: Date().addingTimeInterval(5))
+            cleaner.terminate()
+        }
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let app = launch("-demo-step-soon", "-demo-real-alarms", tab: nil)
         let allow = springboard.buttons["Allow"].firstMatch
@@ -1586,7 +1597,11 @@ extension AlarmsUITests {
         let alert = springboard.debugDescription
         XCTAssertTrue(alert.contains("Take medication"), alert)
         XCTAssertFalse(alert.contains("Skip me"), alert)
-        stop.tap()
+        // The alert can move between finding Stop and the tap. Tap it while it shows.
+        for _ in 0..<5 where stop.exists {
+            if stop.isHittable { stop.tap() }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
         XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
         // Nothing else rings for this minute.
         XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
