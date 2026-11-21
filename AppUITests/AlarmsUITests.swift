@@ -711,18 +711,20 @@ final class AlarmsUITests: XCTestCase {
 
     /// The Health sheet iOS shows the first time: turn every category on,
     /// then Allow. Its labels have moved between iOS releases, so any
-    /// element whose label starts "Turn On All" counts.
-    private func allowHealth(_ app: XCUIApplication) {
-        let turnOn = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "label BEGINSWITH[c] 'Turn On All'")).firstMatch
-        guard turnOn.waitForExistence(timeout: 20) else {
-            XCTFail("no Health sheet:\n\(app.debugDescription)")
-            return
-        }
-        turnOn.tap()
-        let allow = app.buttons["Allow"].firstMatch
-        XCTAssertTrue(allow.waitForExistence(timeout: 5), app.debugDescription)
+    /// element whose label starts "Turn On All" counts, in the app or in
+    /// Springboard. False when no sheet came within the timeout.
+    private func allowHealth(_ app: XCUIApplication, timeout: TimeInterval) -> Bool {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let label = NSPredicate(format: "label BEGINSWITH[c] 'Turn On All'")
+        let inApp = app.descendants(matching: .any).matching(label).firstMatch
+        let inSpringboard = springboard.descendants(matching: .any).matching(label).firstMatch
+        guard poll(timeout, { inApp.exists || inSpringboard.exists }) else { return false }
+        let host = inApp.exists ? app : springboard
+        (inApp.exists ? inApp : inSpringboard).tap()
+        let allow = host.buttons["Allow"].firstMatch
+        XCTAssertTrue(allow.waitForExistence(timeout: 5), host.debugDescription)
         allow.tap()
+        return true
     }
 
     /// A weigh-in in Apple Health reaches abera.tech through the real
@@ -731,7 +733,9 @@ final class AlarmsUITests: XCTestCase {
     /// abera.tech.
     func testAnAppleHealthWeighInIsSentToAberaTech() {
         let app = launch("-demo-health", tab: nil)
-        allowHealth(app)
+        // The launch sync asks first. When that sheet does not come, Send
+        // weigh-ins now asks again from the open screen.
+        var allowed = allowHealth(app, timeout: 8)
 
         let open = app.buttons["sound-settings"]
         XCTAssertTrue(open.waitForExistence(timeout: 10))
@@ -739,6 +743,11 @@ final class AlarmsUITests: XCTestCase {
         let send = app.buttons["send-weights"]
         XCTAssertTrue(send.waitForExistence(timeout: 5))
         send.tap()
+        if !allowed { allowed = allowHealth(app, timeout: 20) }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        XCTAssertTrue(
+            allowed, "no Health sheet:\n\(app.debugDescription)\nSpringboard:\n\(springboard.debugDescription)")
+
         let status = app.staticTexts["weight-status"]
         XCTAssertTrue(status.waitForExistence(timeout: 10), app.debugDescription)
         // The launch sync may have sent it already: then this tap finds abera.tech up to date.
