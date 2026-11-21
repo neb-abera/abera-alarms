@@ -95,7 +95,7 @@ struct RoutinesView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("no-routines")
                 }
-                ForEach(model.routines) { routine in
+                ForEach(model.orderedRoutines(at: Date())) { routine in
                     HStack {
                         if selecting {
                             let on = selected.contains(routine.id)
@@ -154,9 +154,13 @@ struct RoutinesView: View {
                     if !selecting, let control = model.ringControl(routine, at: Date()) {
                         RingControlRow(model: model, routine: routine, control: control)
                     }
-                    if !selecting {
-                        StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
-                            openedStep = StepOpened(routine: routine, cycle: cycle, ring: ring)
+                    if !selecting, !routine.steps.isEmpty {
+                        let open = model.stepsOpen(routine, at: Date())
+                        StepsToggleRow(model: model, routine: routine, open: open)
+                        if open {
+                            StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
+                                openedStep = StepOpened(routine: routine, cycle: cycle, ring: ring)
+                            }
                         }
                     }
                 }

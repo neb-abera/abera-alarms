@@ -749,3 +749,38 @@ struct PhotoView: View {
         }
     }
 }
+
+/// Opens and closes an alarm's steps in one tap, and says how many of the
+/// ring's steps are done. Open by default when the ring is today.
+struct StepsToggleRow: View {
+    @Bindable var model: AppModel
+    let routine: Routine
+    let open: Bool
+
+    var body: some View {
+        let cycle = model.shownCycle(routine, at: Date())
+        let done = cycle?.steps.filter { model.completion(routine, $0) != nil }.count ?? 0
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { model.toggleSteps(routine, at: Date()) }
+        } label: {
+            HStack {
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(open ? 90 : 0))
+                    .foregroundStyle(.secondary)
+                Text(cycle.map { "Steps, \(StepText.when($0.at))" } ?? "Steps")
+                    .lineLimit(1)
+                Spacer()
+                Text("\(done) of \(routine.steps.count) done")
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(done == routine.steps.count ? Color.green : Color.secondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, 20)
+        .accessibilityValue(open ? "Open" : "Closed")
+        .accessibilityIdentifier("steps-toggle-\(routine.label)")
+    }
+}

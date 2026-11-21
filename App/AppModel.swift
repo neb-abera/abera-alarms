@@ -475,6 +475,45 @@ final class AppModel {
         noteStepError(result.error)
     }
 
+    // MARK: The list's order and open steps
+
+    static let stepsOpenKey = "steps-open-choices"
+
+    /// His own open or closed choice for the steps of a ring, by the ring's
+    /// key. Kept on the phone across launches.
+    private(set) var stepsOpenChoices: [String: Bool] = AppModel.loadStepsOpenChoices()
+
+    private static func loadStepsOpenChoices() -> [String: Bool] {
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-reset-steps-open") {
+                UserDefaults.standard.removeObject(forKey: stepsOpenKey)
+            }
+        #endif
+        return UserDefaults.standard.dictionary(forKey: stepsOpenKey) as? [String: Bool] ?? [:]
+    }
+
+    /// The alarms in the order they next ring. Switched-off ones last.
+    func orderedRoutines(at now: Date) -> [Routine] {
+        AlarmList.ordered(routines, in: state ?? AlertsState(), now: now, calendar: .current)
+    }
+
+    /// Whether an alarm shows its steps: his choice for this ring, else open
+    /// when the ring is today.
+    func stepsOpen(_ routine: Routine, at now: Date) -> Bool {
+        AlarmList.isOpen(
+            routine, cycle: shownCycle(routine, at: now), now: now, calendar: .current, choices: stepsOpenChoices)
+    }
+
+    /// Opens or closes an alarm's steps for the ring they list, in one tap.
+    func toggleSteps(_ routine: Routine, at now: Date) {
+        guard let cycle = shownCycle(routine, at: now) else { return }
+        var choices = stepsOpenChoices
+        choices[cycle.key] = !stepsOpen(routine, at: now)
+        let shown = Set(routines.compactMap { shownCycle($0, at: now)?.key })
+        stepsOpenChoices = AlarmList.pruned(choices, keeping: shown)
+        UserDefaults.standard.set(stepsOpenChoices, forKey: Self.stepsOpenKey)
+    }
+
     /// The last two weeks from abera.tech, or why they could not be read.
     func history() async -> Result<RoutineHistory, APIError> {
         await dependencies.sync.history()

@@ -30,7 +30,8 @@ final class AlarmsUITests: XCTestCase {
     private func launch(_ arguments: String..., tab: String? = "Calendar") -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["-demo"] + arguments
+        // Each test starts from the default open and closed steps.
+        app.launchArguments = ["-demo", "-reset-steps-open"] + arguments
         app.launch()
         if let tab, !arguments.contains("-demo-unpaired") { open(tab, in: app) }
         return app
@@ -1354,6 +1355,16 @@ extension AlarmsUITests {
     /// simulator does this (CI, 2026-11-15). Waiting out a ring that cannot
     /// come cost 3 to 4 minutes a test and ran the job past 65 minutes on
     /// 2026-11-21.
+    /// Opens an alarm's steps when they are closed: they start closed on an
+    /// alarm whose ring is not today.
+    private func openSteps(_ app: XCUIApplication, _ label: String) {
+        let toggle = app.descendants(matching: .any)["steps-toggle-\(label)"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(toggle, in: app)
+        if toggle.value as? String == "Closed" { toggle.tap() }
+        XCTAssertTrue(poll(5) { toggle.value as? String == "Open" }, "\(label) steps did not open")
+    }
+
     private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
         !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
     }
@@ -1385,6 +1396,7 @@ extension AlarmsUITests {
         amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "10")
         XCTAssertEqual(amount.value as? String, "10")
         save.tap()
+        openSteps(app, "Get up")
 
         // 06:00, then 5 minutes, then 10 more, under the alarm on the Alarms tab.
         let medication = first(app, "step-Take medication-")
@@ -1401,6 +1413,7 @@ extension AlarmsUITests {
 
     func testCheckingOffAStepInOneTapCoversThisTimeOnly() {
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let check = first(app, "check-Take medication-")
         XCTAssertTrue(check.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(check, in: app)
@@ -1435,6 +1448,7 @@ extension AlarmsUITests {
 
     func testACheckOffKeepsItsNote() {
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let line = first(app, "step-Take medication-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(line, in: app)
@@ -1483,6 +1497,7 @@ extension AlarmsUITests {
         // that took 67 s on the xcode-27 runner (CI, 2026-11-20).
         executionTimeAllowance = 240
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let line = first(app, "step-Beauty care-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(line, in: app)
@@ -1526,6 +1541,7 @@ extension AlarmsUITests {
         let confirm = app.buttons["confirm-make-step"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
         confirm.tap()
+        openSteps(app, "Wake")
 
         let step = first(app, "step-Weekend-")
         XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
@@ -1556,6 +1572,7 @@ extension AlarmsUITests {
         weekend.tap()
         XCTAssertEqual(app.textFields["step-label-0"].value as? String, "Weekend")
         app.buttons["save-routine"].tap()
+        openSteps(app, "Wake")
 
         let step = first(app, "step-Weekend-")
         XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
@@ -1739,5 +1756,51 @@ extension AlarmsUITests {
             XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
             app.terminate()
         }
+    }
+
+    // MARK: Order and open steps
+
+    /// The alarms in the order they next ring: Gym within minutes first,
+    /// switched-off Weekend last.
+    func testAlarmsAreInTheOrderTheyNextRing() {
+        let app = launch("-demo-ring-soon", "-demo-weekly", tab: nil)
+        let gym = routine(app, "Gym")
+        XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
+        let wake = routine(app, "Wake")
+        let weekly = routine(app, "Weekly review")
+        let weekend = routine(app, "Weekend")
+        XCTAssertLessThan(gym.frame.minY, wake.frame.minY)
+        for _ in 0..<6 where !weekend.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(weekend.exists, app.debugDescription)
+        XCTAssertLessThan(weekly.frame.minY, weekend.frame.minY)
+    }
+
+    /// Steps of a ring today start open, steps of a ring on another day
+    /// start closed, and his choice holds across a relaunch.
+    func testStepsOpenWhenTheyRingTodayAndKeepHisChoice() {
+        let app = launch("-demo-ring-soon", "-demo-weekly", tab: nil)
+        let gymToggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        let weeklyToggle = app.descendants(matching: .any)["steps-toggle-Weekly review"].firstMatch
+        XCTAssertTrue(gymToggle.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(gymToggle.value as? String, "Open")
+        XCTAssertTrue(first(app, "step-Stretch-").exists)
+        scrollTo(weeklyToggle, in: app)
+        XCTAssertEqual(weeklyToggle.value as? String, "Closed")
+        XCTAssertFalse(first(app, "step-Review-").exists)
+
+        weeklyToggle.tap()
+        XCTAssertTrue(first(app, "step-Review-").waitForExistence(timeout: 5), app.debugDescription)
+        scrollTo(gymToggle, in: app)
+        gymToggle.tap()
+        XCTAssertTrue(waitForGone(first(app, "step-Stretch-")))
+
+        // His choices hold across a relaunch.
+        app.terminate()
+        app.launchArguments = ["-demo", "-demo-ring-soon", "-demo-weekly"]
+        app.launch()
+        XCTAssertTrue(gymToggle.waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertEqual(gymToggle.value as? String, "Closed")
+        scrollTo(weeklyToggle, in: app)
+        XCTAssertEqual(weeklyToggle.value as? String, "Open")
     }
 }
