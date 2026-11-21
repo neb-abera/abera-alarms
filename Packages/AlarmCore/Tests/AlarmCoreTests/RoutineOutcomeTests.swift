@@ -149,24 +149,30 @@ import Testing
         #expect(shown(state(outcomes: [outcome(.skipped, today)]), now: at(6, 40)) == tomorrow)
     }
 
-    @Test func stoppedWithEveryStepCheckedOffMovesTheListToTomorrow() {
+    @Test func aRungRingWithEveryStepCheckedOffMovesTheListToTomorrow() {
         let checked = RoutineCompletion(
             routineId: routineID, stepId: medication.id, cycle: today, completedAt: at(7, 6))
-        let stopped = RoutineRing(
-            key: ringKey(today), routineId: routineID, label: "Wake up", alertAt: at(7, 0), startsAt: at(7, 30),
-            acknowledged: true)
-        #expect(shown(state(completions: [checked], rings: [stopped]), now: at(7, 7)) == tomorrow)
-        #expect(shown(state(rings: [stopped]), now: at(7, 7)) == today, "a step is still open")
-        // Without a stop or a mark, the ring under way stays until it rings out.
-        #expect(shown(state(completions: [checked]), now: at(7, 7)) == today)
-        #expect(shown(state(completions: [checked]), now: at(7, 40)) == tomorrow)
+        // No Stop in sight: abera.tech lists a ring only for its stop window.
+        #expect(shown(state(completions: [checked]), now: at(7, 7)) == tomorrow)
+        #expect(shown(state(), now: at(7, 7)) == today, "a step is still open")
+        #expect(shown(state(), now: at(7, 40)) == tomorrow, "the step has rung out")
+    }
+
+    @Test func neb20261121ARingWhoseStepsAreDoneIsSettledInsideItsWindow() {
+        // The step checked off at 07:19, no Stop listed, and 10:04 still inside the 3 hour window after 07:05.
+        let checked = RoutineCompletion(
+            routineId: routineID, stepId: medication.id, cycle: today, completedAt: at(7, 19))
+        let shownAt1004 = RoutineCycle.shown(
+            wake, in: state(completions: [checked]), now: at(10, 4), window: 3 * 3600, calendar: calendar)
+        #expect(shownAt1004?.stamp == tomorrow)
     }
 
     @Test func aSettledRingIsSettledAndAnOpenOneIsNot() throws {
         let cycle = try #require(RoutineCycle.around(wake, now: at(6, 40), calendar: calendar).next)
         #expect(!cycle.isSettled(in: state(), now: at(6, 40)))
         #expect(cycle.isSettled(in: state(outcomes: [outcome(.skipped, today)]), now: at(6, 40)))
-        #expect(!cycle.isSettled(in: state(), acknowledgedHere: [ringKey(today)], now: at(6, 40)), "not rung yet")
+        #expect(!cycle.isSettled(in: state(), now: at(6, 40)), "not rung yet")
+        #expect(!cycle.isSettled(in: state(), now: at(7, 1)), "rung, with a step open")
     }
 
     // MARK: Through the sync

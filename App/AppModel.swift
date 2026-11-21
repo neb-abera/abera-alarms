@@ -451,7 +451,9 @@ final class AppModel {
                 return .marked(cycle, outcome)
             }
         }
-        guard let shown = shownCycle(routine, at: now), shown.outcome(in: state) == nil,
+        // Done and Skip are for a ring still to come. One that has rung was
+        // answered by its Stop.
+        guard let shown = shownCycle(routine, at: now), shown.outcome(in: state) == nil, shown.at > now,
             shown.at.timeIntervalSince(now) <= Self.markAhead
         else { return nil }
         return .mark(shown)

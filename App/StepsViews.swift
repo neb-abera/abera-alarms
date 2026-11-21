@@ -108,27 +108,19 @@ struct RingControlRow: View {
     var body: some View {
         switch control {
         case .mark(let cycle):
-            HStack {
-                Text(StepText.when(cycle.at))
-                    .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button {
-                    Task { await model.mark(routine, cycle: cycle, .done) }
-                } label: {
-                    Label("Done", systemImage: "checkmark.circle")
+            // The words never wrap. At a large text size the time moves above
+            // the buttons. "Done" broke into "Don" and "e" on Neb's iPhone
+            // (2026-11-21), where the text is larger than the simulator's.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    time(cycle)
+                    Spacer()
+                    buttons(cycle)
                 }
-                .buttonStyle(.bordered)
-                .tint(.green)
-                .accessibilityIdentifier("ring-done-\(routine.label)")
-                Button {
-                    Task { await model.mark(routine, cycle: cycle, .skipped) }
-                } label: {
-                    Label("Skip", systemImage: "forward")
+                VStack(alignment: .leading, spacing: 8) {
+                    time(cycle)
+                    HStack { buttons(cycle) }
                 }
-                .buttonStyle(.bordered)
-                .tint(.orange)
-                .accessibilityIdentifier("ring-skip-\(routine.label)")
             }
             .padding(.leading, 20)
         case .marked(let cycle, let outcome):
@@ -144,14 +136,49 @@ struct RingControlRow: View {
                 .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("ring-mark-\(routine.label)")
                 Spacer()
-                Button("Undo") {
+                Button {
                     Task { await model.unmark(routine, cycle: cycle) }
+                } label: {
+                    Text("Undo").lineLimit(1).fixedSize()
                 }
                 .buttonStyle(.borderless)
                 .accessibilityIdentifier("ring-undo-\(routine.label)")
             }
             .padding(.leading, 20)
         }
+    }
+}
+
+extension RingControlRow {
+    fileprivate func time(_ cycle: RoutineCycle) -> some View {
+        Text(StepText.when(cycle.at))
+            .font(.subheadline.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+    }
+
+    @ViewBuilder
+    fileprivate func buttons(_ cycle: RoutineCycle) -> some View {
+        Button {
+            Task { await model.mark(routine, cycle: cycle, .done) }
+        } label: {
+            Label("Done", systemImage: "checkmark.circle")
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .buttonStyle(.bordered)
+        .tint(.green)
+        .accessibilityIdentifier("ring-done-\(routine.label)")
+        Button {
+            Task { await model.mark(routine, cycle: cycle, .skipped) }
+        } label: {
+            Label("Skip", systemImage: "forward")
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .buttonStyle(.bordered)
+        .tint(.orange)
+        .accessibilityIdentifier("ring-skip-\(routine.label)")
     }
 }
 
