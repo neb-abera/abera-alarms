@@ -258,4 +258,15 @@ import Testing
         let tally = try #require(history.tally(now: at(7, 10)).first)
         #expect(tally.of == history.cycles.count - 1)
     }
+
+    @Test func aMarkedRingOfAnAlarmWithNoStepsReadsDoneOrSkipped() {
+        func cycle(_ status: RoutineOutcome.Status) -> RoutineHistory.Cycle {
+            RoutineHistory.Cycle(
+                routineId: routineID, label: "Wake up", cycle: today, at: at(7, 0), steps: [],
+                outcome: RoutineHistory.Outcome(status: status, at: at(6, 40)))
+        }
+        #expect(cycle(.done).doneText(now: at(8, 0)) == "Done")
+        #expect(cycle(.skipped).doneText(now: at(8, 0)) == "Skipped")
+        #expect(RoutineHistory(cycles: [cycle(.done)]).tally(now: at(8, 0)).isEmpty)
+    }
 }

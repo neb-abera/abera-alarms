@@ -423,6 +423,8 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
         /// "2 of 3 done". A step still to ring counts once it is checked off.
         public func doneText(now: Date) -> String {
             if skipped { return "Skipped" }
+            // abera.tech lists a marked ring of an alarm with no steps too.
+            if steps.isEmpty { return outcome?.status == .done ? "Done" : "" }
             let counted = steps.filter { $0.completion != nil || $0.at <= now }
             return "\(counted.filter { $0.completion != nil }.count) of \(counted.count) done"
         }
