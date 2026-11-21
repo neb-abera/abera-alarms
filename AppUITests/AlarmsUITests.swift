@@ -1654,9 +1654,11 @@ extension AlarmsUITests {
         let today = stretch.identifier
         XCTAssertEqual(stretch.label, "Check off Stretch")
         stretch.tap()
-        // The ring is settled: the list moves to tomorrow's.
-        XCTAssertTrue(
-            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+        // The ring is settled: the list moves to tomorrow's, whose steps start closed.
+        let toggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        XCTAssertTrue(poll(10) { toggle.value as? String == "Closed" }, app.debugDescription)
+        openSteps(app, "Gym")
+        XCTAssertNotEqual(first(app, "check-Stretch-").identifier, today)
 
         app.buttons["ring-undo-Gym"].tap()
         XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days"), gymClock(app).label)
@@ -1674,8 +1676,11 @@ extension AlarmsUITests {
         let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
         XCTAssertTrue(waitFor(mark, labelContaining: "Skipped"), app.debugDescription)
         XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 1 day"), gymClock(app).label)
-        XCTAssertTrue(
-            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+        // The list moves to tomorrow's ring, whose steps start closed.
+        let toggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        XCTAssertTrue(poll(10) { toggle.value as? String == "Closed" }, app.debugDescription)
+        openSteps(app, "Gym")
+        XCTAssertNotEqual(first(app, "check-Stretch-").identifier, today)
     }
 
     func testDoneAndSkipAreInTheAlarmsMenu() {
@@ -1794,12 +1799,12 @@ extension AlarmsUITests {
         gymToggle.tap()
         XCTAssertTrue(waitForGone(first(app, "step-Stretch-")))
 
-        // His choices hold across a relaunch.
+        // His choice holds across a relaunch. Weekly review keeps its ring.
+        // Gym is set 2 minutes after each launch, so it is a new ring.
         app.terminate()
         app.launchArguments = ["-demo", "-demo-ring-soon", "-demo-weekly"]
         app.launch()
-        XCTAssertTrue(gymToggle.waitForExistence(timeout: 15), app.debugDescription)
-        XCTAssertEqual(gymToggle.value as? String, "Closed")
+        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 15), app.debugDescription)
         scrollTo(weeklyToggle, in: app)
         XCTAssertEqual(weeklyToggle.value as? String, "Open")
     }
