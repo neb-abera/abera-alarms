@@ -159,10 +159,14 @@ extension RingControlRow {
 
     @ViewBuilder
     fileprivate func buttons(_ cycle: RoutineCycle) -> some View {
+        // Words alone, which a button never trades for its icon. Build 234
+        // showed Done and Skip as icons only on Neb's iPhone (2026-11-21).
         Button {
             Task { await model.mark(routine, cycle: cycle, .done) }
         } label: {
-            Label("Done", systemImage: "checkmark.circle")
+            Text("Done")
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.green)
                 .lineLimit(1)
                 .fixedSize()
         }
@@ -172,7 +176,9 @@ extension RingControlRow {
         Button {
             Task { await model.mark(routine, cycle: cycle, .skipped) }
         } label: {
-            Label("Skip", systemImage: "forward")
+            Text("Skip")
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.orange)
                 .lineLimit(1)
                 .fixedSize()
         }
@@ -767,7 +773,8 @@ struct StepsToggleRow: View {
                 Image(systemName: "chevron.right")
                     .rotationEffect(.degrees(open ? 90 : 0))
                     .foregroundStyle(.secondary)
-                Text(cycle.map { "Steps, \(StepText.when($0.at))" } ?? "Steps")
+                Text(open ? "Hide steps" : "Show \(routine.steps.count) steps")
+                    .foregroundStyle(Color.accentColor)
                     .lineLimit(1)
                 Spacer()
                 Text("\(done) of \(routine.steps.count) done")

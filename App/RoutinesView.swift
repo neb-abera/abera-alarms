@@ -119,6 +119,16 @@ struct RoutinesView: View {
                             Task { await model.deleteRoutine(routine) }
                         }
                     }
+                    // A swipe right shows or hides the alarm's steps.
+                    .swipeActions(edge: .leading) {
+                        if !routine.steps.isEmpty {
+                            let open = model.stepsOpen(routine, at: Date())
+                            Button(open ? "Hide Steps" : "Show Steps") {
+                                withAnimation(.easeInOut(duration: 0.2)) { model.toggleSteps(routine, at: Date()) }
+                            }
+                            .tint(.blue)
+                        }
+                    }
                     .contextMenu {
                         Button("Edit", systemImage: "pencil") { editing = routine }
                         if case .mark(let cycle) = model.ringControl(routine, at: Date()) {
@@ -168,6 +178,11 @@ struct RoutinesView: View {
             .navigationTitle("Alarms")
             .refreshable { await model.sync() }
             .toolbar {
+                // Scrolled, the title squeezed between the buttons read "Al..."
+                // (Neb's iPhone, 2026-11-21). The tab bar names the page.
+                ToolbarItem(placement: .principal) {
+                    Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button(selecting ? "Done" : "Select") {
                         selecting.toggle()
