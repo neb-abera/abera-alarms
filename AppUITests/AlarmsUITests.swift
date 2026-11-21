@@ -1349,6 +1349,15 @@ extension AlarmsUITests {
             .formatted(date: .omitted, time: .shortened)
     }
 
+    /// True when the simulator refused the alarms the app set without
+    /// asking: the Alarms tab shows "could not be set". The iOS 27.0
+    /// simulator does this (CI, 2026-11-15). Waiting out a ring that cannot
+    /// come cost 3 to 4 minutes a test and ran the job past 65 minutes on
+    /// 2026-11-21.
+    private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
+        !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
+    }
+
     func testAddingStepsToAnAlarmShowsThemUnderIt() {
         let app = launch(tab: nil)
         XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
@@ -1583,6 +1592,7 @@ extension AlarmsUITests {
         XCTAssertTrue(medication.label.contains("Rings at"), medication.label)
         skip.tap()
         XCTAssertTrue(poll(5) { skip.label == "Undo Skip me" }, skip.label)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
 
         let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         XCUIDevice.shared.press(.home)
@@ -1687,6 +1697,7 @@ extension AlarmsUITests {
         done.tap()
         let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
         XCTAssertTrue(waitFor(mark, labelContaining: "Done for"), app.debugDescription)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
 
         let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         XCUIDevice.shared.press(.home)

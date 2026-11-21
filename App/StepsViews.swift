@@ -140,6 +140,8 @@ struct RingControlRow: View {
                 )
                 .font(.subheadline)
                 .foregroundStyle(outcome.status == .done ? Color.green : Color.orange)
+                // One element. iOS 26.5 read the icon apart, as "Selected" (CI, 2026-11-21).
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("ring-mark-\(routine.label)")
                 Spacer()
                 Button("Undo") {
