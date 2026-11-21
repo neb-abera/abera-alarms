@@ -429,7 +429,48 @@ final class AppModel {
     /// The cycle the Alarms tab shows under an alarm.
     func shownCycle(_ routine: Routine, at now: Date) -> RoutineCycle? {
         let window = TimeInterval((state?.stopAfterMinutes ?? AlertsState.defaultStopAfterMinutes) * 60)
-        return RoutineCycle.shown(routine, now: now, window: window, calendar: .current)
+        return RoutineCycle.shown(routine, in: state ?? AlertsState(), now: now, window: window, calendar: .current)
+    }
+
+    /// What the row under an alarm offers for one ring: Done and Skip for
+    /// a ring within the next 12 hours that nothing has settled, or the
+    /// mark on a ring and its Undo.
+    enum RingControl: Equatable {
+        case mark(RoutineCycle)
+        case marked(RoutineCycle, RoutineOutcome)
+    }
+
+    static let markAhead: TimeInterval = 12 * 3600
+
+    func ringControl(_ routine: Routine, at now: Date) -> RingControl? {
+        guard routine.enabled, let state else { return nil }
+        let (current, next) = RoutineCycle.around(routine, now: now, calendar: .current)
+        // A mark shows with its Undo until 12 hours after its ring.
+        for cycle in [next, current].compactMap({ $0 }) {
+            if let outcome = cycle.outcome(in: state), cycle.at.addingTimeInterval(Self.markAhead) > now {
+                return .marked(cycle, outcome)
+            }
+        }
+        guard let shown = shownCycle(routine, at: now), shown.outcome(in: state) == nil,
+            shown.at.timeIntervalSince(now) <= Self.markAhead
+        else { return nil }
+        return .mark(shown)
+    }
+
+    /// Marks one ring of an alarm Done or Skipped. Its alarm goes at once, offline too.
+    func mark(_ routine: Routine, cycle: RoutineCycle, _ status: RoutineOutcome.Status) async {
+        stepError = nil
+        let draft = OutcomeDraft(routineId: routine.id, cycle: cycle.stamp, status: status, at: Date())
+        let result = await runReturning { await self.dependencies.sync.setOutcome(draft) }
+        noteStepError(result.error)
+    }
+
+    func unmark(_ routine: Routine, cycle: RoutineCycle) async {
+        stepError = nil
+        let result = await runReturning {
+            await self.dependencies.sync.clearOutcome(routineId: routine.id, cycle: cycle.stamp)
+        }
+        noteStepError(result.error)
     }
 
     /// The last two weeks from abera.tech, or why they could not be read.
