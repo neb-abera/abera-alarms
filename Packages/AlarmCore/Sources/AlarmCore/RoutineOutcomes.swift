@@ -83,17 +83,16 @@ extension RoutineCycle {
         state.routineOutcomes.first { $0.routineId == routineID && $0.cycle == stamp }
     }
 
-    /// True once nothing in this ring is left to do: it was skipped, or the
-    /// alarm was marked Done or stopped after it rang, and every step was
-    /// checked off. The list under the alarm then moves to the next ring.
+    /// True once nothing in this ring is left to do: it was skipped, or it
+    /// was marked Done or its time has passed, and every step was checked
+    /// off. The list under the alarm then moves to the next ring. A Stop is
+    /// not needed: abera.tech lists a ring only for its stop window, so a
+    /// 07:00 Stop was out of sight by 10:06, and the list kept offering Done
+    /// for a ring that had rung (Neb's iPhone, 2026-11-21).
     public func isSettled(in state: AlertsState, acknowledgedHere: Set<String> = [], now: Date) -> Bool {
         let outcome = outcome(in: state)
         if outcome?.status == .skipped { return true }
-        let stopped =
-            at <= now
-            && (acknowledgedHere.contains(key)
-                || state.routineRings.contains { $0.key == key && $0.acknowledged })
-        guard outcome?.status == .done || stopped else { return false }
+        guard outcome?.status == .done || at <= now || acknowledgedHere.contains(key) else { return false }
         let completed = Set(state.routineCompletions.map(\.stepKey))
         return steps.allSatisfy { completed.contains($0.key) }
     }
