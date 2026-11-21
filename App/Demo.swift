@@ -22,6 +22,8 @@
     /// `-demo-step-soon` adds Pills at the current minute with two steps that
     /// ring 2 minutes later. `-demo-real-alarms` gives every alarm to
     /// AlarmKit, so a UI test hears a step ring through iOS.
+    /// `-demo-ring-soon` adds Gym, every day, ringing 2 to 3 minutes after
+    /// launch, with its step Stretch at the same minute.
     /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
     /// AlarmKit, so a test that rang real alarms leaves none ringing for the
     /// tests after it.
@@ -34,6 +36,7 @@
             var initial = state(now: Date(), started: arguments.contains("-demo-started"))
             if arguments.contains("-demo-steps") { initial.routines.append(morning) }
             if arguments.contains("-demo-step-soon") { initial.routines.append(pills(now: Date())) }
+            if arguments.contains("-demo-ring-soon") { initial.routines.append(gym(now: Date())) }
             let server = FakeAlertsServer(
                 state: initial, token: token,
                 offline: arguments.contains("-demo-offline"),
@@ -117,6 +120,21 @@
                     RoutineStep(
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000042")!, label: "Take medication",
                         offsetMinutes: 0),
+                ], updatedAt: now.addingTimeInterval(-86_400))
+        }
+
+        /// Gym at the minute at least 80 s ahead, every day. Stretch rings
+        /// with it.
+        static func gym(now: Date) -> Routine {
+            let ring = Calendar.current.dateInterval(of: .minute, for: now.addingTimeInterval(140))?.start ?? now
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: ring)
+            return Routine(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000005")!, label: "Gym",
+                hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: [1, 2, 3, 4, 5, 6, 7],
+                steps: [
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000051")!, label: "Stretch",
+                        offsetMinutes: 0)
                 ], updatedAt: now.addingTimeInterval(-86_400))
         }
 

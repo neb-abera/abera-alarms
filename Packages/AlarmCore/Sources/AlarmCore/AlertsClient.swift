@@ -145,6 +145,20 @@ public struct AlertsClient: Sendable {
         try await call("DELETE", Self.completionPath(routineId: routineId, stepId: stepId, cycle: cycle), body: nil)
     }
 
+    static func outcomePath(routineId: UUID, cycle: String) -> String {
+        "routines/\(routineId.uuidString.lowercased())/cycles/\(cycle)/outcome"
+    }
+
+    /// Marks one ring of an alarm Done or Skipped.
+    public func setOutcome(_ draft: OutcomeDraft) async throws(APIError) -> AlertsState {
+        try await call("PUT", Self.outcomePath(routineId: draft.routineId, cycle: draft.cycle), body: draft.body)
+    }
+
+    /// Takes the mark off. The ring sounds again if its time is still ahead.
+    public func clearOutcome(routineId: UUID, cycle: String) async throws(APIError) -> AlertsState {
+        try await call("DELETE", Self.outcomePath(routineId: routineId, cycle: cycle), body: nil)
+    }
+
     /// The last two weeks of cycles of the routines with steps.
     public func history() async throws(APIError) -> RoutineHistory {
         let data = try await fetch("history", accept: "application/json", limit: Self.maxResponseBytes * 4)

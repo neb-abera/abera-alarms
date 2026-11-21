@@ -205,21 +205,55 @@ public struct RoutineCompletion: Codable, Equatable, Hashable, Sendable {
 public enum CompletionChange: Codable, Equatable, Sendable {
     case complete(CompletionDraft)
     case undo(routineId: UUID, stepId: UUID, cycle: String)
+    /// A ring of the alarm itself marked Done or Skipped.
+    case outcome(OutcomeDraft)
+    /// The mark taken off.
+    case clearOutcome(routineId: UUID, cycle: String)
 
     public var routineId: UUID {
         switch self {
         case .complete(let draft): draft.routineId
         case .undo(let routineId, _, _): routineId
+        case .outcome(let draft): draft.routineId
+        case .clearOutcome(let routineId, _): routineId
         }
     }
 
+    /// What the change is about: a step's ring, or the alarm's own ring
+    /// with ":outcome" after it. A later change to the same key replaces it.
     public var stepKey: String {
         switch self {
         case .complete(let draft):
             RoutineCycle.stepKey(routineID: draft.routineId, stamp: draft.cycle, stepID: draft.stepId)
         case .undo(let routineId, let stepId, let cycle):
             RoutineCycle.stepKey(routineID: routineId, stamp: cycle, stepID: stepId)
+        case .outcome(let draft):
+            RoutineCycle.parentKey(routineID: draft.routineId, stamp: draft.cycle) + ":outcome"
+        case .clearOutcome(let routineId, let cycle):
+            RoutineCycle.parentKey(routineID: routineId, stamp: cycle) + ":outcome"
         }
+    }
+
+    /// The outcomes as they will be once abera.tech has these changes.
+    public static func overlayOutcomes(_ outcomes: [RoutineOutcome], _ changes: [CompletionChange])
+        -> [RoutineOutcome]
+    {
+        var out = outcomes
+        for change in changes {
+            switch change {
+            case .outcome(let draft):
+                out.removeAll { $0.routineId == draft.routineId && $0.cycle == draft.cycle }
+                out.append(
+                    RoutineOutcome(
+                        routineId: draft.routineId, cycle: draft.cycle, status: draft.status, at: draft.at,
+                        note: draft.body.note))
+            case .clearOutcome(let routineId, let cycle):
+                out.removeAll { $0.routineId == routineId && $0.cycle == cycle }
+            case .complete, .undo:
+                continue
+            }
+        }
+        return out
     }
 
     /// The last change for each step and cycle. A second check-off with no
@@ -272,6 +306,11 @@ public enum CompletionChange: Codable, Equatable, Sendable {
             return .complete(draft)
         case .undo(let routineId, let stepId, let cycle):
             return .undo(routineId: ids[routineId] ?? routineId, stepId: stepId, cycle: cycle)
+        case .outcome(var draft):
+            draft.routineId = ids[draft.routineId] ?? draft.routineId
+            return .outcome(draft)
+        case .clearOutcome(let routineId, let cycle):
+            return .clearOutcome(routineId: ids[routineId] ?? routineId, cycle: cycle)
         }
     }
 }
@@ -360,12 +399,14 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
         public var acknowledgedAt: Date?
         public var acknowledgedVia: String?
         public var steps: [Step]
+        /// The ring marked Done or Skipped. Nil from an older server.
+        public var outcome: Outcome?
 
         public var id: String { routineId.uuidString + cycle }
 
         public init(
             routineId: UUID, label: String, cycle: String, at: Date, acknowledgedAt: Date? = nil,
-            acknowledgedVia: String? = nil, steps: [Step]
+            acknowledgedVia: String? = nil, steps: [Step], outcome: Outcome? = nil
         ) {
             self.routineId = routineId
             self.label = label
@@ -374,10 +415,14 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
             self.acknowledgedAt = acknowledgedAt
             self.acknowledgedVia = acknowledgedVia
             self.steps = steps
+            self.outcome = outcome
         }
+
+        public var skipped: Bool { outcome?.status == .skipped }
 
         /// "2 of 3 done". A step still to ring counts once it is checked off.
         public func doneText(now: Date) -> String {
+            if skipped { return "Skipped" }
             let counted = steps.filter { $0.completion != nil || $0.at <= now }
             return "\(counted.filter { $0.completion != nil }.count) of \(counted.count) done"
         }
@@ -398,6 +443,18 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
             self.at = at
             self.acknowledgedAt = acknowledgedAt
             self.completion = completion
+        }
+    }
+
+    public struct Outcome: Codable, Equatable, Sendable {
+        public var status: RoutineOutcome.Status
+        public var at: Date
+        public var note: String?
+
+        public init(status: RoutineOutcome.Status, at: Date, note: String? = nil) {
+            self.status = status
+            self.at = at
+            self.note = note
         }
     }
 
@@ -428,7 +485,8 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
     /// is checked off. Steps in label order.
     public func tally(now: Date) -> [Tally] {
         var counts: [String: (Int, Int)] = [:]
-        for cycle in cycles {
+        // A skipped ring was not due, so it counts neither way.
+        for cycle in cycles where !cycle.skipped {
             for step in cycle.steps where step.completion != nil || step.at <= now {
                 let (done, of) = counts[step.label] ?? (0, 0)
                 counts[step.label] = (done + (step.completion == nil ? 0 : 1), of + 1)

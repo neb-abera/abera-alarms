@@ -97,6 +97,62 @@ struct EditableStep: Identifiable, Equatable {
     }
 }
 
+/// Under an alarm on the Alarms tab: Done and Skip for its coming ring,
+/// each one tap, or the mark on a ring with Undo. Done keeps that ring from
+/// sounding. Skip keeps its steps from ringing too. The next ring is set.
+struct RingControlRow: View {
+    @Bindable var model: AppModel
+    let routine: Routine
+    let control: AppModel.RingControl
+
+    var body: some View {
+        switch control {
+        case .mark(let cycle):
+            HStack {
+                Text(StepText.when(cycle.at))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    Task { await model.mark(routine, cycle: cycle, .done) }
+                } label: {
+                    Label("Done", systemImage: "checkmark.circle")
+                }
+                .buttonStyle(.bordered)
+                .tint(.green)
+                .accessibilityIdentifier("ring-done-\(routine.label)")
+                Button {
+                    Task { await model.mark(routine, cycle: cycle, .skipped) }
+                } label: {
+                    Label("Skip", systemImage: "forward")
+                }
+                .buttonStyle(.bordered)
+                .tint(.orange)
+                .accessibilityIdentifier("ring-skip-\(routine.label)")
+            }
+            .padding(.leading, 20)
+        case .marked(let cycle, let outcome):
+            HStack {
+                Label(
+                    outcome.status == .done
+                        ? "Done for \(StepText.when(cycle.at))" : "Skipped \(StepText.when(cycle.at))",
+                    systemImage: outcome.status == .done ? "checkmark.circle.fill" : "forward.fill"
+                )
+                .font(.subheadline)
+                .foregroundStyle(outcome.status == .done ? Color.green : Color.orange)
+                .accessibilityIdentifier("ring-mark-\(routine.label)")
+                Spacer()
+                Button("Undo") {
+                    Task { await model.unmark(routine, cycle: cycle) }
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("ring-undo-\(routine.label)")
+            }
+            .padding(.leading, 20)
+        }
+    }
+}
+
 /// A routine's steps, indented under it on the Alarms tab, for the time
 /// under way, or the next time once its steps have rung out. The circle
 /// checks a step off in one tap. A tap on the step adds a note or a photo.
@@ -518,7 +574,9 @@ struct HistoryView: View {
                                 }
                             } header: {
                                 HStack {
-                                    Text("\(cycle.label), \(StepText.when(cycle.at))")
+                                    Text(
+                                        "\(cycle.label), \(StepText.when(cycle.at))"
+                                            + (cycle.outcome?.status == .done ? ", done" : ""))
                                     Spacer()
                                     Text(cycle.doneText(now: Date()))
                                 }
@@ -565,13 +623,23 @@ struct HistoryStepRow: View {
     let step: RoutineHistory.Step
     let showPhoto: (UUID) -> Void
 
+    /// Done, skipped with its alarm, still to ring, or missed.
+    private var icon: String {
+        if step.completion != nil { return "checkmark.circle.fill" }
+        if cycle.skipped { return "forward.circle" }
+        return step.at > Date() ? "circle" : "xmark.circle"
+    }
+
+    private var color: Color {
+        if step.completion != nil { return .green }
+        if cycle.skipped || step.at > Date() { return .secondary }
+        return .red
+    }
+
     var body: some View {
         HStack(alignment: .top) {
-            Image(
-                systemName: step.completion != nil
-                    ? "checkmark.circle.fill" : step.at > Date() ? "circle" : "xmark.circle"
-            )
-            .foregroundStyle(step.completion != nil ? Color.green : step.at > Date() ? Color.secondary : Color.red)
+            Image(systemName: icon)
+                .foregroundStyle(color)
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.label)
                 if let done = step.completion {
@@ -586,9 +654,13 @@ struct HistoryStepRow: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {
-                    Text("Missed. It rang at \(step.at.formatted(date: .omitted, time: .shortened)).")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text(
+                        cycle.skipped
+                            ? "Skipped with its alarm."
+                            : "Missed. It rang at \(step.at.formatted(date: .omitted, time: .shortened))."
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 }
             }
             .accessibilityElement(children: .combine)
