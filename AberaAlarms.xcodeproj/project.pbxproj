@@ -13,6 +13,7 @@
 		1195A46C96C80469377E9DBF /* AlarmsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A38D1652297D6AE051F5D2C7 /* AlarmsUITests.swift */; };
 		21A0EE61A30E51A88A5E116F /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B890D84B86C41523A8B16CA1 /* WorkoutView.swift */; };
 		2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875322B8C145E438EE7839FA /* RestView.swift */; };
+		2EB6CC950C9ED19F51C8E167 /* HealthKitWeights.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1879174F6632553A5BB3B5BD /* HealthKitWeights.swift */; };
 		3F2C4196F064F18529EC988F /* beacon.caf in Resources */ = {isa = PBXBuildFile; fileRef = 353CC3BC76C14D96A55388B0 /* beacon.caf */; };
 		3F8CB1B5E13B33DEB82AEB01 /* SoundSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */; };
 		42220319EE8008F3B60C5B17 /* StepsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44B5B7BA28B993F9C5F2EEE /* StepsViews.swift */; };
@@ -82,6 +83,7 @@
 		025F773C291EF10998E2C4D1 /* WidgetUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetUITests.swift; sourceTree = "<group>"; };
 		09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Demo.swift; sourceTree = "<group>"; };
 		109FDAD022B2FBCE1704C3C4 /* SoundSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundSettingsView.swift; sourceTree = "<group>"; };
+		1879174F6632553A5BB3B5BD /* HealthKitWeights.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthKitWeights.swift; sourceTree = "<group>"; };
 		18942D83DFFA3BC6C8B7F613 /* WidgetFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFeed.swift; sourceTree = "<group>"; };
 		1AB8C6AD30D64F7BB5F2BD47 /* AlarmKitScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlarmKitScheduler.swift; sourceTree = "<group>"; };
 		1B571278D349722D70FF8D3E /* RoutinesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoutinesView.swift; sourceTree = "<group>"; };
@@ -194,6 +196,7 @@
 				ABC3807C95C862E7DE6B55EE /* DateCalculatorView.swift */,
 				09FDAE5CCBD05F9BAE5644A0 /* Demo.swift */,
 				87A83F32AF14C10AA49161F6 /* Dependencies.swift */,
+				1879174F6632553A5BB3B5BD /* HealthKitWeights.swift */,
 				3C8B5FA7AC8F1C9E2F54CAB4 /* Info.plist */,
 				CA375A6D175B012E7A00735A /* PushDelegate.swift */,
 				875322B8C145E438EE7839FA /* RestView.swift */,
@@ -383,6 +386,7 @@
 				89EA624F8A5C80A53050F8EC /* DateCalculatorView.swift in Sources */,
 				7928AA7FE04A07B473533544 /* Demo.swift in Sources */,
 				0B44891BF6F5A9AAD4B3E7CF /* Dependencies.swift in Sources */,
+				2EB6CC950C9ED19F51C8E167 /* HealthKitWeights.swift in Sources */,
 				EA41E2865CC490119C719469 /* PushDelegate.swift in Sources */,
 				6D52A8647A8176E4DD28B934 /* RestActivity.swift in Sources */,
 				2D2C2BD99FC5AEEB28175FF7 /* RestView.swift in Sources */,

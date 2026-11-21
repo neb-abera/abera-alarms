@@ -20,6 +20,9 @@ struct Dependencies: Sendable {
     let permissions: any AlarmPermissions
     let allowedServers: Set<URL>
     var device: any DeviceChecks = SystemDevice()
+    /// Apple Health's weigh-ins to abera.tech/fitness. Nil in the demo unless asked for.
+    var weights: WeightSync?
+    var health: HealthKitWeights?
 
     static let shared: Dependencies = {
         #if DEBUG
@@ -33,7 +36,13 @@ struct Dependencies: Sendable {
                 documents: FileDocuments(),
                 uploads: AcknowledgementUploads.shared),
             permissions: AlarmKitPermissions(),
-            allowedServers: [Pairing.production])
+            allowedServers: [Pairing.production],
+            weights: WeightSync(
+                credentials: KeychainCredentials(),
+                transport: URLSession(configuration: .ephemeral),
+                reader: HealthKitWeights(),
+                documents: FileDocuments()),
+            health: HealthKitWeights())
     }()
 }
 

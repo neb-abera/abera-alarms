@@ -41,6 +41,24 @@ struct SoundSettingsView: View {
                 } footer: {
                     Text("For calendar alarms. Each alarm on the Alarms tab keeps its own snooze.")
                 }
+                Section {
+                    Button("Send weigh-ins now") {
+                        Task { await model.sendWeights() }
+                    }
+                    .disabled(model.busy)
+                    .accessibilityIdentifier("send-weights")
+                    if let status = model.weightStatus {
+                        Text(status)
+                            .font(.footnote)
+                            .accessibilityIdentifier("weight-status")
+                    }
+                } header: {
+                    Text("Apple Health")
+                } footer: {
+                    Text(
+                        "Lose It writes your weigh-ins to Apple Health. The phone sends the last 30 days to abera.tech/fitness on every sync and when a new one is added."
+                    )
+                }
                 if let error = model.settingsError {
                     Text(error).foregroundStyle(.red)
                 }

@@ -8,6 +8,22 @@ import Foundation
 // and the app's UI tests launch with them (`-demo`) so the suite needs
 // neither abera.tech nor a real alarm.
 
+/// Weigh-ins as Apple Health would give them.
+public actor MemoryWeights: WeightReading {
+    public var stored: [WeightSample]
+    public var denied = false
+
+    public init(_ stored: [WeightSample] = []) { self.stored = stored }
+
+    public func add(_ sample: WeightSample) { stored.append(sample) }
+    public func deny() { denied = true }
+
+    public func samples(since: Date) async throws -> [WeightSample] {
+        // Apple Health answers a denied read with nothing, not an error.
+        denied ? [] : stored.filter { $0.date >= since }
+    }
+}
+
 public actor MemoryDocuments: DocumentStore {
     var files: [String: Data] = [:]
 
@@ -135,6 +151,8 @@ public actor FakeAlertsServer: HTTPTransport {
     public private(set) var routineDeletes: [UUID] = []
     public private(set) var edits: [EventEdit] = []
     public private(set) var deletions: [String] = []
+    /// Weigh-ins by day, as abera.tech/fitness holds them.
+    public private(set) var weights: [String: Double] = [:]
     /// "<token> <environment>" as the phone last registered it.
     public private(set) var pushRegistration: String?
     public private(set) var created: [NewEvent] = []
@@ -569,6 +587,20 @@ public actor FakeAlertsServer: HTTPTransport {
         case ("DELETE", "/api/alerts/devices/me/push"):
             pushRegistration = nil
             return respond(request, 204, Data())
+        case ("POST", "/api/alerts/health/weights"):
+            // As abera.tech stores them: one a day, a repeat changes nothing.
+            struct Upload: Decodable { let weights: [DailyWeight] }
+            guard let data = request.httpBody, let upload = try? JSONDecoder().decode(Upload.self, from: data),
+                !upload.weights.isEmpty,
+                upload.weights.allSatisfy({ $0.weightKg > 30 && $0.weightKg <= 250 })
+            else { return respond(request, 400, Data(#"{"errors":{"weights":["Implausible weigh-in."]}}"#.utf8)) }
+            var saved = 0
+            for weight in upload.weights where weights[weight.date] != weight.weightKg {
+                weights[weight.date] = weight.weightKg
+                saved += 1
+            }
+            let result = WeightUploadResult(saved: saved, unchanged: upload.weights.count - saved)
+            return respond(request, 200, (try? JSONEncoder().encode(result)) ?? Data())
         case ("PUT", "/api/alerts/event-type"):
             guard listed != nil else { return respond(request, 404, Data()) }
             let type = body["type"] ?? ""

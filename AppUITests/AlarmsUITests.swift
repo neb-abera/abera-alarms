@@ -707,6 +707,50 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["Snooze: 8 min"].exists)
     }
 
+    // MARK: Apple Health weigh-ins
+
+    /// The Health sheet iOS shows the first time: turn every category on,
+    /// then Allow. Its labels have moved between iOS releases, so any
+    /// element whose label starts "Turn On All" counts.
+    private func allowHealth(_ app: XCUIApplication) {
+        let turnOn = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label BEGINSWITH[c] 'Turn On All'")).firstMatch
+        guard turnOn.waitForExistence(timeout: 20) else {
+            XCTFail("no Health sheet:\n\(app.debugDescription)")
+            return
+        }
+        turnOn.tap()
+        let allow = app.buttons["Allow"].firstMatch
+        XCTAssertTrue(allow.waitForExistence(timeout: 5), app.debugDescription)
+        allow.tap()
+    }
+
+    /// A weigh-in in Apple Health reaches abera.tech through the real
+    /// HealthKit in the simulator and the Health sheet a person sees. On
+    /// 2026-11-21 Neb's Lose It weigh-ins reached Apple Health and never
+    /// abera.tech.
+    func testAnAppleHealthWeighInIsSentToAberaTech() {
+        let app = launch("-demo-health", tab: nil)
+        allowHealth(app)
+
+        let open = app.buttons["sound-settings"]
+        XCTAssertTrue(open.waitForExistence(timeout: 10))
+        open.tap()
+        let send = app.buttons["send-weights"]
+        XCTAssertTrue(send.waitForExistence(timeout: 5))
+        send.tap()
+        let status = app.staticTexts["weight-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 10), app.debugDescription)
+        // The launch sync may have sent it already: then this tap finds abera.tech up to date.
+        XCTAssertTrue(
+            poll(10) {
+                status.label.hasPrefix("Sent to abera.tech: 1 new") || status.label == "Up to date with abera.tech."
+            }, status.label)
+
+        send.tap()
+        XCTAssertTrue(poll(10) { status.label == "Up to date with abera.tech." }, status.label)
+    }
+
     // MARK: Routine alarms
 
     private func routine(_ app: XCUIApplication, _ label: String) -> XCUIElement {

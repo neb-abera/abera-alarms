@@ -24,9 +24,27 @@
     /// AlarmKit, so a UI test hears a step ring through iOS.
     /// `-demo-ring-soon` adds Gym, every day, ringing 2 to 3 minutes after
     /// launch, with its step Stretch at the same minute.
+    /// `-demo-health` sends Apple Health weigh-ins to the demo server, and
+    /// puts one weigh-in of 77.111 kg in the simulator's Health first.
     /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
     /// AlarmKit, so a test that rang real alarms leaves none ringing for the
     /// tests after it.
+    /// The simulator's Health with one weigh-in put there before the first read.
+    actor SeededHealth: WeightReading {
+        let health: HealthKitWeights
+        private var seeded = false
+
+        init(health: HealthKitWeights) { self.health = health }
+
+        func samples(since: Date) async throws -> [WeightSample] {
+            if !seeded {
+                seeded = true
+                try? await health.add(kilograms: 77.111)
+            }
+            return try await health.samples(since: since)
+        }
+    }
+
     enum Demo {
         static let token = "aat_" + String(repeating: "D", count: 43)
         static let link = "aberaalarms://pair#token=\(token)"
@@ -61,15 +79,23 @@
             }
             let alarms: any AlarmScheduling =
                 arguments.contains("-demo-real-alarms") ? AuthorizingScheduler() : MemoryAlarms()
+            let credentials = MemoryCredentials(arguments.contains("-demo-unpaired") ? nil : pairing)
+            let health = arguments.contains("-demo-health") ? HealthKitWeights(writes: true) : nil
             return Dependencies(
                 sync: AlarmSync(
-                    credentials: MemoryCredentials(arguments.contains("-demo-unpaired") ? nil : pairing),
+                    credentials: credentials,
                     transport: server,
                     alarms: alarms,
                     documents: MemoryDocuments()),
                 permissions: DemoPermissions(),
                 allowedServers: [Pairing.production],
-                device: DemoDevice(arguments))
+                device: DemoDevice(arguments),
+                weights: health.map {
+                    WeightSync(
+                        credentials: credentials, transport: server, reader: SeededHealth(health: $0),
+                        documents: MemoryDocuments())
+                },
+                health: health)
         }
 
         static let morningID = UUID(uuidString: "00000000-0000-4000-8000-000000000003")!

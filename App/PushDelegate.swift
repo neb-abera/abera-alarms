@@ -12,6 +12,10 @@ final class PushDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
         application.registerForRemoteNotifications()
+        // Here and not in the view: iOS launches the app in the background
+        // for a new weigh-in, and HealthKit delivers it only to a query set
+        // up before launch finishes.
+        AppModel.observeWeights()
         // Without notification permission iOS puts "Allow Live Activities"
         // on every Lock Screen card and its buttons do nothing. On
         // 2026-11-03 the workout card stayed grey that way on Neb's iPhone,

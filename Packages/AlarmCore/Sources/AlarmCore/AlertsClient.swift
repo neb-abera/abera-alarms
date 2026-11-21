@@ -285,6 +285,30 @@ public struct AlertsClient: Sendable {
         }
     }
 
+    /// A request whose answer is not the page's state: the body, at most
+    /// `maxResponseBytes`.
+    func send(_ method: String, _ action: String, body: (any Encodable & Sendable)?) async throws(APIError) -> Data {
+        let data: Data
+        let response: HTTPURLResponse
+        do {
+            (data, response) = try await transport.send(request(method, action, body: body))
+        } catch let error as APIError {
+            throw error
+        } catch {
+            throw .offline
+        }
+        switch response.statusCode {
+        case 200:
+            guard data.count <= Self.maxResponseBytes else { throw .badResponse }
+            return data
+        case 401: throw .unpaired
+        case 404: throw .notFound
+        case 400, 409, 413, 415, 422: throw .refused(Self.reason(data))
+        case 429: throw .rateLimited
+        default: throw .status(response.statusCode)
+        }
+    }
+
     /// The server's reason from a ValidationProblem or a problem detail,
     /// cut to one line a person can read.
     static func reason(_ data: Data) -> String {

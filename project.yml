@@ -40,6 +40,10 @@ targets:
         # The widgets read the app's snapshot from this group.
         com.apple.security.application-groups:
           - group.tech.abera.alarms
+        # Weigh-ins from Apple Health for abera.tech/fitness, with the app
+        # woken for each new one.
+        com.apple.developer.healthkit: true
+        com.apple.developer.healthkit.background-delivery: true
     info:
       path: App/Info.plist
       properties:
@@ -54,6 +58,8 @@ targets:
           - UIInterfaceOrientationPortrait
         NSAlarmKitUsageDescription: Rings the alarms you set on abera.tech/alerts, with or without a connection.
         NSCameraUsageDescription: Takes a photo when you check off a step, to show later what you did.
+        NSHealthShareUsageDescription: Sends your weigh-ins to abera.tech/fitness, where your goals are forecast.
+        NSHealthUpdateUsageDescription: Only the demo build writes a weigh-in, to test sending them.
         UIBackgroundModes:
           # audio: the workout timer speaks with the phone locked.
           - audio

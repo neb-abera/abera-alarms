@@ -37,16 +37,20 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>pushover</string>
 	</array>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
 	<key>NSAlarmKitUsageDescription</key>
 	<string>Rings the alarms you set on abera.tech/alerts, with or without a connection.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Takes a photo when you check off a step, to show later what you did.</string>
+	<key>NSHealthShareUsageDescription</key>
+	<string>Sends your weigh-ins to abera.tech/fitness, where your goals are forecast.</string>
+	<key>NSHealthUpdateUsageDescription</key>
+	<string>Only the demo build writes a weigh-in, to test sending them.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

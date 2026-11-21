@@ -30,6 +30,9 @@ final class AppModel {
     private(set) var timerLabel = "Timer"
     private(set) var timerError: String?
 
+    /// What the last send of Apple Health weigh-ins to abera.tech did.
+    private(set) var weightStatus: String?
+
     /// A paired phone stays on the setup screen while a blocking check fails.
     var blocked: Bool { paired && checks.contains { $0.severity == .blocking } }
 
@@ -177,6 +180,34 @@ final class AppModel {
 
     func sync() async {
         await run { await self.dependencies.sync.sync() }
+        await sendWeights()
+    }
+
+    /// Apple Health's weigh-ins of the last 30 days to abera.tech/fitness.
+    /// The first time, iOS shows the Health sheet.
+    func sendWeights() async {
+        guard paired, let weights = dependencies.weights else { return }
+        await dependencies.health?.requestAccess()
+        weightStatus = Self.describe(await weights.run())
+    }
+
+    /// Starts listening for new weigh-ins, so a Lose It entry reaches
+    /// abera.tech with the app closed.
+    nonisolated static func observeWeights(_ dependencies: Dependencies = .shared) {
+        guard let weights = dependencies.weights, dependencies.health != nil else { return }
+        HealthKitWeights.observe { _ = await weights.run() }
+    }
+
+    static func describe(_ outcome: WeightSync.Outcome) -> String {
+        switch outcome {
+        case .notPaired: "Pair the phone to send weigh-ins."
+        case .nothingToSend:
+            "No weigh-ins in Apple Health in the last 30 days. If Lose It holds some, allow Health access: Settings > Privacy & Security > Health > Alarms."
+        case .alreadySent: "Up to date with abera.tech."
+        case .sent(let result):
+            "Sent to abera.tech: \(result.saved) new, \(result.unchanged) already there."
+        case .failed(let error): describe(error)
+        }
     }
 
     func pair(link: String) async {
@@ -550,6 +581,7 @@ final class AppModel {
     nonisolated static func backgroundRefresh() async {
         scheduleRefresh()
         _ = await Dependencies.shared.sync.sync()
+        _ = await Dependencies.shared.weights?.run()
         await WidgetFeed.publish()
     }
 
