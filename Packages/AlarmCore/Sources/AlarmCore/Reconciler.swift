@@ -124,7 +124,7 @@ public enum Reconciler {
                 alarm.snoozeMinutes = state.phone.snoozeMinutes
                 return alarm
             }
-            + routines(from: state, now: now, calendar: calendar)
+            + routines(from: state, now: now, acknowledgedHere: acknowledgedHere, calendar: calendar)
             + steps(from: state, now: now, acknowledgedHere: acknowledgedHere, calendar: calendar))
             .map { alarm in
                 var alarm = alarm
@@ -133,18 +133,52 @@ public enum Reconciler {
             }
     }
 
+    /// How far ahead the phone holds an alarm's rings one by one, once one
+    /// of them is marked Done or Skipped. AlarmKit cannot skip one ring of
+    /// a repeating alarm, so those rings are held as one-time alarms.
+    public static let answeredAhead: TimeInterval = 7 * 86_400
+
     /// Every switched-on routine. The abera.tech mute does not touch them,
     /// as the Clock app's alarms are not touched by a notification mute.
-    static func routines(from state: AlertsState, now: Date, calendar: Calendar) -> [DesiredAlarm] {
-        state.routines
+    /// A routine with no ring ahead marked Done or Skipped is one repeating
+    /// alarm. One with such a ring is a one-time alarm for each other ring
+    /// of the next 7 days, until the answered ring has passed.
+    static func routines(
+        from state: AlertsState, now: Date, acknowledgedHere: Set<String> = [], calendar: Calendar
+    ) -> [DesiredAlarm] {
+        let answered = state.answeredByOutcome().rings.union(acknowledgedHere)
+        let window = TimeInterval(state.stopAfterMinutes * 60)
+        return state.routines
             .filter(\.enabled)
-            .compactMap { routine in
-                guard let next = routine.nextFire(after: now, calendar: calendar) else { return nil }
-                return DesiredAlarm(
-                    id: routine.id, key: DesiredAlarm.routinePrefix + routine.id.uuidString.lowercased(),
-                    title: routine.label, location: nil, fireAt: next, startsAt: next, routine: routine.schedule)
+            .flatMap { routine -> [DesiredAlarm] in
+                let ahead = RoutineCycle.upcoming(routine, now: now, ahead: answeredAhead, calendar: calendar)
+                    .filter { $0.at > now }
+                guard ahead.contains(where: { answered.contains($0.key) }) else {
+                    guard let next = routine.nextFire(after: now, calendar: calendar) else { return [] }
+                    return [
+                        DesiredAlarm(
+                            id: routine.id, key: DesiredAlarm.routinePrefix + routine.id.uuidString.lowercased(),
+                            title: routine.label, location: nil, fireAt: next, startsAt: next,
+                            routine: routine.schedule)
+                    ]
+                }
+                return ahead.filter { !answered.contains($0.key) }.map { cycle in
+                    DesiredAlarm(
+                        id: AlarmID.of(key: cycle.key), key: cycle.key, title: routine.label, location: nil,
+                        fireAt: cycle.at, startsAt: cycle.at.addingTimeInterval(window),
+                        snoozeMinutes: routine.snoozeMinutes)
+                }
             }
             .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
+    }
+
+    /// The next ring of a switched-on routine that is not marked Done or
+    /// Skipped, for the clock beside it.
+    public static func nextRing(of routine: Routine, in state: AlertsState, now: Date, calendar: Calendar) -> Date? {
+        guard routine.enabled else { return nil }
+        let answered = state.answeredByOutcome().rings
+        return RoutineCycle.upcoming(routine, now: now, ahead: answeredAhead, calendar: calendar)
+            .first { $0.at > now && !answered.contains($0.key) }?.at
     }
 
     /// How far ahead the phone holds step alarms, so they ring offline.
@@ -180,6 +214,7 @@ public enum Reconciler {
     static func answeredSteps(_ state: AlertsState, acknowledgedHere: Set<String>) -> Set<String> {
         Set(state.routineCompletions.map(\.stepKey))
             .union(state.routineRings.filter { $0.acknowledged && $0.stepId != nil }.map(\.key))
+            .union(state.answeredByOutcome().steps)
             .union(acknowledgedHere)
     }
 
@@ -219,6 +254,7 @@ public enum Reconciler {
                 }
                 .map(\.key))
         let answered = answeredSteps(state, acknowledgedHere: acknowledgedHere)
+        let rings = state.answeredByOutcome().rings.union(acknowledgedHere)
         let routines = Set(state.routines.filter(\.enabled).map(\.id))
         return ringing.sorted { $0.uuidString < $1.uuidString }.compactMap { id in
             guard let held = ledger[id], !held.isRoutine else { return nil }
@@ -226,6 +262,13 @@ public enum Reconciler {
                 // A step ringing or snoozed rings on until Stop, a check-off,
                 // or a Stop elsewhere, or until its routine is switched off.
                 return routines.contains(step.routineID) && !answered.contains(held.key) ? held : nil
+            }
+            if let ring = RoutineCycle.parseParentKey(held.key) {
+                // One ring of an alarm held as a one-time alarm rings on the same way.
+                let done =
+                    rings.contains(held.key)
+                    || state.routineRings.contains { $0.key == held.key && $0.acknowledged }
+                return routines.contains(ring.routineID) && !done ? held : nil
             }
             return open.contains(held.key) ? held : nil
         }

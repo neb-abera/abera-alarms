@@ -23,8 +23,8 @@ struct AlarmKitScheduler: AlarmScheduling {
             return
         }
         let snoozeMinutes = alarm.snoozeMinutes ?? 9
-        // A step rings under its own label. An event names its start too.
-        let title = RoutineCycle.parseStepKey(alarm.key) == nil ? AlarmText.title(for: alarm) : alarm.title
+        // A step or one ring of an alarm rings under its own label. An event names its start too.
+        let title = alarm.key.hasPrefix(DesiredAlarm.routinePrefix) ? alarm.title : AlarmText.title(for: alarm)
         let alert = AlarmPresentation.Alert(
             title: "\(title)", secondaryButton: Self.snoozeButton, secondaryButtonBehavior: .countdown)
         let countdown = AlarmPresentation.Countdown(title: "\(alarm.title), snoozing", pauseButton: nil)

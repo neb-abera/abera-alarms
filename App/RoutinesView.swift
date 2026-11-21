@@ -121,6 +121,14 @@ struct RoutinesView: View {
                     }
                     .contextMenu {
                         Button("Edit", systemImage: "pencil") { editing = routine }
+                        if case .mark(let cycle) = model.ringControl(routine, at: Date()) {
+                            Button("Done for \(StepText.when(cycle.at))", systemImage: "checkmark.circle") {
+                                Task { await model.mark(routine, cycle: cycle, .done) }
+                            }
+                            Button("Skip \(StepText.when(cycle.at))", systemImage: "forward") {
+                                Task { await model.mark(routine, cycle: cycle, .skipped) }
+                            }
+                        }
                         let others = model.routines.filter { $0.id != routine.id }
                         if !others.isEmpty {
                             Menu("Make a Step of…", systemImage: "arrow.turn.down.right") {
@@ -142,6 +150,9 @@ struct RoutinesView: View {
                             Task { await model.deleteRoutine(routine) }
                         }
                         .accessibilityIdentifier("context-delete")
+                    }
+                    if !selecting, let control = model.ringControl(routine, at: Date()) {
+                        RingControlRow(model: model, routine: routine, control: control)
                     }
                     if !selecting {
                         StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
@@ -274,7 +285,9 @@ struct RoutineRow: View {
                             .accessibilityIdentifier("routine-sync-\(routine.label)")
                     } else if routine.enabled {
                         TimelineView(Ticking.schedule(ticking)) { context in
-                            if let clock = RingClock.text(for: routine, at: context.date) {
+                            if let clock = RingClock.text(
+                                for: routine, in: model.state ?? AlertsState(), at: context.date)
+                            {
                                 Text(clock)
                                     .font(.caption.monospacedDigit())
                                     .foregroundStyle(.secondary)

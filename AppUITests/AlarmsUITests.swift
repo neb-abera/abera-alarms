@@ -1349,6 +1349,15 @@ extension AlarmsUITests {
             .formatted(date: .omitted, time: .shortened)
     }
 
+    /// True when the simulator refused the alarms the app set without
+    /// asking: the Alarms tab shows "could not be set". The iOS 27.0
+    /// simulator does this (CI, 2026-11-15). Waiting out a ring that cannot
+    /// come cost 3 to 4 minutes a test and ran the job past 65 minutes on
+    /// 2026-11-21.
+    private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
+        !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
+    }
+
     func testAddingStepsToAnAlarmShowsThemUnderIt() {
         let app = launch(tab: nil)
         XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
@@ -1583,6 +1592,7 @@ extension AlarmsUITests {
         XCTAssertTrue(medication.label.contains("Rings at"), medication.label)
         skip.tap()
         XCTAssertTrue(poll(5) { skip.label == "Undo Skip me" }, skip.label)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
 
         let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         XCUIDevice.shared.press(.home)
@@ -1604,6 +1614,106 @@ extension AlarmsUITests {
         }
         XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
         // Nothing else rings for this minute.
+        XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
+    }
+
+    // MARK: Done and Skip for one ring
+
+    private func gymClock(_ app: XCUIApplication) -> XCUIElement { routine(app, "Gym") }
+
+    func testDoneTakesTheComingRingOffAndUndoPutsItBack() {
+        let app = launch("-demo-ring-soon", tab: nil)
+        let done = app.buttons["ring-done-Gym"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(done, in: app)
+        XCTAssertTrue(gymClock(app).label.contains("Rings in 0 days 00:0"), gymClock(app).label)
+        done.tap()
+
+        let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
+        XCTAssertTrue(waitFor(mark, labelContaining: "Done for"), app.debugDescription)
+        XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 1 day"), gymClock(app).label)
+        // Done leaves the step of that ring to do.
+        let stretch = first(app, "check-Stretch-")
+        let today = stretch.identifier
+        XCTAssertEqual(stretch.label, "Check off Stretch")
+        stretch.tap()
+        // The ring is settled: the list moves to tomorrow's.
+        XCTAssertTrue(
+            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+
+        app.buttons["ring-undo-Gym"].tap()
+        XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days"), gymClock(app).label)
+        // Today's ring is open again: Done and Skip are back.
+        XCTAssertTrue(app.buttons["ring-done-Gym"].waitForExistence(timeout: 5), app.debugDescription)
+    }
+
+    func testSkipTakesTheRingAndItsStepsToTomorrow() {
+        let app = launch("-demo-ring-soon", tab: nil)
+        let skip = app.buttons["ring-skip-Gym"]
+        XCTAssertTrue(skip.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(skip, in: app)
+        let today = first(app, "check-Stretch-").identifier
+        skip.tap()
+        let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
+        XCTAssertTrue(waitFor(mark, labelContaining: "Skipped"), app.debugDescription)
+        XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 1 day"), gymClock(app).label)
+        XCTAssertTrue(
+            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+    }
+
+    func testDoneAndSkipAreInTheAlarmsMenu() {
+        let app = launch("-demo-ring-soon", tab: nil)
+        let gym = routine(app, "Gym")
+        XCTAssertTrue(gym.waitForExistence(timeout: 10))
+        scrollTo(gym, in: app)
+        gym.press(forDuration: 1.2)
+        let skip = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Skip '")).firstMatch
+        XCTAssertTrue(skip.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Done for '")).firstMatch.exists)
+        skip.tap()
+        let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
+        XCTAssertTrue(waitFor(mark, labelContaining: "Skipped"), app.debugDescription)
+    }
+
+    /// Through iOS: Gym marked Done stays silent, and its step Stretch,
+    /// at the same minute, rings and stops on Stop.
+    func testADoneRingStaysSilentAndItsStepStillRings() throws {
+        executionTimeAllowance = 300
+        addTeardownBlock { @MainActor in
+            let cleaner = XCUIApplication()
+            cleaner.launchArguments = ["-demo", "-demo-clear-alarms"]
+            cleaner.launch()
+            RunLoop.current.run(until: Date().addingTimeInterval(5))
+            cleaner.terminate()
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = launch("-demo-ring-soon", "-demo-real-alarms", tab: nil)
+        let allow = springboard.buttons["Allow"].firstMatch
+        let asked = allow.waitForExistence(timeout: 5)
+        if asked { allow.tap() }
+        let done = app.buttons["ring-done-Gym"]
+        XCTAssertTrue(done.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(done, in: app)
+        done.tap()
+        let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
+        XCTAssertTrue(waitFor(mark, labelContaining: "Done for"), app.debugDescription)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
+
+        let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        XCUIDevice.shared.press(.home)
+        let stop = springboard.buttons["Stop"].firstMatch
+        if !stop.waitForExistence(timeout: 200) {
+            if !asked && ios >= 27 { throw XCTSkip("The iOS \(ios) simulator denied alarms without asking") }
+            XCTFail("the step did not ring:\n\(springboard.debugDescription)")
+            return
+        }
+        let alert = springboard.debugDescription
+        XCTAssertTrue(alert.contains("Stretch"), alert)
+        XCTAssertFalse(alert.contains("Gym"), alert)
+        for _ in 0..<5 where stop.exists {
+            if stop.isHittable { stop.tap() }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
         XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
     }
 }

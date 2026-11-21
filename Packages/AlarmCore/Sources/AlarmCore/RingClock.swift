@@ -10,6 +10,14 @@ public enum RingClock {
         return "Rings in " + Remaining(from: now, to: next).clock
     }
 
+    /// The same, past any ring marked Done or Skipped.
+    public static func text(for routine: Routine, in state: AlertsState, at now: Date, calendar: Calendar = .current)
+        -> String?
+    {
+        guard let next = Reconciler.nextRing(of: routine, in: state, now: now, calendar: calendar) else { return nil }
+        return "Rings in " + Remaining(from: now, to: next).clock
+    }
+
     /// A calendar alarm counts down to its alert while it is set on this
     /// phone and has not rung. Skipped, muted or acknowledged, it has none.
     public static func text(for alert: PlannedAlert, held: Bool, at now: Date) -> String? {

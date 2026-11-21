@@ -34,6 +34,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
     /// The steps checked off, for cycles from two days ago on. An older
     /// server sends none.
     public var routineCompletions: [RoutineCompletion]
+    /// Rings marked Done or Skipped, for cycles from two days ago on. An
+    /// older server sends none.
+    public var routineOutcomes: [RoutineOutcome]
 
     /// abera.tech's own default.
     public static let defaultStopAfterMinutes = 180
@@ -53,7 +56,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         routineRings: [RoutineRing] = [],
         stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes,
         rules: [TypeRule] = [],
-        routineCompletions: [RoutineCompletion] = []
+        routineCompletions: [RoutineCompletion] = [],
+        routineOutcomes: [RoutineOutcome] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -70,11 +74,13 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.stopAfterMinutes = stopAfterMinutes
         self.rules = rules
         self.routineCompletions = routineCompletions
+        self.routineOutcomes = routineOutcomes
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
-            routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules, routineCompletions
+            routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules, routineCompletions,
+            routineOutcomes
     }
 
     private struct ServerSettings: Decodable {
@@ -98,6 +104,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encode(stopAfterMinutes, forKey: .stopAfterMinutes)
         try container.encode(rules, forKey: .rules)
         try container.encode(routineCompletions, forKey: .routineCompletions)
+        try container.encode(routineOutcomes, forKey: .routineOutcomes)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -128,6 +135,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         rules = try container.decodeIfPresent([TypeRule].self, forKey: .rules) ?? []
         routineCompletions =
             try container.decodeIfPresent([RoutineCompletion].self, forKey: .routineCompletions) ?? []
+        routineOutcomes = try container.decodeIfPresent([RoutineOutcome].self, forKey: .routineOutcomes) ?? []
     }
 }
 

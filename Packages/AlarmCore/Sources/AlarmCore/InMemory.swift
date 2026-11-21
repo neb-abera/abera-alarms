@@ -255,6 +255,33 @@ public actor FakeAlertsServer: HTTPTransport {
         var completedAt: Date?
     }
 
+    private struct OutcomeRequest: Decodable {
+        var status: String
+        var note: String?
+        var at: Date?
+    }
+
+    /// PUT or DELETE `routines/{id}/cycles/{cycle}/outcome`.
+    private func outcome(_ request: URLRequest, path: String, remove: Bool) -> (Data, HTTPURLResponse) {
+        let parts = path.split(separator: "/").map(String.init)
+        // api alerts routines {id} cycles {cycle} outcome
+        guard parts.count == 7, let routineId = UUID(uuidString: parts[3]),
+            state.routines.contains(where: { $0.id == routineId })
+        else { return respond(request, 404, Data()) }
+        let cycle = parts[5].removingPercentEncoding ?? parts[5]
+        state.routineOutcomes.removeAll { $0.routineId == routineId && $0.cycle == cycle }
+        if !remove {
+            guard let data = request.httpBody,
+                let body = try? ServerDates.decoder().decode(OutcomeRequest.self, from: data),
+                let status = RoutineOutcome.Status(rawValue: body.status)
+            else { return respond(request, 400, Data(#"{"errors":{"status":["done or skipped."]}}"#.utf8)) }
+            state.routineOutcomes.append(
+                RoutineOutcome(
+                    routineId: routineId, cycle: cycle, status: status, at: body.at ?? now(), note: body.note))
+        }
+        return respond(request, 200, (try? ServerDates.encoder().encode(state)) ?? Data())
+    }
+
     /// PUT or DELETE `routines/{id}/steps/{stepId}/cycles/{cycle}/completion`.
     private func completion(_ request: URLRequest, path: String, remove: Bool) -> (Data, HTTPURLResponse) {
         let parts = path.split(separator: "/").map(String.init)
@@ -322,7 +349,10 @@ public actor FakeAlertsServer: HTTPTransport {
                                         id: $0.id, completedAt: $0.completedAt, note: $0.note, hasPhoto: $0.photo != nil
                                     )
                                 })
-                        }))
+                        },
+                        outcome: state.routineOutcomes.first {
+                            $0.routineId == routine.id && $0.cycle == cycle.stamp
+                        }.map { RoutineHistory.Outcome(status: $0.status, at: $0.at, note: $0.note) }))
                 guard routine.repeats else { break }
                 ring = routine.schedule.nextFire(after: time, calendar: calendar)
             }
@@ -455,6 +485,10 @@ public actor FakeAlertsServer: HTTPTransport {
             let event = Self.event(of: key)
             state.alerts.removeAll { scope == .series ? Self.event(of: $0.key) == event : $0.key == key }
             deletions.append("\(key) \(scope.rawValue)")
+        case ("PUT", _) where path.hasSuffix("/outcome"):
+            return outcome(request, path: path, remove: false)
+        case ("DELETE", _) where path.hasSuffix("/outcome"):
+            return outcome(request, path: path, remove: true)
         case ("PUT", _) where path.hasSuffix("/completion"):
             return completion(request, path: path, remove: false)
         case ("DELETE", _) where path.hasSuffix("/completion"):

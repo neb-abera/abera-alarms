@@ -302,6 +302,7 @@ public actor AlarmSync {
     {
         var state = RoutineChange.overlay(server, routines)
         state.routineCompletions = CompletionChange.overlay(state.routineCompletions, completions)
+        state.routineOutcomes = CompletionChange.overlayOutcomes(state.routineOutcomes, completions)
         return state
     }
 
@@ -446,6 +447,22 @@ public actor AlarmSync {
         return await queueCompletion(.undo(routineId: routineId, stepId: stepId, cycle: cycle))
     }
 
+    /// Marks one ring of an alarm Done or Skipped. The phone takes the ring
+    /// off at once, offline too, and sends the mark when it can.
+    public func setOutcome(_ draft: OutcomeDraft) async -> SyncReport {
+        await oneAtATime { await self.changeOutcomeNow(.outcome(draft)) }
+    }
+
+    /// Takes the mark off. The ring sounds again if its time is still ahead.
+    public func clearOutcome(routineId: UUID, cycle: String) async -> SyncReport {
+        await oneAtATime { await self.changeOutcomeNow(.clearOutcome(routineId: routineId, cycle: cycle)) }
+    }
+
+    private func changeOutcomeNow(_ change: CompletionChange) async -> SyncReport {
+        guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
+        return await queueCompletion(change)
+    }
+
     private func queueCompletion(_ change: CompletionChange) async -> SyncReport {
         let before = await completionChanges()
         let after = CompletionChange.coalesce(before + [change])
@@ -494,6 +511,10 @@ public actor AlarmSync {
                     state = try await client.completeStep(draft, photo: photo)
                 case .undo(let routineId, let stepId, let cycle):
                     state = try await client.undoStep(routineId: routineId, stepId: stepId, cycle: cycle)
+                case .outcome(let draft):
+                    state = try await client.setOutcome(draft)
+                case .clearOutcome(let routineId, let cycle):
+                    state = try await client.clearOutcome(routineId: routineId, cycle: cycle)
                 }
             } catch .notFound {
                 // The routine or the step is gone: nothing left to check off.

@@ -88,17 +88,36 @@ public enum RoutineChaining {
 }
 
 extension RoutineCycle {
-    /// The cycle a list shows under the alarm: the one under way until its
-    /// last step has rung out `window`, then the next. At 05:50 before a
-    /// 06:00 alarm that is the 06:00 cycle, so its steps can be checked off
-    /// ahead.
+    /// The ring a list shows under the alarm: the one under way until it is
+    /// settled (skipped, or done or stopped with every step checked off) or
+    /// its last step has rung out `window`, then the next. At 06:40 before a
+    /// 07:00 alarm that is the 07:00 ring, so it can be marked ahead. Once
+    /// that ring is settled, the list shows tomorrow's.
+    public static func shown(
+        _ routine: Routine, in state: AlertsState, now: Date, window: TimeInterval, calendar: Calendar,
+        acknowledgedHere: Set<String> = []
+    ) -> RoutineCycle? {
+        let (current, next) = around(routine, now: now, calendar: calendar)
+        let candidates = [current, next].compactMap { $0 }.filter { cycle in
+            !cycle.isSettled(in: state, acknowledgedHere: acknowledgedHere, now: now)
+                && (cycle.steps.last?.at ?? cycle.at).addingTimeInterval(window) > now
+        }
+        if let open = candidates.first { return open }
+        guard let next else { return current }
+        // The next ring settled ahead (Done or Skipped at 06:40 for 07:00):
+        // the one after it.
+        if next.isSettled(in: state, acknowledgedHere: acknowledgedHere, now: now), routine.repeats,
+            let after = routine.schedule.nextFire(after: next.at, calendar: calendar)
+        {
+            return make(routine, at: after, calendar: calendar)
+        }
+        return next
+    }
+
+    /// The same with no outcomes or check-offs, as before either existed.
     public static func shown(_ routine: Routine, now: Date, window: TimeInterval, calendar: Calendar)
         -> RoutineCycle?
     {
-        let (current, next) = around(routine, now: now, calendar: calendar)
-        if let current, (current.steps.last?.at ?? current.at).addingTimeInterval(window) > now {
-            return current
-        }
-        return next ?? current
+        shown(routine, in: AlertsState(), now: now, window: window, calendar: calendar)
     }
 }
