@@ -1716,4 +1716,28 @@ extension AlarmsUITests {
         }
         XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
     }
+
+    /// Done and Skip keep their words on one line at large text sizes, and
+    /// fit on the screen. On Neb's iPhone (2026-11-21) "Done" broke into
+    /// "Don" and "e", and its button stood taller than Skip's. The simulator
+    /// ran at the default size, so no test saw it.
+    func testDoneAndSkipKeepTheirWordsOnOneLineAtLargeTextSizes() {
+        for size in ["UICTContentSizeCategoryXXXL", "UICTContentSizeCategoryAccessibilityL"] {
+            let app = launch("-demo-ring-soon", "-UIPreferredContentSizeCategoryName", size, tab: nil)
+            let done = app.buttons["ring-done-Gym"]
+            let skip = app.buttons["ring-skip-Gym"]
+            XCTAssertTrue(done.waitForExistence(timeout: 10), "\(size)\n\(app.debugDescription)")
+            scrollTo(done, in: app)
+            let width = app.windows.firstMatch.frame.width
+            XCTAssertEqual(done.frame.height, skip.frame.height, accuracy: 1, "\(size): Done wrapped")
+            XCTAssertLessThanOrEqual(done.frame.maxX, width, size)
+            XCTAssertLessThanOrEqual(skip.frame.maxX, width, size)
+            XCTAssertGreaterThan(done.frame.width, done.frame.height * 0.9, "\(size): Done is narrower than a line")
+            done.tap()
+            let undo = app.buttons["ring-undo-Gym"]
+            XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
+            XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
+            app.terminate()
+        }
+    }
 }
