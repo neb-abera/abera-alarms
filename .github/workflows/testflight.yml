@@ -52,6 +52,14 @@ jobs:
           node scripts/asc-certificates.mjs clean --older-than-hours 2
           node scripts/asc-certificates.mjs snapshot "$RUNNER_TEMP/certificates.json"
 
+      - name: put the entitlements' capabilities on the App ID
+        if: github.event_name != 'pull_request'
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: node scripts/asc-capabilities.mjs ensure tech.abera.alarms HEALTHKIT
+
       - name: archive the Release build (signed on main)
         env:
           ASC_KEY_ID: ${{ github.event_name != 'pull_request' && secrets.ASC_KEY_ID || '' }}

@@ -35,6 +35,7 @@ prose:
 
 gates:
 	node scripts/asc-certificates.mjs --self-test
+	node scripts/asc-capabilities.mjs --self-test
 	scripts/check-version.sh --self-test
 	scripts/check-version.sh
 	scripts/check-concurrency.sh --self-test
