@@ -1365,6 +1365,24 @@ extension AlarmsUITests {
         XCTAssertTrue(poll(5) { toggle.value as? String == "Open" }, "\(label) steps did not open")
     }
 
+    /// Pixels in an element's screenshot that pass `color`, to see that a
+    /// button draws its words. Build 234 drew Done and Skip as icons only.
+    private func pixels(_ element: XCUIElement, _ color: (Int, Int, Int) -> Bool) -> Int {
+        guard let image = element.screenshot().image.cgImage,
+            let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data)
+        else { return 0 }
+        let step = image.bitsPerPixel / 8
+        var count = 0
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let i = y * image.bytesPerRow + x * step
+                // BGRA on the simulator.
+                if color(Int(bytes[i + 2]), Int(bytes[i + 1]), Int(bytes[i])) { count += 1 }
+            }
+        }
+        return count
+    }
+
     private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
         !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
     }
@@ -1755,6 +1773,11 @@ extension AlarmsUITests {
             XCTAssertLessThanOrEqual(done.frame.maxX, width, size)
             XCTAssertLessThanOrEqual(skip.frame.maxX, width, size)
             XCTAssertGreaterThan(done.frame.width, done.frame.height * 0.9, "\(size): Done is narrower than a line")
+            // The words are drawn: bright green text on Done, orange on Skip.
+            XCTAssertGreaterThan(
+                pixels(done) { r, g, b in g > 150 && g > r + 50 && g > b + 50 }, 40, "\(size): Done shows no text")
+            XCTAssertGreaterThan(
+                pixels(skip) { r, g, b in r > 180 && g > 90 && g < 190 && b < 90 }, 40, "\(size): Skip shows no text")
             done.tap()
             let undo = app.buttons["ring-undo-Gym"]
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
@@ -1807,5 +1830,43 @@ extension AlarmsUITests {
         XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 15), app.debugDescription)
         scrollTo(weeklyToggle, in: app)
         XCTAssertEqual(weeklyToggle.value as? String, "Open")
+    }
+
+    /// A swipe right on an alarm shows or hides its steps, and the button
+    /// under it says which it does.
+    func testASwipeOrTheButtonShowsAndHidesAnAlarmsSteps() {
+        let app = launch("-demo-weekly", tab: nil)
+        let weekly = routine(app, "Weekly review")
+        XCTAssertTrue(weekly.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(weekly, in: app)
+        let toggle = app.descendants(matching: .any)["steps-toggle-Weekly review"].firstMatch
+        XCTAssertEqual(toggle.value as? String, "Closed")
+        XCTAssertTrue(toggle.label.contains("Show 1 steps"), toggle.label)
+        weekly.swipeRight()
+        let show = app.buttons["Show Steps"]
+        XCTAssertTrue(show.waitForExistence(timeout: 5), app.debugDescription)
+        show.tap()
+        XCTAssertTrue(first(app, "step-Review-").waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(toggle.label.contains("Hide steps"), toggle.label)
+        toggle.tap()
+        XCTAssertTrue(waitForGone(first(app, "step-Review-")))
+    }
+
+    /// Scrolled down, the bar shows no cut-off title between its buttons.
+    /// On Neb's iPhone it read "Al..." in the row of the toolbar buttons.
+    func testTheAlarmsTabShowsNoCutOffTitle() {
+        let app = launch("-demo-steps", "-demo-weekly", "-demo-ring-soon", tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.collectionViews.firstMatch.swipeUp()
+        app.collectionViews.firstMatch.swipeUp()
+        let row = app.buttons["add-routine"].frame
+        let titles = app.navigationBars.staticTexts.matching(NSPredicate(format: "label == 'Alarms'"))
+        for i in 0..<titles.count {
+            let title = titles.element(boundBy: i)
+            guard title.exists, title.frame.height > 0 else { continue }
+            XCTAssertFalse(
+                abs(title.frame.midY - row.midY) < row.height / 2 && title.isHittable,
+                "a title sits in the toolbar's row: \(title.frame) against \(row)")
+        }
     }
 }
