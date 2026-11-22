@@ -1867,7 +1867,10 @@ extension AlarmsUITests {
     /// On Neb's iPhone it read "Al..." in the row of the toolbar buttons.
     func testTheAlarmsTabShowsNoCutOffTitle() {
         let app = launch("-demo-steps", "-demo-weekly", "-demo-ring-soon", tab: nil)
-        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        // Gym rings within minutes, so it is first whatever the day. Wake
+        // rings on weekdays only, and on a Saturday night the list sorted by
+        // next ring had not drawn it (CI, 2026-11-22).
+        XCTAssertTrue(routine(app, "Gym").waitForExistence(timeout: 10), app.debugDescription)
         app.collectionViews.firstMatch.swipeUp()
         app.collectionViews.firstMatch.swipeUp()
         let row = app.buttons["add-routine"].frame
