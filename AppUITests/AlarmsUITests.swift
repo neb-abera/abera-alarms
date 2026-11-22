@@ -30,7 +30,8 @@ final class AlarmsUITests: XCTestCase {
     private func launch(_ arguments: String..., tab: String? = "Calendar") -> XCUIApplication {
         continueAfterFailure = false
         let app = XCUIApplication()
-        app.launchArguments = ["-demo"] + arguments
+        // Each test starts from the default open and closed steps.
+        app.launchArguments = ["-demo", "-reset-steps-open"] + arguments
         app.launch()
         if let tab, !arguments.contains("-demo-unpaired") { open(tab, in: app) }
         return app
@@ -1354,6 +1355,45 @@ extension AlarmsUITests {
     /// simulator does this (CI, 2026-11-15). Waiting out a ring that cannot
     /// come cost 3 to 4 minutes a test and ran the job past 65 minutes on
     /// 2026-11-21.
+    /// Opens an alarm's steps when they are closed: they start closed on an
+    /// alarm whose ring is not today.
+    private func openSteps(_ app: XCUIApplication, _ label: String) {
+        let toggle = app.descendants(matching: .any)["steps-toggle-\(label)"].firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(toggle, in: app)
+        if toggle.value as? String == "Closed" { toggle.tap() }
+        XCTAssertTrue(poll(5) { toggle.value as? String == "Open" }, "\(label) steps did not open")
+    }
+
+    /// Pixels in an element's screenshot that pass `color`, to see that a
+    /// button draws its words. Build 234 drew Done and Skip as icons only.
+    private func pixels(_ element: XCUIElement, _ color: (Int, Int, Int) -> Bool) -> Int {
+        guard let image = element.screenshot().image.cgImage,
+            let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data)
+        else { return 0 }
+        let step = image.bitsPerPixel / 8
+        // Read the byte order from the image. A guessed BGRA read orange
+        // (255, 159, 10) as (10, 159, 255) on CI, and green passed only
+        // because green is the middle byte either way (2026-11-21).
+        let little = image.bitmapInfo.contains(.byteOrder32Little)
+        let alphaFirst = [.premultipliedFirst, .first, .noneSkipFirst].contains(image.alphaInfo)
+        let (ri, gi, bi): (Int, Int, Int) =
+            switch (little, alphaFirst) {
+            case (true, true): (2, 1, 0)  // B G R A in memory
+            case (true, false): (3, 2, 1)  // A B G R in memory
+            case (false, true): (1, 2, 3)  // A R G B
+            case (false, false): (0, 1, 2)  // R G B A
+            }
+        var count = 0
+        for y in 0..<image.height {
+            for x in 0..<image.width {
+                let i = y * image.bytesPerRow + x * step
+                if color(Int(bytes[i + ri]), Int(bytes[i + gi]), Int(bytes[i + bi])) { count += 1 }
+            }
+        }
+        return count
+    }
+
     private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
         !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
     }
@@ -1385,6 +1425,7 @@ extension AlarmsUITests {
         amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "10")
         XCTAssertEqual(amount.value as? String, "10")
         save.tap()
+        openSteps(app, "Get up")
 
         // 06:00, then 5 minutes, then 10 more, under the alarm on the Alarms tab.
         let medication = first(app, "step-Take medication-")
@@ -1401,6 +1442,7 @@ extension AlarmsUITests {
 
     func testCheckingOffAStepInOneTapCoversThisTimeOnly() {
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let check = first(app, "check-Take medication-")
         XCTAssertTrue(check.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(check, in: app)
@@ -1435,6 +1477,7 @@ extension AlarmsUITests {
 
     func testACheckOffKeepsItsNote() {
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let line = first(app, "step-Take medication-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(line, in: app)
@@ -1483,6 +1526,7 @@ extension AlarmsUITests {
         // that took 67 s on the xcode-27 runner (CI, 2026-11-20).
         executionTimeAllowance = 240
         let app = launch("-demo-steps", tab: nil)
+        openSteps(app, "Morning")
         let line = first(app, "step-Beauty care-")
         XCTAssertTrue(line.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(line, in: app)
@@ -1526,6 +1570,7 @@ extension AlarmsUITests {
         let confirm = app.buttons["confirm-make-step"].firstMatch
         XCTAssertTrue(confirm.waitForExistence(timeout: 5), app.debugDescription)
         confirm.tap()
+        openSteps(app, "Wake")
 
         let step = first(app, "step-Weekend-")
         XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
@@ -1556,6 +1601,7 @@ extension AlarmsUITests {
         weekend.tap()
         XCTAssertEqual(app.textFields["step-label-0"].value as? String, "Weekend")
         app.buttons["save-routine"].tap()
+        openSteps(app, "Wake")
 
         let step = first(app, "step-Weekend-")
         XCTAssertTrue(step.waitForExistence(timeout: 10), app.debugDescription)
@@ -1637,9 +1683,11 @@ extension AlarmsUITests {
         let today = stretch.identifier
         XCTAssertEqual(stretch.label, "Check off Stretch")
         stretch.tap()
-        // The ring is settled: the list moves to tomorrow's.
-        XCTAssertTrue(
-            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+        // The ring is settled: the list moves to tomorrow's, whose steps start closed.
+        let toggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        XCTAssertTrue(poll(10) { toggle.value as? String == "Closed" }, app.debugDescription)
+        openSteps(app, "Gym")
+        XCTAssertNotEqual(first(app, "check-Stretch-").identifier, today)
 
         app.buttons["ring-undo-Gym"].tap()
         XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days"), gymClock(app).label)
@@ -1657,8 +1705,11 @@ extension AlarmsUITests {
         let mark = app.descendants(matching: .any)["ring-mark-Gym"].firstMatch
         XCTAssertTrue(waitFor(mark, labelContaining: "Skipped"), app.debugDescription)
         XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 1 day"), gymClock(app).label)
-        XCTAssertTrue(
-            poll(10) { self.first(app, "check-Stretch-").identifier != today }, first(app, "check-Stretch-").identifier)
+        // The list moves to tomorrow's ring, whose steps start closed.
+        let toggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        XCTAssertTrue(poll(10) { toggle.value as? String == "Closed" }, app.debugDescription)
+        openSteps(app, "Gym")
+        XCTAssertNotEqual(first(app, "check-Stretch-").identifier, today)
     }
 
     func testDoneAndSkipAreInTheAlarmsMenu() {
@@ -1733,11 +1784,103 @@ extension AlarmsUITests {
             XCTAssertLessThanOrEqual(done.frame.maxX, width, size)
             XCTAssertLessThanOrEqual(skip.frame.maxX, width, size)
             XCTAssertGreaterThan(done.frame.width, done.frame.height * 0.9, "\(size): Done is narrower than a line")
+            // The words are drawn: bright green text on Done, orange on Skip.
+            XCTAssertGreaterThan(
+                pixels(done) { r, g, b in g > 150 && g > r + 50 && g > b + 50 }, 40, "\(size): Done shows no text")
+            XCTAssertGreaterThan(
+                pixels(skip) { r, g, b in r > 180 && g > 90 && g < 190 && b < 90 }, 40, "\(size): Skip shows no text")
             done.tap()
             let undo = app.buttons["ring-undo-Gym"]
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
             XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
             app.terminate()
+        }
+    }
+
+    // MARK: Order and open steps
+
+    /// The alarms in the order they next ring: Gym within minutes first,
+    /// switched-off Weekend last.
+    func testAlarmsAreInTheOrderTheyNextRing() {
+        let app = launch("-demo-ring-soon", "-demo-weekly", tab: nil)
+        let gym = routine(app, "Gym")
+        XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
+        let wake = routine(app, "Wake")
+        let weekly = routine(app, "Weekly review")
+        let weekend = routine(app, "Weekend")
+        XCTAssertLessThan(gym.frame.minY, wake.frame.minY)
+        for _ in 0..<6 where !weekend.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(weekend.exists, app.debugDescription)
+        XCTAssertLessThan(weekly.frame.minY, weekend.frame.minY)
+    }
+
+    /// Steps of a ring today start open, steps of a ring on another day
+    /// start closed, and his choice holds across a relaunch.
+    func testStepsOpenWhenTheyRingTodayAndKeepHisChoice() {
+        let app = launch("-demo-ring-soon", "-demo-weekly", tab: nil)
+        let gymToggle = app.descendants(matching: .any)["steps-toggle-Gym"].firstMatch
+        let weeklyToggle = app.descendants(matching: .any)["steps-toggle-Weekly review"].firstMatch
+        XCTAssertTrue(gymToggle.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertEqual(gymToggle.value as? String, "Open")
+        XCTAssertTrue(first(app, "step-Stretch-").exists)
+        scrollTo(weeklyToggle, in: app)
+        XCTAssertEqual(weeklyToggle.value as? String, "Closed")
+        XCTAssertFalse(first(app, "step-Review-").exists)
+
+        weeklyToggle.tap()
+        XCTAssertTrue(first(app, "step-Review-").waitForExistence(timeout: 5), app.debugDescription)
+        scrollTo(gymToggle, in: app)
+        gymToggle.tap()
+        XCTAssertTrue(waitForGone(first(app, "step-Stretch-")))
+
+        // His choice holds across a relaunch. Weekly review keeps its ring.
+        // Gym is set 2 minutes after each launch, so it is a new ring.
+        app.terminate()
+        app.launchArguments = ["-demo", "-demo-ring-soon", "-demo-weekly"]
+        app.launch()
+        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 15), app.debugDescription)
+        scrollTo(weeklyToggle, in: app)
+        XCTAssertEqual(weeklyToggle.value as? String, "Open")
+    }
+
+    /// A swipe right on an alarm shows or hides its steps, and the button
+    /// under it says which it does.
+    func testASwipeOrTheButtonShowsAndHidesAnAlarmsSteps() {
+        let app = launch("-demo-weekly", tab: nil)
+        let weekly = routine(app, "Weekly review")
+        XCTAssertTrue(weekly.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(weekly, in: app)
+        let toggle = app.descendants(matching: .any)["steps-toggle-Weekly review"].firstMatch
+        XCTAssertEqual(toggle.value as? String, "Closed")
+        XCTAssertTrue(toggle.label.contains("Show 1 steps"), toggle.label)
+        weekly.swipeRight()
+        let show = app.buttons["Show Steps"]
+        XCTAssertTrue(show.waitForExistence(timeout: 5), app.debugDescription)
+        show.tap()
+        XCTAssertTrue(first(app, "step-Review-").waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(toggle.label.contains("Hide steps"), toggle.label)
+        toggle.tap()
+        XCTAssertTrue(waitForGone(first(app, "step-Review-")))
+    }
+
+    /// Scrolled down, the bar shows no cut-off title between its buttons.
+    /// On Neb's iPhone it read "Al..." in the row of the toolbar buttons.
+    func testTheAlarmsTabShowsNoCutOffTitle() {
+        let app = launch("-demo-steps", "-demo-weekly", "-demo-ring-soon", tab: nil)
+        // Gym rings within minutes, so it is first whatever the day. Wake
+        // rings on weekdays only, and on a Saturday night the list sorted by
+        // next ring had not drawn it (CI, 2026-11-22).
+        XCTAssertTrue(routine(app, "Gym").waitForExistence(timeout: 10), app.debugDescription)
+        app.collectionViews.firstMatch.swipeUp()
+        app.collectionViews.firstMatch.swipeUp()
+        let row = app.buttons["add-routine"].frame
+        let titles = app.navigationBars.staticTexts.matching(NSPredicate(format: "label == 'Alarms'"))
+        for i in 0..<titles.count {
+            let title = titles.element(boundBy: i)
+            guard title.exists, title.frame.height > 0 else { continue }
+            XCTAssertFalse(
+                abs(title.frame.midY - row.midY) < row.height / 2 && title.isHittable,
+                "a title sits in the toolbar's row: \(title.frame) against \(row)")
         }
     }
 }

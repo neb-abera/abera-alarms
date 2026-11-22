@@ -24,6 +24,8 @@
     /// AlarmKit, so a UI test hears a step ring through iOS.
     /// `-demo-ring-soon` adds Gym, every day, ringing 2 to 3 minutes after
     /// launch, with its step Stretch at the same minute.
+    /// `-demo-weekly` adds Weekly review, at 09:00 on the weekday two days
+    /// from now only, with its step Review. Its steps start closed.
     /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
     /// AlarmKit, so a test that rang real alarms leaves none ringing for the
     /// tests after it.
@@ -37,6 +39,7 @@
             if arguments.contains("-demo-steps") { initial.routines.append(morning) }
             if arguments.contains("-demo-step-soon") { initial.routines.append(pills(now: Date())) }
             if arguments.contains("-demo-ring-soon") { initial.routines.append(gym(now: Date())) }
+            if arguments.contains("-demo-weekly") { initial.routines.append(weekly(now: Date())) }
             let server = FakeAlertsServer(
                 state: initial, token: token,
                 offline: arguments.contains("-demo-offline"),
@@ -135,6 +138,19 @@
                     RoutineStep(
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000051")!, label: "Stretch",
                         offsetMinutes: 0)
+                ], updatedAt: now.addingTimeInterval(-86_400))
+        }
+
+        /// Weekly review at 09:00 on the weekday two days from now.
+        static func weekly(now: Date) -> Routine {
+            let day = Calendar.current.component(.weekday, from: now.addingTimeInterval(2 * 86_400))
+            return Routine(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000006")!, label: "Weekly review", hour: 9,
+                minute: 0, days: [(day + 5) % 7 + 1],
+                steps: [
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000061")!, label: "Review",
+                        offsetMinutes: 5)
                 ], updatedAt: now.addingTimeInterval(-86_400))
         }
 

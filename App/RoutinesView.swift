@@ -95,7 +95,7 @@ struct RoutinesView: View {
                         .foregroundStyle(.secondary)
                         .accessibilityIdentifier("no-routines")
                 }
-                ForEach(model.routines) { routine in
+                ForEach(model.orderedRoutines(at: Date())) { routine in
                     HStack {
                         if selecting {
                             let on = selected.contains(routine.id)
@@ -117,6 +117,16 @@ struct RoutinesView: View {
                     .swipeActions {
                         Button("Delete", role: .destructive) {
                             Task { await model.deleteRoutine(routine) }
+                        }
+                    }
+                    // A swipe right shows or hides the alarm's steps.
+                    .swipeActions(edge: .leading) {
+                        if !routine.steps.isEmpty {
+                            let open = model.stepsOpen(routine, at: Date())
+                            Button(open ? "Hide Steps" : "Show Steps") {
+                                withAnimation(.easeInOut(duration: 0.2)) { model.toggleSteps(routine, at: Date()) }
+                            }
+                            .tint(.blue)
                         }
                     }
                     .contextMenu {
@@ -154,9 +164,13 @@ struct RoutinesView: View {
                     if !selecting, let control = model.ringControl(routine, at: Date()) {
                         RingControlRow(model: model, routine: routine, control: control)
                     }
-                    if !selecting {
-                        StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
-                            openedStep = StepOpened(routine: routine, cycle: cycle, ring: ring)
+                    if !selecting, !routine.steps.isEmpty {
+                        let open = model.stepsOpen(routine, at: Date())
+                        StepsToggleRow(model: model, routine: routine, open: open)
+                        if open {
+                            StepRows(model: model, routine: routine, ticking: onScreen) { cycle, ring in
+                                openedStep = StepOpened(routine: routine, cycle: cycle, ring: ring)
+                            }
                         }
                     }
                 }
@@ -164,6 +178,11 @@ struct RoutinesView: View {
             .navigationTitle("Alarms")
             .refreshable { await model.sync() }
             .toolbar {
+                // Scrolled, the title squeezed between the buttons read "Al..."
+                // (Neb's iPhone, 2026-11-21). The tab bar names the page.
+                ToolbarItem(placement: .principal) {
+                    Color.clear.frame(width: 0, height: 0).accessibilityHidden(true)
+                }
                 ToolbarItem(placement: .topBarLeading) {
                     Button(selecting ? "Done" : "Select") {
                         selecting.toggle()
