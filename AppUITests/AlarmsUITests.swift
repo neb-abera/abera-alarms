@@ -1372,12 +1372,23 @@ extension AlarmsUITests {
             let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data)
         else { return 0 }
         let step = image.bitsPerPixel / 8
+        // Read the byte order from the image. A guessed BGRA read orange
+        // (255, 159, 10) as (10, 159, 255) on CI, and green passed only
+        // because green is the middle byte either way (2026-11-21).
+        let little = image.bitmapInfo.contains(.byteOrder32Little)
+        let alphaFirst = [.premultipliedFirst, .first, .noneSkipFirst].contains(image.alphaInfo)
+        let (ri, gi, bi): (Int, Int, Int) =
+            switch (little, alphaFirst) {
+            case (true, true): (2, 1, 0)  // B G R A in memory
+            case (true, false): (3, 2, 1)  // A B G R in memory
+            case (false, true): (1, 2, 3)  // A R G B
+            case (false, false): (0, 1, 2)  // R G B A
+            }
         var count = 0
         for y in 0..<image.height {
             for x in 0..<image.width {
                 let i = y * image.bytesPerRow + x * step
-                // BGRA on the simulator.
-                if color(Int(bytes[i + 2]), Int(bytes[i + 1]), Int(bytes[i])) { count += 1 }
+                if color(Int(bytes[i + ri]), Int(bytes[i + gi]), Int(bytes[i + bi])) { count += 1 }
             }
         }
         return count
