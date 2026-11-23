@@ -1814,6 +1814,31 @@ extension AlarmsUITests {
         XCTAssertLessThan(weekly.frame.minY, weekend.frame.minY)
     }
 
+    /// An alarm that has rung with steps still to ring stays first, says
+    /// so, and keeps Done and Skip. On Neb's iPhone on 2026-11-22 the
+    /// 21:30 night routine moved to Tuesday's ring once he stopped it, and
+    /// he could not find it while its steps rang.
+    func testARungAlarmStaysFirstUntilItsStepsAreCleared() {
+        let app = launch("-demo-step-soon", "-demo-ring-soon", tab: nil)
+        let pills = routine(app, "Pills")
+        let gym = routine(app, "Gym")
+        XCTAssertTrue(pills.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertLessThan(pills.frame.minY, gym.frame.minY, app.debugDescription)
+        XCTAssertTrue(poll(5) { pills.label.contains("Rang at") }, pills.label)
+        XCTAssertTrue(pills.label.contains("2 steps to go"), pills.label)
+        XCTAssertTrue(app.buttons["ring-skip-Pills"].exists, app.debugDescription)
+        let medication = first(app, "check-Take medication-")
+        let skip = first(app, "check-Skip me-")
+        XCTAssertTrue(medication.exists, app.debugDescription)
+        medication.tap()
+        XCTAssertTrue(poll(5) { pills.label.contains("1 step to go") }, pills.label)
+        skip.tap()
+        // Every step cleared: Pills counts down to tomorrow, below Gym.
+        XCTAssertTrue(poll(5) { pills.label.contains("Rings in") }, pills.label)
+        XCTAssertTrue(poll(5) { gym.frame.minY < pills.frame.minY }, app.debugDescription)
+    }
+
     /// Steps of a ring today start open, steps of a ring on another day
     /// start closed, and his choice holds across a relaunch.
     func testStepsOpenWhenTheyRingTodayAndKeepHisChoice() {
