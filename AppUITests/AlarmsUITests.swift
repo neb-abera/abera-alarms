@@ -1970,7 +1970,12 @@ extension AlarmsUITests {
         app.terminate()
         app.launchArguments = ["-demo", "-demo-ring-soon", "-demo-weekly"]
         app.launch()
-        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 15), app.debugDescription)
+        // Gym's new ring opens its steps again, which can push Weekly review
+        // below the screen, where the list has not built its row (Xcode 27,
+        // CI, 2026-11-23). Scroll until the row exists.
+        XCTAssertTrue(gymToggle.waitForExistence(timeout: 15), app.debugDescription)
+        for _ in 0..<6 where !weeklyToggle.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 5), app.debugDescription)
         scrollTo(weeklyToggle, in: app)
         XCTAssertEqual(weeklyToggle.value as? String, "Open")
     }
