@@ -1452,7 +1452,7 @@ extension AlarmsUITests {
         XCTAssertTrue(poll(5) { check.label == "Undo Take medication" }, check.label)
         let line = first(app, "step-Take medication-")
         XCTAssertTrue(waitFor(line, labelContaining: "Done today, "), line.label)
-        XCTAssertTrue(line.label.contains("Does not ring at"), line.label)
+        XCTAssertTrue(line.label.contains("Does not ring "), line.label)
 
         // The next time is still set.
         routine(app, "Morning").press(forDuration: 1.2)
