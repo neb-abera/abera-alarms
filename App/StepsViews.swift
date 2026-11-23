@@ -380,7 +380,11 @@ enum StepText {
 
     static func line(ring: RoutineCycle.StepRing, done: RoutineCompletion?, now: Date) -> String {
         if let done {
-            return "Done \(on(done.completedAt, now: now)). Does not ring \(on(ring.at, now: now))."
+            // The ring's day is said once when it is the day it was done.
+            let ring =
+                Calendar.current.isDate(ring.at, inSameDayAs: done.completedAt)
+                ? "at \(ring.at.formatted(date: .omitted, time: .shortened))" : on(ring.at, now: now)
+            return "Done \(on(done.completedAt, now: now)). Does not ring \(ring)."
         }
         return ring.at > now ? "Rings \(on(ring.at, now: now))" : "Rang \(on(ring.at, now: now)), not checked off"
     }
