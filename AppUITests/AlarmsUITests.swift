@@ -1663,6 +1663,34 @@ extension AlarmsUITests {
         XCTAssertFalse(stop.waitForExistence(timeout: 10), springboard.debugDescription)
     }
 
+    /// Each step says Rang, Coming, or Done, in orange, blue, or green, and
+    /// an alarm that has rung with steps left says Rang in orange. Neb
+    /// asked on 2026-11-23 to tell rung from coming at a glance.
+    func testStepsShowRangComingAndDoneInColor() {
+        let app = launch("-demo-step-rang", tab: nil)
+        let floss = routine(app, "Floss")
+        XCTAssertTrue(floss.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(waitFor(floss, labelContaining: "Rang,"), floss.label)
+        openSteps(app, "Floss")
+        let brush = first(app, "step-Brush-")
+        let rinse = first(app, "step-Rinse-")
+        XCTAssertTrue(brush.waitForExistence(timeout: 5), app.debugDescription)
+        scrollTo(rinse, in: app)
+        XCTAssertTrue(brush.label.contains("Brush, Rang, "), brush.label)
+        XCTAssertTrue(rinse.label.contains("Rinse, Coming, "), rinse.label)
+        let orange: (Int, Int, Int) -> Bool = { r, g, b in r > 180 && g > 90 && g < 190 && b < 90 }
+        let blue: (Int, Int, Int) -> Bool = { r, g, b in b > 180 && b > r + 80 && b > g + 30 }
+        let green: (Int, Int, Int) -> Bool = { r, g, b in g > 150 && g > r + 50 && g > b + 50 }
+        XCTAssertGreaterThan(pixels(brush, orange), 40, "Rang draws no orange")
+        XCTAssertGreaterThan(pixels(rinse, blue), 40, "Coming draws no blue")
+        XCTAssertGreaterThan(pixels(floss, orange), 40, "the rung alarm draws no orange")
+
+        first(app, "check-Brush-").tap()
+        XCTAssertTrue(waitFor(brush, labelContaining: "Brush, Done, "), brush.label)
+        XCTAssertGreaterThan(pixels(brush, green), 40, "Done draws no green")
+        XCTAssertEqual(pixels(brush, orange), 0, "a checked-off step still draws orange")
+    }
+
     // MARK: Done and Skip for one ring
 
     private func gymClock(_ app: XCUIApplication) -> XCUIElement { routine(app, "Gym") }

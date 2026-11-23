@@ -304,12 +304,18 @@ struct RoutineRow: View {
                             .accessibilityIdentifier("routine-sync-\(routine.label)")
                     } else if routine.enabled {
                         TimelineView(Ticking.schedule(ticking)) { context in
-                            if let clock = RingClock.text(
-                                for: routine, in: model.state ?? AlertsState(), at: context.date)
-                            {
-                                Text(clock)
-                                    .font(.caption.monospacedDigit())
-                                    .foregroundStyle(.secondary)
+                            let state = model.state ?? AlertsState()
+                            if let clock = RingClock.text(for: routine, in: state, at: context.date) {
+                                // A ring that has rung with steps left is orange, with Rang beside it.
+                                let rang =
+                                    AlarmList.underWay(routine, in: state, now: context.date, calendar: .current)
+                                    != nil
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    if rang { StatusTag(status: .rang) }
+                                    Text(clock)
+                                        .font(.caption.monospacedDigit())
+                                        .foregroundStyle(rang ? Color.orange : Color.secondary)
+                                }
                             }
                         }
                     }

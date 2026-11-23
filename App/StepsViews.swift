@@ -223,9 +223,12 @@ struct StepRows: View {
                     }
                 }
             } label: {
-                Image(systemName: done == nil ? "circle" : "checkmark.circle.fill")
-                    .font(.title2)
-                    .foregroundStyle(done == nil ? Color.secondary : Color.green)
+                TimelineView(Ticking.schedule(ticking)) { context in
+                    let status = StepStatus.of(ringAt: ring.at, done: done != nil, now: context.date)
+                    Image(systemName: done == nil ? "circle" : "checkmark.circle.fill")
+                        .font(.title2)
+                        .foregroundStyle(StepText.color(status, idle: .secondary))
+                }
             }
             .buttonStyle(.borderless)
             .accessibilityLabel(done == nil ? "Check off \(ring.step.label)" : "Undo \(ring.step.label)")
@@ -235,9 +238,13 @@ struct StepRows: View {
                     Text(ring.step.label)
                         .strikethrough(done != nil)
                     TimelineView(Ticking.schedule(ticking)) { context in
-                        Text(StepText.line(ring: ring, done: done, now: context.date))
-                            .font(.caption.monospacedDigit())
-                            .foregroundStyle(.secondary)
+                        let status = StepText.status(ring, done: done, now: context.date)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            StatusTag(status: status)
+                            Text(StepText.line(ring: ring, done: done, now: context.date))
+                                .font(.caption.monospacedDigit())
+                                .foregroundStyle(StepText.color(status, idle: .secondary))
+                        }
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -367,7 +374,38 @@ struct ChecklistView: View {
     }
 }
 
+/// A step's status in a colored capsule: Rang in orange, Coming in blue,
+/// Done in green. The color and the word both say it.
+struct StatusTag: View {
+    let status: StepStatus
+
+    var body: some View {
+        Text(status.rawValue)
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1)
+            .background(StepText.color(status, idle: .blue), in: Capsule())
+            .accessibilityLabel(status.rawValue)
+    }
+}
+
 enum StepText {
+    static func status(_ ring: RoutineCycle.StepRing, done: RoutineCompletion?, now: Date) -> StepStatus {
+        StepStatus.of(ringAt: ring.at, done: done != nil, now: now)
+    }
+
+    /// Orange for rung and not checked off, green for done, `idle` for coming.
+    static func color(_ status: StepStatus, idle: Color) -> Color {
+        switch status {
+        case .rang: .orange
+        case .done: .green
+        case .coming: idle
+        }
+    }
+
     /// "Thu 26 Nov, 6:00 AM".
     static func when(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
