@@ -85,7 +85,8 @@ import Testing
         #expect(cycle.stamp == "2026-11-22T21:30")
         #expect(AlarmList.openByDefault(tuesday, cycle: cycle, now: now, calendar: calendar))
         #expect(
-            RingClock.text(for: tuesday, in: state, at: now, calendar: calendar) == "Rang today at 21:30, 1 step to go")
+            RingClock.text(for: tuesday, in: state, at: now, calendar: calendar)
+                == "Rang today, Sun 22 Nov at 21:30, 1 step to go")
 
         // Every step checked off: the alarm counts down to its next ring again.
         let checked = RoutineCompletion(
@@ -94,7 +95,9 @@ import Testing
         #expect(AlarmList.underWay(tuesday, in: cleared, now: now, calendar: calendar) == nil)
         let after = AlarmList.ordered([morning, tuesday], in: cleared, now: now, calendar: calendar)
         #expect(after.map(\.label) == ["wake up", "night routine, hyaluronic"])
-        #expect(RingClock.text(for: tuesday, in: cleared, at: now, calendar: calendar)?.hasPrefix("Rings in") == true)
+        #expect(
+            RingClock.text(for: tuesday, in: cleared, at: now, calendar: calendar)
+                == "Rings in 1 day 23:59:00, Tue 24 Nov at 21:30")
 
         // Skipped: nothing is left to do.
         let skipped = RoutineOutcome(routineId: tuesday.id, cycle: cycle.stamp, status: .skipped, at: now)
@@ -111,9 +114,10 @@ import Testing
 
     @Test func aRingTimeNamesItsDay() {
         let now = at(21, 36, day: 22)
-        #expect(RingDay.word(at(21, 31, day: 22), now: now, calendar: calendar) == "today")
-        #expect(RingDay.word(at(7, 5, day: 23), now: now, calendar: calendar) == "tomorrow")
-        #expect(RingDay.word(at(21, 30, day: 21), now: now, calendar: calendar) == "yesterday")
+        #expect(RingDay.word(at(21, 31, day: 22), now: now, calendar: calendar) == "today, Sun 22 Nov")
+        #expect(RingDay.word(at(7, 5, day: 23), now: now, calendar: calendar) == "tomorrow, Mon 23 Nov")
+        #expect(RingDay.word(at(21, 30, day: 21), now: now, calendar: calendar) == "yesterday, Sat 21 Nov")
         #expect(RingDay.word(at(21, 31, day: 24), now: now, calendar: calendar) == "Tue 24 Nov")
+        #expect(RingDay.time(at(7, 5, day: 23), now: now, calendar: calendar) == "tomorrow, Mon 23 Nov at 07:05")
     }
 }

@@ -368,12 +368,12 @@ struct ChecklistView: View {
 }
 
 enum StepText {
-    /// "Thu 6:00 AM".
+    /// "Thu 26 Nov, 6:00 AM".
     static func when(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
     }
 
-    /// "today at 21:31", "tomorrow at 07:05", "Tue 24 Nov at 21:31".
+    /// "today, Sun 22 Nov at 21:31", "Tue 24 Nov at 21:31".
     static func on(_ date: Date, now: Date) -> String {
         "\(RingDay.word(date, now: now, calendar: .current)) at \(date.formatted(date: .omitted, time: .shortened))"
     }

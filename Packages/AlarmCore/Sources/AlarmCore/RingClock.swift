@@ -11,20 +11,21 @@ public enum RingClock {
     }
 
     /// The same, past any ring marked Done or Skipped. An alarm that has
-    /// rung with steps left says so: "Rang today at 21:30, 3 steps to go".
+    /// rung with steps left says so: "Rang today, Sun 22 Nov at 21:30, 3 steps
+    /// to go". The countdown names the ring it counts to: "Rings in 1 day
+    /// 23:54:56, Tue 24 Nov at 21:30".
     public static func text(for routine: Routine, in state: AlertsState, at now: Date, calendar: Calendar = .current)
         -> String?
     {
         if let cycle = AlarmList.underWay(routine, in: state, now: now, calendar: calendar) {
             let checked = Set(state.routineCompletions.map(\.stepKey))
             let left = cycle.steps.filter { !checked.contains($0.key) }.count
-            let time = calendar.dateComponents([.hour, .minute], from: cycle.at)
-            return "Rang \(RingDay.word(cycle.at, now: now, calendar: calendar)) at "
-                + String(format: "%02d:%02d, ", time.hour ?? 0, time.minute ?? 0)
+            return "Rang " + RingDay.time(cycle.at, now: now, calendar: calendar) + ", "
                 + (left == 1 ? "1 step to go" : "\(left) steps to go")
         }
         guard let next = Reconciler.nextRing(of: routine, in: state, now: now, calendar: calendar) else { return nil }
-        return "Rings in " + Remaining(from: now, to: next).clock
+        return "Rings in " + Remaining(from: now, to: next).clock + ", "
+            + RingDay.time(next, now: now, calendar: calendar)
     }
 
     /// A calendar alarm counts down to its alert while it is set on this

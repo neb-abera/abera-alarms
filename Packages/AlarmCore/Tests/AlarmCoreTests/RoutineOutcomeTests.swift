@@ -106,7 +106,9 @@ import Testing
         let marked = state(outcomes: [outcome(.done, today)])
         #expect(Reconciler.nextRing(of: wake, in: marked, now: at(6, 40), calendar: calendar) == at(7, 0, day: 22))
         #expect(Reconciler.nextRing(of: wake, in: state(), now: at(6, 40), calendar: calendar) == at(7, 0))
-        #expect(RingClock.text(for: wake, in: marked, at: at(6, 40), calendar: calendar) == "Rings in 1 day 00:20:00")
+        #expect(
+            RingClock.text(for: wake, in: marked, at: at(6, 40), calendar: calendar)
+                == "Rings in 1 day 00:20:00, tomorrow, Sun 22 Nov at 07:00")
         var off = wake
         off.enabled = false
         #expect(Reconciler.nextRing(of: off, in: marked, now: at(6, 40), calendar: calendar) == nil)

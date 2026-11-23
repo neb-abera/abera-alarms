@@ -1451,7 +1451,7 @@ extension AlarmsUITests {
         check.tap()
         XCTAssertTrue(poll(5) { check.label == "Undo Take medication" }, check.label)
         let line = first(app, "step-Take medication-")
-        XCTAssertTrue(waitFor(line, labelContaining: "Done today at"), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today, "), line.label)
         XCTAssertTrue(line.label.contains("Does not ring at"), line.label)
 
         // The next time is still set.
@@ -1488,7 +1488,7 @@ extension AlarmsUITests {
         note.tap()
         note.typeText("Lisinopril 10 mg")
         app.buttons["save-completion"].tap()
-        XCTAssertTrue(waitFor(line, labelContaining: "Done today at"), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today, "), line.label)
 
         line.tap()
         XCTAssertTrue(note.waitForExistence(timeout: 5), app.debugDescription)
@@ -1552,7 +1552,7 @@ extension AlarmsUITests {
         _ = shown.waitForExistence(timeout: 30)
         XCTAssertTrue(shown.exists, app.debugDescription)
         app.buttons["save-completion"].tap()
-        XCTAssertTrue(waitFor(line, labelContaining: "Done today at", timeout: 10), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today, ", timeout: 10), line.label)
     }
 
     func testAnAlarmBecomesAStepOfAnotherAndSeparatesBack() {
@@ -1826,7 +1826,7 @@ extension AlarmsUITests {
         XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertLessThan(pills.frame.minY, gym.frame.minY, app.debugDescription)
         XCTAssertTrue(
-            poll(5) { pills.label.contains("Rang today at") || pills.label.contains("Rang yesterday at") }, pills.label)
+            poll(5) { pills.label.contains("Rang today, ") || pills.label.contains("Rang yesterday, ") }, pills.label)
         XCTAssertTrue(pills.label.contains("2 steps to go"), pills.label)
         XCTAssertTrue(app.buttons["ring-skip-Pills"].exists, app.debugDescription)
         let medication = first(app, "check-Take medication-")
