@@ -24,6 +24,8 @@
     /// AlarmKit, so a UI test hears a step ring through iOS.
     /// `-demo-ring-soon` adds Gym, every day, ringing 2 to 3 minutes after
     /// launch, with its step Stretch at the same minute.
+    /// `-demo-step-rang` adds Floss, rung 3 minutes before launch, with
+    /// Brush rung and Rinse still to ring.
     /// `-demo-weekly` adds Weekly review, at 09:00 on the weekday two days
     /// from now only, with its step Review. Its steps start closed.
     /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
@@ -40,6 +42,7 @@
             if arguments.contains("-demo-step-soon") { initial.routines.append(pills(now: Date())) }
             if arguments.contains("-demo-ring-soon") { initial.routines.append(gym(now: Date())) }
             if arguments.contains("-demo-weekly") { initial.routines.append(weekly(now: Date())) }
+            if arguments.contains("-demo-step-rang") { initial.routines.append(floss(now: Date())) }
             let server = FakeAlertsServer(
                 state: initial, token: token,
                 offline: arguments.contains("-demo-offline"),
@@ -138,6 +141,24 @@
                     RoutineStep(
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000051")!, label: "Stretch",
                         offsetMinutes: 0)
+                ], updatedAt: now.addingTimeInterval(-86_400))
+        }
+
+        /// Floss, every day, rung 3 minutes before launch. Brush rang 2
+        /// minutes ago. Rinse rings 8 minutes on.
+        static func floss(now: Date) -> Routine {
+            let ring = Calendar.current.dateInterval(of: .minute, for: now.addingTimeInterval(-180))?.start ?? now
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: ring)
+            return Routine(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000007")!, label: "Floss",
+                hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: [1, 2, 3, 4, 5, 6, 7],
+                steps: [
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000071")!, label: "Brush",
+                        offsetMinutes: 1),
+                    RoutineStep(
+                        id: UUID(uuidString: "00000000-0000-4000-8000-000000000072")!, label: "Rinse",
+                        offsetMinutes: 10),
                 ], updatedAt: now.addingTimeInterval(-86_400))
         }
 
