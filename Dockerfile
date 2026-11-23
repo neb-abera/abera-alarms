@@ -7,5 +7,5 @@ WORKDIR /src
 
 # Prose rules (scripts/check-prose.sh) and workflow lint (make lint). Named
 # stages, so Dependabot bumps them with the rest.
-FROM jdkato/vale:v3.26.0@sha256:d4ebc402b255dacc759c468ed8c91bd5be82918bbb59583558539f3be80f1f01 AS vale
+FROM jdkato/vale:v3.28.1@sha256:42b74f7f3ea7dd60554181037a8899a190516b9d48b67d157b09e5df791f9115 AS vale
 FROM rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 AS actionlint
