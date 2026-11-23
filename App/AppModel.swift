@@ -472,6 +472,23 @@ final class AppModel {
         noteStepError(result.error)
     }
 
+    /// Moves one ring of an alarm, and its steps, later. The alarms move at once, offline too.
+    func delay(_ routine: Routine, cycle: RoutineCycle, minutes: Int) async {
+        stepError = nil
+        let delay = RoutineDelay(routineId: routine.id, cycle: cycle.stamp, minutes: minutes, at: Date())
+        let result = await runReturning { await self.dependencies.sync.setDelay(delay) }
+        noteStepError(result.error)
+    }
+
+    /// Puts the ring back at its planned time.
+    func undelay(_ routine: Routine, cycle: RoutineCycle) async {
+        stepError = nil
+        let result = await runReturning {
+            await self.dependencies.sync.clearDelay(routineId: routine.id, cycle: cycle.stamp)
+        }
+        noteStepError(result.error)
+    }
+
     func unmark(_ routine: Routine, cycle: RoutineCycle) async {
         stepError = nil
         let result = await runReturning {

@@ -303,6 +303,7 @@ public actor AlarmSync {
         var state = RoutineChange.overlay(server, routines)
         state.routineCompletions = CompletionChange.overlay(state.routineCompletions, completions)
         state.routineOutcomes = CompletionChange.overlayOutcomes(state.routineOutcomes, completions)
+        state.routineDelays = CompletionChange.overlayDelays(state.routineDelays, completions)
         return state
     }
 
@@ -458,6 +459,17 @@ public actor AlarmSync {
         await oneAtATime { await self.changeOutcomeNow(.clearOutcome(routineId: routineId, cycle: cycle)) }
     }
 
+    /// Moves one ring of an alarm and its steps later. The phone moves its
+    /// alarms at once, offline too, and sends the delay when it can.
+    public func setDelay(_ delay: RoutineDelay) async -> SyncReport {
+        await oneAtATime { await self.changeOutcomeNow(.delay(delay)) }
+    }
+
+    /// Puts the ring back at its planned time.
+    public func clearDelay(routineId: UUID, cycle: String) async -> SyncReport {
+        await oneAtATime { await self.changeOutcomeNow(.clearDelay(routineId: routineId, cycle: cycle)) }
+    }
+
     private func changeOutcomeNow(_ change: CompletionChange) async -> SyncReport {
         guard await pairing() != nil else { return report(error: .unpaired, state: nil) }
         return await queueCompletion(change)
@@ -515,6 +527,10 @@ public actor AlarmSync {
                     state = try await client.setOutcome(draft)
                 case .clearOutcome(let routineId, let cycle):
                     state = try await client.clearOutcome(routineId: routineId, cycle: cycle)
+                case .delay(let delay):
+                    state = try await client.setDelay(delay)
+                case .clearDelay(let routineId, let cycle):
+                    state = try await client.clearDelay(routineId: routineId, cycle: cycle)
                 }
             } catch .notFound {
                 // The routine or the step is gone: nothing left to check off.

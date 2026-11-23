@@ -159,6 +159,22 @@ public struct AlertsClient: Sendable {
         try await call("DELETE", Self.outcomePath(routineId: routineId, cycle: cycle), body: nil)
     }
 
+    static func delayPath(routineId: UUID, cycle: String) -> String {
+        "routines/\(routineId.uuidString.lowercased())/cycles/\(cycle)/delay"
+    }
+
+    /// Moves one ring of an alarm, and its steps, later.
+    public func setDelay(_ delay: RoutineDelay) async throws(APIError) -> AlertsState {
+        try await call(
+            "PUT", Self.delayPath(routineId: delay.routineId, cycle: delay.cycle),
+            body: DelayBody(minutes: delay.minutes))
+    }
+
+    /// Puts the ring back at its planned time.
+    public func clearDelay(routineId: UUID, cycle: String) async throws(APIError) -> AlertsState {
+        try await call("DELETE", Self.delayPath(routineId: routineId, cycle: cycle), body: nil)
+    }
+
     /// The last two weeks of cycles of the routines with steps.
     public func history() async throws(APIError) -> RoutineHistory {
         let data = try await fetch("history", accept: "application/json", limit: Self.maxResponseBytes * 4)

@@ -18,6 +18,13 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// When abera.tech last saved it. A ring-once routine rings at the
     /// first hour:minute after it. Nil from an older server.
     public var updatedAt: Date?
+    /// This routine's rings moved later, minutes by ring stamp. Read from
+    /// the state's delays, never sent with the routine.
+    public var delays: [String: Int] = [:]
+
+    enum CodingKeys: String, CodingKey {
+        case id, label, hour, minute, days, enabled, snoozeMinutes, steps, updatedAt
+    }
 
     public init(
         id: UUID, label: String, hour: Int, minute: Int, days: [Int], enabled: Bool = true, snoozeMinutes: Int = 9,

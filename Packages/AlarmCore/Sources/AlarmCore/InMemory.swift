@@ -261,6 +261,30 @@ public actor FakeAlertsServer: HTTPTransport {
         var at: Date?
     }
 
+    /// PUT or DELETE `routines/{id}/cycles/{cycle}/delay`. A delay makes the
+    /// cycle's rings still ahead ring again, as abera.tech does.
+    private func delay(_ request: URLRequest, path: String, remove: Bool) -> (Data, HTTPURLResponse) {
+        let parts = path.split(separator: "/").map(String.init)
+        guard parts.count == 7, let routineId = UUID(uuidString: parts[3]),
+            state.routines.contains(where: { $0.id == routineId })
+        else { return respond(request, 404, Data()) }
+        let cycle = parts[5].removingPercentEncoding ?? parts[5]
+        state.routineDelays.removeAll { $0.routineId == routineId && $0.cycle == cycle }
+        if !remove {
+            guard let data = request.httpBody, let body = try? JSONDecoder().decode(DelayBody.self, from: data),
+                RoutineDelay.minutes.contains(body.minutes)
+            else { return respond(request, 400, Data(#"{"errors":{"minutes":["1 to 720."]}}"#.utf8)) }
+            state.routineDelays.append(
+                RoutineDelay(routineId: routineId, cycle: cycle, minutes: body.minutes, at: now()))
+            let prefix = RoutineCycle.parentKey(routineID: routineId, stamp: cycle)
+            for index in state.routineRings.indices where state.routineRings[index].key.hasPrefix(prefix) {
+                state.routineRings[index].alertAt += TimeInterval(body.minutes * 60)
+                state.routineRings[index].acknowledged = false
+            }
+        }
+        return respond(request, 200, (try? ServerDates.encoder().encode(state)) ?? Data())
+    }
+
     /// PUT or DELETE `routines/{id}/cycles/{cycle}/outcome`.
     private func outcome(_ request: URLRequest, path: String, remove: Bool) -> (Data, HTTPURLResponse) {
         let parts = path.split(separator: "/").map(String.init)
@@ -485,6 +509,10 @@ public actor FakeAlertsServer: HTTPTransport {
             let event = Self.event(of: key)
             state.alerts.removeAll { scope == .series ? Self.event(of: $0.key) == event : $0.key == key }
             deletions.append("\(key) \(scope.rawValue)")
+        case ("PUT", _) where path.hasSuffix("/delay"):
+            return delay(request, path: path, remove: false)
+        case ("DELETE", _) where path.hasSuffix("/delay"):
+            return delay(request, path: path, remove: true)
         case ("PUT", _) where path.hasSuffix("/outcome"):
             return outcome(request, path: path, remove: false)
         case ("DELETE", _) where path.hasSuffix("/outcome"):

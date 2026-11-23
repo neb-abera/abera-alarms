@@ -17,7 +17,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
     public var calendarWrite: String?
     public var alerts: [PlannedAlert]
     /// The Clock-style alarms, on or off.
-    public var routines: [Routine]
+    public var routines: [Routine] { didSet { attachDelays() } }
     /// Dates counted down to, sorted by target then label. An older server
     /// sends none.
     public var countdowns: [Countdown]
@@ -37,6 +37,9 @@ public struct AlertsState: Codable, Equatable, Sendable {
     /// Rings marked Done or Skipped, for cycles from two days ago on. An
     /// older server sends none.
     public var routineOutcomes: [RoutineOutcome]
+    /// Rings moved later, for cycles from two days ago on. An older server
+    /// sends none.
+    public var routineDelays: [RoutineDelay] { didSet { attachDelays() } }
 
     /// abera.tech's own default.
     public static let defaultStopAfterMinutes = 180
@@ -57,7 +60,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         stopAfterMinutes: Int = AlertsState.defaultStopAfterMinutes,
         rules: [TypeRule] = [],
         routineCompletions: [RoutineCompletion] = [],
-        routineOutcomes: [RoutineOutcome] = []
+        routineOutcomes: [RoutineOutcome] = [],
+        routineDelays: [RoutineDelay] = []
     ) {
         self.configured = configured
         self.timeZone = timeZone
@@ -75,12 +79,14 @@ public struct AlertsState: Codable, Equatable, Sendable {
         self.rules = rules
         self.routineCompletions = routineCompletions
         self.routineOutcomes = routineOutcomes
+        self.routineDelays = routineDelays
+        attachDelays()
     }
 
     enum CodingKeys: String, CodingKey {
         case configured, timeZone, mutedUntil, lastFetchAt, lastFetchError, lastSuccessAt, calendarWrite, alerts,
             routines, countdowns, phone, settings, routineRings, stopAfterMinutes, rules, routineCompletions,
-            routineOutcomes
+            routineOutcomes, routineDelays
     }
 
     private struct ServerSettings: Decodable {
@@ -105,6 +111,7 @@ public struct AlertsState: Codable, Equatable, Sendable {
         try container.encode(rules, forKey: .rules)
         try container.encode(routineCompletions, forKey: .routineCompletions)
         try container.encode(routineOutcomes, forKey: .routineOutcomes)
+        try container.encode(routineDelays, forKey: .routineDelays)
     }
 
     public init(from decoder: any Decoder) throws {
@@ -136,6 +143,8 @@ public struct AlertsState: Codable, Equatable, Sendable {
         routineCompletions =
             try container.decodeIfPresent([RoutineCompletion].self, forKey: .routineCompletions) ?? []
         routineOutcomes = try container.decodeIfPresent([RoutineOutcome].self, forKey: .routineOutcomes) ?? []
+        routineDelays = try container.decodeIfPresent([RoutineDelay].self, forKey: .routineDelays) ?? []
+        attachDelays()
     }
 }
 
