@@ -368,17 +368,25 @@ struct ChecklistView: View {
 }
 
 enum StepText {
-    /// "Thu 6:00 AM".
+    /// "Thu 26 Nov, 6:00 AM".
     static func when(_ date: Date) -> String {
-        date.formatted(.dateTime.weekday(.abbreviated).hour().minute())
+        date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+    }
+
+    /// "today, Sun 22 Nov at 21:31", "Tue 24 Nov at 21:31".
+    static func on(_ date: Date, now: Date) -> String {
+        "\(RingDay.word(date, now: now, calendar: .current)) at \(date.formatted(date: .omitted, time: .shortened))"
     }
 
     static func line(ring: RoutineCycle.StepRing, done: RoutineCompletion?, now: Date) -> String {
-        let time = ring.at.formatted(date: .omitted, time: .shortened)
         if let done {
-            return "Done at \(done.completedAt.formatted(date: .omitted, time: .shortened)). Does not ring at \(time)."
+            // The ring's day is said once when it is the day it was done.
+            let ring =
+                Calendar.current.isDate(ring.at, inSameDayAs: done.completedAt)
+                ? "at \(ring.at.formatted(date: .omitted, time: .shortened))" : on(ring.at, now: now)
+            return "Done \(on(done.completedAt, now: now)). Does not ring \(ring)."
         }
-        return ring.at > now ? "Rings at \(time)" : "Rang at \(time), not checked off"
+        return ring.at > now ? "Rings \(on(ring.at, now: now))" : "Rang \(on(ring.at, now: now)), not checked off"
     }
 }
 
@@ -678,14 +686,14 @@ struct HistoryStepRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(step.label)
                 if let done = step.completion {
-                    Text("Done at \(done.completedAt.formatted(date: .omitted, time: .shortened))")
+                    Text("Done \(StepText.on(done.completedAt, now: Date()))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                     if let note = done.note {
                         Text(note).font(.caption)
                     }
                 } else if step.at > Date() {
-                    Text("Rings at \(step.at.formatted(date: .omitted, time: .shortened))")
+                    Text("Rings \(StepText.on(step.at, now: Date()))")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 } else {

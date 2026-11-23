@@ -451,8 +451,13 @@ final class AppModel {
                 return .marked(cycle, outcome)
             }
         }
-        // Done and Skip are for a ring still to come. One that has rung was
-        // answered by its Stop.
+        // Done and Skip are for a ring still to come, and for one that has
+        // rung with steps left: Skip then silences the steps.
+        if let underWay = AlarmList.underWay(routine, in: state, now: now, calendar: .current),
+            underWay.outcome(in: state) == nil
+        {
+            return .mark(underWay)
+        }
         guard let shown = shownCycle(routine, at: now), shown.outcome(in: state) == nil, shown.at > now,
             shown.at.timeIntervalSince(now) <= Self.markAhead
         else { return nil }
