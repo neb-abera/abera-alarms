@@ -33,7 +33,7 @@ import Testing
     @Test func alarmsAreInTheOrderTheyNextRing() {
         let state = AlertsState(routines: [morning, night, wednesday, off])
         let ordered = AlarmList.ordered(
-            [off, wednesday, morning, night], in: state, now: at(10, 0), calendar: calendar)
+            [off, wednesday, morning, night], in: state, now: at(10, 30), calendar: calendar)
         #expect(ordered.map(\.label) == ["night routine", "wake up", "Weekly review", "Off"])
         let early = AlarmList.ordered([night, morning], in: state, now: at(6, 0), calendar: calendar)
         #expect(early.map(\.label) == ["wake up", "night routine"])
@@ -69,5 +69,51 @@ import Testing
         let pruned = AlarmList.pruned(
             [tomorrow.key: true, "routine:old:2026-11-01T07:00": false], keeping: [tomorrow.key])
         #expect(pruned == [tomorrow.key: true])
+    }
+
+    /// Neb's iPhone, 2026-11-22 at 21:31: the 21:30 night routine rang and
+    /// he stopped it. The list moved it to Tuesday's ring, below the fold,
+    /// while its steps were still to ring, and he could not find it. An
+    /// alarm stays on the ring it rang until every step is cleared.
+    @Test func aRungAlarmStaysOnTopUntilItsStepsAreCleared() throws {
+        let tuesday = routine(5, "night routine, hyaluronic", 21, 30, days: [2, 4, 6, 7])
+        let state = AlertsState(routines: [morning, tuesday])
+        let now = at(21, 31, day: 22)
+        let ordered = AlarmList.ordered([morning, tuesday], in: state, now: now, calendar: calendar)
+        #expect(ordered.map(\.label) == ["night routine, hyaluronic", "wake up"])
+        let cycle = try #require(AlarmList.underWay(tuesday, in: state, now: now, calendar: calendar))
+        #expect(cycle.stamp == "2026-11-22T21:30")
+        #expect(AlarmList.openByDefault(tuesday, cycle: cycle, now: now, calendar: calendar))
+        #expect(
+            RingClock.text(for: tuesday, in: state, at: now, calendar: calendar) == "Rang today at 21:30, 1 step to go")
+
+        // Every step checked off: the alarm counts down to its next ring again.
+        let checked = RoutineCompletion(
+            routineId: tuesday.id, stepId: tuesday.steps[0].id, cycle: cycle.stamp, completedAt: now)
+        let cleared = AlertsState(routines: [morning, tuesday], routineCompletions: [checked])
+        #expect(AlarmList.underWay(tuesday, in: cleared, now: now, calendar: calendar) == nil)
+        let after = AlarmList.ordered([morning, tuesday], in: cleared, now: now, calendar: calendar)
+        #expect(after.map(\.label) == ["wake up", "night routine, hyaluronic"])
+        #expect(RingClock.text(for: tuesday, in: cleared, at: now, calendar: calendar)?.hasPrefix("Rings in") == true)
+
+        // Skipped: nothing is left to do.
+        let skipped = RoutineOutcome(routineId: tuesday.id, cycle: cycle.stamp, status: .skipped, at: now)
+        let gone = AlertsState(routines: [morning, tuesday], routineOutcomes: [skipped])
+        #expect(AlarmList.underWay(tuesday, in: gone, now: now, calendar: calendar) == nil)
+    }
+
+    @Test func aRungAlarmWithoutStepsMovesOnAtOnce() {
+        var plain = routine(6, "plain", 21, 30, days: [1, 2, 3, 4, 5, 6, 7])
+        plain.steps = []
+        let state = AlertsState(routines: [plain])
+        #expect(AlarmList.underWay(plain, in: state, now: at(21, 31, day: 22), calendar: calendar) == nil)
+    }
+
+    @Test func aRingTimeNamesItsDay() {
+        let now = at(21, 36, day: 22)
+        #expect(RingDay.word(at(21, 31, day: 22), now: now, calendar: calendar) == "today")
+        #expect(RingDay.word(at(7, 5, day: 23), now: now, calendar: calendar) == "tomorrow")
+        #expect(RingDay.word(at(21, 30, day: 21), now: now, calendar: calendar) == "yesterday")
+        #expect(RingDay.word(at(21, 31, day: 24), now: now, calendar: calendar) == "Tue 24 Nov")
     }
 }

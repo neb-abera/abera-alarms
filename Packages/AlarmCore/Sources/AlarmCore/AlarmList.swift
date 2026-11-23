@@ -6,12 +6,20 @@ import Foundation
 /// that day unless he opened it.
 public enum AlarmList {
     /// Switched-on alarms by their next ring not marked Done or Skipped,
-    /// soonest first. Switched-off alarms after them, by time and label.
+    /// soonest first. An alarm that has rung with steps still to clear
+    /// keeps the ring it rang, so it stays at the top. Switched-off alarms
+    /// after them, by time and label.
     public static func ordered(_ routines: [Routine], in state: AlertsState, now: Date, calendar: Calendar)
         -> [Routine]
     {
         let next = Dictionary(
-            routines.map { ($0.id, Reconciler.nextRing(of: $0, in: state, now: now, calendar: calendar)) },
+            routines.map { routine in
+                (
+                    routine.id,
+                    underWay(routine, in: state, now: now, calendar: calendar)?.at
+                        ?? Reconciler.nextRing(of: routine, in: state, now: now, calendar: calendar)
+                )
+            },
             uniquingKeysWith: { first, _ in first })
         return routines.sorted { a, b in
             switch (next[a.id] ?? nil, next[b.id] ?? nil) {
@@ -23,11 +31,29 @@ public enum AlarmList {
         }
     }
 
-    /// Steps show by default when the ring they list is today and the
-    /// alarm is on.
+    /// The ring that has rung and still has steps to clear: not skipped,
+    /// and not every step checked off. Its steps ring for up to the stop
+    /// window after the last one. Nil once nothing is left, and for an
+    /// alarm that is off. On 2026-11-22 Neb stopped the 21:30 night
+    /// routine and the list moved it to Tuesday's ring while its steps
+    /// were still to ring. He said the alarm should not move to its next
+    /// ring until every step is cleared.
+    public static func underWay(_ routine: Routine, in state: AlertsState, now: Date, calendar: Calendar)
+        -> RoutineCycle?
+    {
+        guard routine.enabled, !routine.steps.isEmpty else { return nil }
+        let window = TimeInterval(state.stopAfterMinutes * 60)
+        guard let cycle = RoutineCycle.shown(routine, in: state, now: now, window: window, calendar: calendar),
+            cycle.at <= now, !cycle.isSettled(in: state, now: now)
+        else { return nil }
+        return cycle
+    }
+
+    /// Steps show by default when the ring they list is today or has rung,
+    /// and the alarm is on.
     public static func openByDefault(_ routine: Routine, cycle: RoutineCycle?, now: Date, calendar: Calendar) -> Bool {
         guard routine.enabled, let cycle else { return false }
-        return calendar.isDate(cycle.at, inSameDayAs: now)
+        return cycle.at <= now || calendar.isDate(cycle.at, inSameDayAs: now)
     }
 
     /// Open or closed: his own choice for this ring when he made one, else

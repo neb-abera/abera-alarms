@@ -1451,7 +1451,7 @@ extension AlarmsUITests {
         check.tap()
         XCTAssertTrue(poll(5) { check.label == "Undo Take medication" }, check.label)
         let line = first(app, "step-Take medication-")
-        XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today at"), line.label)
         XCTAssertTrue(line.label.contains("Does not ring at"), line.label)
 
         // The next time is still set.
@@ -1488,7 +1488,7 @@ extension AlarmsUITests {
         note.tap()
         note.typeText("Lisinopril 10 mg")
         app.buttons["save-completion"].tap()
-        XCTAssertTrue(waitFor(line, labelContaining: "Done at"), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today at"), line.label)
 
         line.tap()
         XCTAssertTrue(note.waitForExistence(timeout: 5), app.debugDescription)
@@ -1552,7 +1552,7 @@ extension AlarmsUITests {
         _ = shown.waitForExistence(timeout: 30)
         XCTAssertTrue(shown.exists, app.debugDescription)
         app.buttons["save-completion"].tap()
-        XCTAssertTrue(waitFor(line, labelContaining: "Done at", timeout: 10), line.label)
+        XCTAssertTrue(waitFor(line, labelContaining: "Done today at", timeout: 10), line.label)
     }
 
     func testAnAlarmBecomesAStepOfAnotherAndSeparatesBack() {
@@ -1635,7 +1635,7 @@ extension AlarmsUITests {
         XCTAssertTrue(skip.waitForExistence(timeout: 10), app.debugDescription)
         scrollTo(skip, in: app)
         let medication = first(app, "step-Take medication-")
-        XCTAssertTrue(medication.label.contains("Rings at"), medication.label)
+        XCTAssertTrue(medication.label.contains("Rings "), medication.label)
         skip.tap()
         XCTAssertTrue(poll(5) { skip.label == "Undo Skip me" }, skip.label)
         if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
@@ -1825,7 +1825,8 @@ extension AlarmsUITests {
         XCTAssertTrue(pills.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertTrue(gym.waitForExistence(timeout: 10), app.debugDescription)
         XCTAssertLessThan(pills.frame.minY, gym.frame.minY, app.debugDescription)
-        XCTAssertTrue(poll(5) { pills.label.contains("Rang at") }, pills.label)
+        XCTAssertTrue(
+            poll(5) { pills.label.contains("Rang today at") || pills.label.contains("Rang yesterday at") }, pills.label)
         XCTAssertTrue(pills.label.contains("2 steps to go"), pills.label)
         XCTAssertTrue(app.buttons["ring-skip-Pills"].exists, app.debugDescription)
         let medication = first(app, "check-Take medication-")
