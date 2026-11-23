@@ -97,8 +97,9 @@ struct EditableStep: Identifiable, Equatable {
     }
 }
 
-/// Under an alarm on the Alarms tab: Done and Skip for its coming ring,
-/// each one tap, or the mark on a ring with Undo. Done keeps that ring from
+/// Under an alarm on the Alarms tab: Done, Skip, and Delay for its coming
+/// ring, or the mark on a ring with Undo. Delay moves the ring and its
+/// steps later, for that ring alone. Done keeps that ring from
 /// sounding. Skip keeps its steps from ringing too. The next ring is set.
 struct RingControlRow: View {
     @Bindable var model: AppModel
@@ -151,10 +152,20 @@ struct RingControlRow: View {
 
 extension RingControlRow {
     fileprivate func time(_ cycle: RoutineCycle) -> some View {
-        Text(StepText.when(cycle.at))
-            .font(.subheadline.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
+        VStack(alignment: .leading, spacing: 0) {
+            Text(StepText.when(cycle.at))
+                .font(.subheadline.monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            if let minutes = cycle.delay(in: routine) {
+                Text("Delayed \(RoutineDelay.words(minutes))")
+                    .font(.caption)
+                    .foregroundStyle(.blue)
+                    .lineLimit(1)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("ring-time-\(routine.label)")
     }
 
     @ViewBuilder
@@ -185,6 +196,34 @@ extension RingControlRow {
         .buttonStyle(.bordered)
         .tint(.orange)
         .accessibilityIdentifier("ring-skip-\(routine.label)")
+        Menu {
+            ForEach(StepText.delayChoices, id: \.self) { minutes in
+                Button("\(RoutineDelay.words(minutes)) after \(StepText.clock(planned(cycle)))") {
+                    Task { await model.delay(routine, cycle: cycle, minutes: minutes) }
+                }
+                .accessibilityIdentifier("delay-\(minutes)")
+            }
+            if cycle.delay(in: routine) != nil {
+                Button("Ring at \(StepText.clock(planned(cycle))) as planned", systemImage: "arrow.uturn.backward") {
+                    Task { await model.undelay(routine, cycle: cycle) }
+                }
+                .accessibilityIdentifier("delay-clear")
+            }
+        } label: {
+            Text("Delay")
+                .fontWeight(.semibold)
+                .foregroundStyle(Color.blue)
+                .lineLimit(1)
+                .fixedSize()
+        }
+        .buttonStyle(.bordered)
+        .tint(.blue)
+        .accessibilityIdentifier("ring-delay-\(routine.label)")
+    }
+
+    /// The ring's planned time, before any delay.
+    fileprivate func planned(_ cycle: RoutineCycle) -> Date {
+        cycle.at.addingTimeInterval(-TimeInterval((cycle.delay(in: routine) ?? 0) * 60))
     }
 }
 
@@ -409,6 +448,20 @@ enum StepText {
     /// "Thu 26 Nov, 6:00 AM".
     static func when(_ date: Date) -> String {
         date.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated).hour().minute())
+    }
+
+    /// The delays the menu offers. A UI test adds 2 minutes, to hear a
+    /// moved ring through iOS without waiting 15.
+    static var delayChoices: [Int] {
+        #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-demo-delay-minute") { return [2] + RoutineDelay.choices }
+        #endif
+        return RoutineDelay.choices
+    }
+
+    /// "08:30", in the phone's own clock style.
+    static func clock(_ date: Date) -> String {
+        date.formatted(date: .omitted, time: .shortened)
     }
 
     /// "today, Sun 22 Nov at 21:31", "Tue 24 Nov at 21:31".

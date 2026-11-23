@@ -1740,6 +1740,84 @@ extension AlarmsUITests {
         XCTAssertNotEqual(first(app, "check-Stretch-").identifier, today)
     }
 
+    // MARK: Delay one ring
+
+    /// Delay moves a coming ring and its step later, and Ring as planned
+    /// puts them back. Neb asked on 2026-11-23, to do his morning routine
+    /// after his workout.
+    func testDelayMovesTheRingAndItsStepsAndCanBeUndone() {
+        let app = launch("-demo-ring-soon", tab: nil)
+        let delay = app.buttons["ring-delay-Gym"]
+        XCTAssertTrue(delay.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(delay, in: app)
+        let stretch = first(app, "step-Stretch-")
+        let stamp = stretch.identifier
+        let before = stretch.label
+        delay.tap()
+        let thirty = app.buttons["delay-30"]
+        XCTAssertTrue(thirty.waitForExistence(timeout: 5), app.debugDescription)
+        thirty.tap()
+
+        let time = app.descendants(matching: .any)["ring-time-Gym"].firstMatch
+        XCTAssertTrue(waitFor(time, labelContaining: "Delayed 30 min"), time.label)
+        XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days 00:3"), gymClock(app).label)
+        // The step moves with it and is still this ring's.
+        XCTAssertTrue(poll(5) { first(app, "step-Stretch-").label != before }, before)
+        XCTAssertEqual(first(app, "step-Stretch-").identifier, stamp)
+        XCTAssertTrue(app.buttons["ring-done-Gym"].exists, app.debugDescription)
+
+        app.buttons["ring-delay-Gym"].tap()
+        let back = app.buttons["delay-clear"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5), app.debugDescription)
+        back.tap()
+        XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days 00:0"), gymClock(app).label)
+        XCTAssertTrue(poll(5) { !time.label.contains("Delayed") }, time.label)
+        XCTAssertTrue(poll(5) { first(app, "step-Stretch-").label == before }, first(app, "step-Stretch-").label)
+    }
+
+    /// A ring that has rung, delayed, rings again through iOS at its new
+    /// time. Pills rang at launch's minute, with its steps 2 minutes on.
+    func testADelayedRingRingsAgainThroughIOS() throws {
+        executionTimeAllowance = 300
+        addTeardownBlock { @MainActor in
+            let cleaner = XCUIApplication()
+            cleaner.launchArguments = ["-demo", "-demo-clear-alarms"]
+            cleaner.launch()
+            RunLoop.current.run(until: Date().addingTimeInterval(5))
+            cleaner.terminate()
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = launch("-demo-step-soon", "-demo-real-alarms", "-demo-delay-minute", tab: nil)
+        let allow = springboard.buttons["Allow"].firstMatch
+        let asked = allow.waitForExistence(timeout: 5)
+        if asked { allow.tap() }
+        let delay = app.buttons["ring-delay-Pills"]
+        XCTAssertTrue(delay.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(delay, in: app)
+        delay.tap()
+        let minute = app.buttons["delay-2"]
+        XCTAssertTrue(minute.waitForExistence(timeout: 5), app.debugDescription)
+        minute.tap()
+        let time = app.descendants(matching: .any)["ring-time-Pills"].firstMatch
+        XCTAssertTrue(waitFor(time, labelContaining: "Delayed 2 min"), time.label)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
+
+        let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        XCUIDevice.shared.press(.home)
+        let stop = springboard.buttons["Stop"].firstMatch
+        if !stop.waitForExistence(timeout: 150) {
+            if !asked && ios >= 27 { throw XCTSkip("The iOS \(ios) simulator denied alarms without asking") }
+            XCTFail("the delayed ring did not ring:\n\(springboard.debugDescription)")
+            return
+        }
+        XCTAssertTrue(springboard.debugDescription.contains("Pills"), springboard.debugDescription)
+        for _ in 0..<5 where stop.exists {
+            if stop.isHittable { stop.tap() }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
+    }
+
     func testDoneAndSkipAreInTheAlarmsMenu() {
         let app = launch("-demo-ring-soon", tab: nil)
         let gym = routine(app, "Gym")
@@ -1892,7 +1970,12 @@ extension AlarmsUITests {
         app.terminate()
         app.launchArguments = ["-demo", "-demo-ring-soon", "-demo-weekly"]
         app.launch()
-        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 15), app.debugDescription)
+        // Gym's new ring opens its steps again, which can push Weekly review
+        // below the screen, where the list has not built its row (Xcode 27,
+        // CI, 2026-11-23). Scroll until the row exists.
+        XCTAssertTrue(gymToggle.waitForExistence(timeout: 15), app.debugDescription)
+        for _ in 0..<6 where !weeklyToggle.exists { app.collectionViews.firstMatch.swipeUp() }
+        XCTAssertTrue(weeklyToggle.waitForExistence(timeout: 5), app.debugDescription)
         scrollTo(weeklyToggle, in: app)
         XCTAssertEqual(weeklyToggle.value as? String, "Open")
     }

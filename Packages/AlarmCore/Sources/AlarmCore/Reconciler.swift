@@ -146,14 +146,21 @@ public enum Reconciler {
     static func routines(
         from state: AlertsState, now: Date, acknowledgedHere: Set<String> = [], calendar: Calendar
     ) -> [DesiredAlarm] {
-        let answered = state.answeredByOutcome().rings.union(acknowledgedHere)
+        let marked = state.answeredByOutcome().rings
+        let answered = marked.union(acknowledgedHere)
         let window = TimeInterval(state.stopAfterMinutes * 60)
         return state.routines
             .filter(\.enabled)
             .flatMap { routine -> [DesiredAlarm] in
                 let ahead = RoutineCycle.upcoming(routine, now: now, ahead: answeredAhead, calendar: calendar)
                     .filter { $0.at > now }
-                guard ahead.contains(where: { answered.contains($0.key) }) else {
+                // A ring moved later is held one by one too. A Stop before
+                // the delay does not answer the moved ring: it rings again.
+                func isAnswered(_ cycle: RoutineCycle) -> Bool {
+                    (routine.delays[cycle.stamp] == nil ? answered : marked).contains(cycle.key)
+                }
+                let moved = ahead.contains { routine.delays[$0.stamp] != nil }
+                guard moved || ahead.contains(where: isAnswered) else {
                     guard let next = routine.nextFire(after: now, calendar: calendar) else { return [] }
                     return [
                         DesiredAlarm(
@@ -162,7 +169,7 @@ public enum Reconciler {
                             routine: routine.schedule)
                     ]
                 }
-                return ahead.filter { !answered.contains($0.key) }.map { cycle in
+                return ahead.filter { !isAnswered($0) }.map { cycle in
                     DesiredAlarm(
                         id: AlarmID.of(key: cycle.key), key: cycle.key, title: routine.label, location: nil,
                         fireAt: cycle.at, startsAt: cycle.at.addingTimeInterval(window),
@@ -178,7 +185,8 @@ public enum Reconciler {
         guard routine.enabled else { return nil }
         let answered = state.answeredByOutcome().rings
         return RoutineCycle.upcoming(routine, now: now, ahead: answeredAhead, calendar: calendar)
-            .first { $0.at > now && !answered.contains($0.key) }?.at
+            .filter { $0.at > now && !answered.contains($0.key) }
+            .map(\.at).min()
     }
 
     /// How far ahead the phone holds step alarms, so they ring offline.
@@ -191,6 +199,8 @@ public enum Reconciler {
         -> [DesiredAlarm]
     {
         let answered = answeredSteps(state, acknowledgedHere: acknowledgedHere)
+        // A step of a ring moved later rings again unless checked off or skipped.
+        let firm = Set(state.routineCompletions.map(\.stepKey)).union(state.answeredByOutcome().steps)
         let window = TimeInterval(state.stopAfterMinutes * 60)
         var seen = Set<UUID>()
         return state.routines
@@ -198,7 +208,8 @@ public enum Reconciler {
             .flatMap { routine in
                 RoutineCycle.upcoming(routine, now: now, ahead: stepsAhead, calendar: calendar).flatMap { cycle in
                     cycle.steps.compactMap { ring -> DesiredAlarm? in
-                        guard ring.at > now, !answered.contains(ring.key) else { return nil }
+                        let done = routine.delays[cycle.stamp] == nil ? answered : firm
+                        guard ring.at > now, !done.contains(ring.key) else { return nil }
                         let id = AlarmID.of(key: ring.key)
                         guard seen.insert(id).inserted else { return nil }
                         return DesiredAlarm(

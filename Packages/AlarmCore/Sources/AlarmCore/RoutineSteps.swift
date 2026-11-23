@@ -105,12 +105,14 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
         return (routine, String(head.dropFirst(37)), step)
     }
 
-    /// The cycle a routine ring at `at` starts.
-    static func make(_ routine: Routine, at: Date, calendar: Calendar) -> RoutineCycle {
-        let day = calendar.dateComponents([.year, .month, .day], from: at)
+    /// The cycle a routine ring at `at` starts. A ring moved later rings,
+    /// with its steps, that many minutes after `at`.
+    static func make(_ routine: Routine, at planned: Date, calendar: Calendar) -> RoutineCycle {
+        let day = calendar.dateComponents([.year, .month, .day], from: planned)
         let stamp = String(
             format: "%04d-%02d-%02dT%02d:%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0, routine.hour,
             routine.minute)
+        let at = planned.addingTimeInterval(TimeInterval((routine.delays[stamp] ?? 0) * 60))
         let offsets = RoutineStep.cumulativeMinutes(routine.steps)
         let steps = zip(routine.steps, offsets).map { step, minutes in
             StepRing(
@@ -209,6 +211,10 @@ public enum CompletionChange: Codable, Equatable, Sendable {
     case outcome(OutcomeDraft)
     /// The mark taken off.
     case clearOutcome(routineId: UUID, cycle: String)
+    /// A ring and its steps moved later.
+    case delay(RoutineDelay)
+    /// The ring back at its planned time.
+    case clearDelay(routineId: UUID, cycle: String)
 
     public var routineId: UUID {
         switch self {
@@ -216,6 +222,8 @@ public enum CompletionChange: Codable, Equatable, Sendable {
         case .undo(let routineId, _, _): routineId
         case .outcome(let draft): draft.routineId
         case .clearOutcome(let routineId, _): routineId
+        case .delay(let delay): delay.routineId
+        case .clearDelay(let routineId, _): routineId
         }
     }
 
@@ -231,6 +239,10 @@ public enum CompletionChange: Codable, Equatable, Sendable {
             RoutineCycle.parentKey(routineID: draft.routineId, stamp: draft.cycle) + ":outcome"
         case .clearOutcome(let routineId, let cycle):
             RoutineCycle.parentKey(routineID: routineId, stamp: cycle) + ":outcome"
+        case .delay(let delay):
+            RoutineCycle.parentKey(routineID: delay.routineId, stamp: delay.cycle) + ":delay"
+        case .clearDelay(let routineId, let cycle):
+            RoutineCycle.parentKey(routineID: routineId, stamp: cycle) + ":delay"
         }
     }
 
@@ -249,7 +261,24 @@ public enum CompletionChange: Codable, Equatable, Sendable {
                         note: draft.body.note))
             case .clearOutcome(let routineId, let cycle):
                 out.removeAll { $0.routineId == routineId && $0.cycle == cycle }
-            case .complete, .undo:
+            case .complete, .undo, .delay, .clearDelay:
+                continue
+            }
+        }
+        return out
+    }
+
+    /// The delays as they will be once abera.tech has these changes.
+    public static func overlayDelays(_ delays: [RoutineDelay], _ changes: [CompletionChange]) -> [RoutineDelay] {
+        var out = delays
+        for change in changes {
+            switch change {
+            case .delay(let delay):
+                out.removeAll { $0.routineId == delay.routineId && $0.cycle == delay.cycle }
+                out.append(delay)
+            case .clearDelay(let routineId, let cycle):
+                out.removeAll { $0.routineId == routineId && $0.cycle == cycle }
+            case .complete, .undo, .outcome, .clearOutcome:
                 continue
             }
         }
@@ -311,6 +340,11 @@ public enum CompletionChange: Codable, Equatable, Sendable {
             return .outcome(draft)
         case .clearOutcome(let routineId, let cycle):
             return .clearOutcome(routineId: ids[routineId] ?? routineId, cycle: cycle)
+        case .delay(var delay):
+            delay.routineId = ids[delay.routineId] ?? delay.routineId
+            return .delay(delay)
+        case .clearDelay(let routineId, let cycle):
+            return .clearDelay(routineId: ids[routineId] ?? routineId, cycle: cycle)
         }
     }
 }
