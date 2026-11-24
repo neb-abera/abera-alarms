@@ -1912,6 +1912,8 @@ extension AlarmsUITests {
                 XCTAssertGreaterThanOrEqual(button.frame.minX, 0, "\(size): \(button.identifier) is cut off")
                 XCTAssertLessThanOrEqual(button.frame.maxX, width, "\(size): \(button.identifier) is cut off")
             }
+            // Reaching Delay can scroll Done up and out of reach.
+            for _ in 0..<4 where !done.isHittable { app.collectionViews.firstMatch.swipeDown() }
             done.tap()
             let undo = app.buttons["ring-undo-Gym"]
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
