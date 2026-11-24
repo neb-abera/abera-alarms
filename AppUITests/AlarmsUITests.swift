@@ -1889,6 +1889,15 @@ extension AlarmsUITests {
             XCTAssertEqual(done.frame.height, skip.frame.height, accuracy: 1, "\(size): Done wrapped")
             XCTAssertLessThanOrEqual(done.frame.maxX, width, size)
             XCTAssertLessThanOrEqual(skip.frame.maxX, width, size)
+            // Delay stays on the screen too. At Neb's text size it ran past
+            // the edge (2026-11-23).
+            let delay = app.buttons["ring-delay-Gym"]
+            XCTAssertTrue(delay.exists, "\(size)\n\(app.debugDescription)")
+            scrollTo(delay, in: app)
+            XCTAssertLessThanOrEqual(delay.frame.maxX, width, size)
+            XCTAssertGreaterThanOrEqual(delay.frame.minX, 0, size)
+            XCTAssertGreaterThan(
+                pixels(delay) { r, g, b in b > 180 && b > r + 80 && b > g + 30 }, 40, "\(size): Delay shows no text")
             XCTAssertGreaterThan(done.frame.width, done.frame.height * 0.9, "\(size): Done is narrower than a line")
             // The words are drawn: bright green text on Done, orange on Skip.
             XCTAssertGreaterThan(
