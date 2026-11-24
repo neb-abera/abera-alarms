@@ -1915,7 +1915,11 @@ extension AlarmsUITests {
             // Reaching Delay can scroll Done up and out of reach.
             for _ in 0..<4 where !done.isHittable { app.collectionViews.firstMatch.swipeDown() }
             done.tap()
+            // Done moves Gym below the alarms that now ring before it, and
+            // at this size its row can sit below the screen (CI recording,
+            // 2026-11-24). Scroll to it.
             let undo = app.buttons["ring-undo-Gym"]
+            for _ in 0..<6 where !undo.exists { app.collectionViews.firstMatch.swipeUp() }
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
             XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
             app.terminate()
