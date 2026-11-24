@@ -1889,14 +1889,37 @@ extension AlarmsUITests {
             XCTAssertEqual(done.frame.height, skip.frame.height, accuracy: 1, "\(size): Done wrapped")
             XCTAssertLessThanOrEqual(done.frame.maxX, width, size)
             XCTAssertLessThanOrEqual(skip.frame.maxX, width, size)
+            // Delay stays on the screen too. At Neb's text size it ran past
+            // the edge (2026-11-23).
+            let delay = app.buttons["ring-delay-Gym"]
+            XCTAssertTrue(delay.exists, "\(size)\n\(app.debugDescription)")
+            scrollTo(delay, in: app)
+            XCTAssertLessThanOrEqual(delay.frame.maxX, width, size)
+            XCTAssertGreaterThanOrEqual(delay.frame.minX, 0, size)
+            XCTAssertGreaterThan(
+                pixels(delay) { r, g, b in b > 180 && b > r + 80 && b > g + 30 }, 40, "\(size): Delay shows no text")
             XCTAssertGreaterThan(done.frame.width, done.frame.height * 0.9, "\(size): Done is narrower than a line")
             // The words are drawn: bright green text on Done, orange on Skip.
             XCTAssertGreaterThan(
                 pixels(done) { r, g, b in g > 150 && g > r + 50 && g > b + 50 }, 40, "\(size): Done shows no text")
             XCTAssertGreaterThan(
                 pixels(skip) { r, g, b in r > 180 && g > 90 && g < 190 && b < 90 }, 40, "\(size): Skip shows no text")
+            // Every button on the Alarms tab sits inside the screen's width.
+            // Delay shipped in build 257 past the edge, and only Done and
+            // Skip were checked here (2026-11-23).
+            for button in app.collectionViews.firstMatch.buttons.allElementsBoundByIndex
+            where button.exists && button.frame.width > 0 {
+                XCTAssertGreaterThanOrEqual(button.frame.minX, 0, "\(size): \(button.identifier) is cut off")
+                XCTAssertLessThanOrEqual(button.frame.maxX, width, "\(size): \(button.identifier) is cut off")
+            }
+            // Reaching Delay can scroll Done up and out of reach.
+            for _ in 0..<4 where !done.isHittable { app.collectionViews.firstMatch.swipeDown() }
             done.tap()
+            // Done moves Gym below the alarms that now ring before it, and
+            // at this size its row can sit below the screen (CI recording,
+            // 2026-11-24). Scroll to it.
             let undo = app.buttons["ring-undo-Gym"]
+            for _ in 0..<6 where !undo.exists { app.collectionViews.firstMatch.swipeUp() }
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
             XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
             app.terminate()

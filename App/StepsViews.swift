@@ -112,15 +112,26 @@ struct RingControlRow: View {
             // The words never wrap. At a large text size the time moves above
             // the buttons. "Done" broke into "Don" and "e" on Neb's iPhone
             // (2026-11-21), where the text is larger than the simulator's.
+            // Delay takes its own line when three buttons do not fit. At
+            // Neb's text size Delay ran past the screen's edge (2026-11-23).
             ViewThatFits(in: .horizontal) {
                 HStack {
                     time(cycle)
                     Spacer()
-                    buttons(cycle)
+                    markButtons(cycle)
+                    delayButton(cycle)
                 }
                 VStack(alignment: .leading, spacing: 8) {
                     time(cycle)
-                    HStack { buttons(cycle) }
+                    HStack {
+                        markButtons(cycle)
+                        delayButton(cycle)
+                    }
+                }
+                VStack(alignment: .leading, spacing: 8) {
+                    time(cycle)
+                    HStack { markButtons(cycle) }
+                    delayButton(cycle)
                 }
             }
             .padding(.leading, 20)
@@ -169,7 +180,7 @@ extension RingControlRow {
     }
 
     @ViewBuilder
-    fileprivate func buttons(_ cycle: RoutineCycle) -> some View {
+    fileprivate func markButtons(_ cycle: RoutineCycle) -> some View {
         // Words alone, which a button never trades for its icon. Build 234
         // showed Done and Skip as icons only on Neb's iPhone (2026-11-21).
         Button {
@@ -196,6 +207,9 @@ extension RingControlRow {
         .buttonStyle(.bordered)
         .tint(.orange)
         .accessibilityIdentifier("ring-skip-\(routine.label)")
+    }
+
+    fileprivate func delayButton(_ cycle: RoutineCycle) -> some View {
         Menu {
             ForEach(StepText.delayChoices, id: \.self) { minutes in
                 Button("\(RoutineDelay.words(minutes)) after \(StepText.clock(planned(cycle)))") {
