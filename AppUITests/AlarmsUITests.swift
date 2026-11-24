@@ -1904,6 +1904,14 @@ extension AlarmsUITests {
                 pixels(done) { r, g, b in g > 150 && g > r + 50 && g > b + 50 }, 40, "\(size): Done shows no text")
             XCTAssertGreaterThan(
                 pixels(skip) { r, g, b in r > 180 && g > 90 && g < 190 && b < 90 }, 40, "\(size): Skip shows no text")
+            // Every button on the Alarms tab sits inside the screen's width.
+            // Delay shipped in build 257 past the edge, and only Done and
+            // Skip were checked here (2026-11-23).
+            for button in app.collectionViews.firstMatch.buttons.allElementsBoundByIndex
+            where button.exists && button.frame.width > 0 {
+                XCTAssertGreaterThanOrEqual(button.frame.minX, 0, "\(size): \(button.identifier) is cut off")
+                XCTAssertLessThanOrEqual(button.frame.maxX, width, "\(size): \(button.identifier) is cut off")
+            }
             done.tap()
             let undo = app.buttons["ring-undo-Gym"]
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
