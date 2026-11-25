@@ -16,7 +16,8 @@ public struct DesiredAlarm: Codable, Equatable, Hashable, Sendable {
     public var startsAt: Date
     /// Set for a routine: the alarm repeats on its days, or rings once at
     /// the next hour:minute, in whatever zone the phone is in. Nil for a
-    /// calendar alert, which rings once at fireAt.
+    /// calendar alert, which rings once at fireAt, and for one ring of a
+    /// routine held ring by ring.
     public var routine: RoutineSchedule?
     /// The bundled sound's name, or "default".
     public var sound: String
@@ -135,14 +136,20 @@ public enum Reconciler {
 
     /// How far ahead the phone holds an alarm's rings one by one, once one
     /// of them is marked Done or Skipped. AlarmKit cannot skip one ring of
-    /// a repeating alarm, so those rings are held as one-time alarms.
+    /// a repeating alarm, so those rings are held as one-time alarms. An
+    /// alarm AlarmKit cannot repeat is always held this way: every N weeks,
+    /// and every interval. Each routine holds at most 16 rings
+    /// (`RoutineCycle.upcoming`), and every sync adds the ones that came
+    /// into reach.
     public static let answeredAhead: TimeInterval = 7 * 86_400
 
     /// Every switched-on routine. The abera.tech mute does not touch them,
     /// as the Clock app's alarms are not touched by a notification mute.
     /// A routine with no ring ahead marked Done or Skipped is one repeating
     /// alarm. One with such a ring is a one-time alarm for each other ring
-    /// of the next 7 days, until the answered ring has passed.
+    /// of the next 7 days, until the answered ring has passed. A routine
+    /// every N weeks or every interval is always one-time alarms: its next
+    /// ring, and the rings of the next 7 days.
     static func routines(
         from state: AlertsState, now: Date, acknowledgedHere: Set<String> = [], calendar: Calendar
     ) -> [DesiredAlarm] {
@@ -160,7 +167,8 @@ public enum Reconciler {
                     (routine.delays[cycle.stamp] == nil ? answered : marked).contains(cycle.key)
                 }
                 let moved = ahead.contains { routine.delays[$0.stamp] != nil }
-                guard moved || ahead.contains(where: isAnswered) else {
+                let ringByRing = !routine.schedule.fitsSystemRepeat
+                guard ringByRing || moved || ahead.contains(where: isAnswered) else {
                     guard let next = routine.nextFire(after: now, calendar: calendar) else { return [] }
                     return [
                         DesiredAlarm(

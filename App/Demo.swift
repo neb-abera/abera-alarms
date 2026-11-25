@@ -28,6 +28,8 @@
     /// Brush rung and Rinse still to ring.
     /// `-demo-weekly` adds Weekly review, at 09:00 on the weekday two days
     /// from now only, with its step Review. Its steps start closed.
+    /// `-demo-interval-soon` adds Water, every minute from a first ring 2 to 3
+    /// minutes after launch, held as one-time alarms.
     /// `-demo-clear-alarms` stops and cancels every alarm the app holds in
     /// AlarmKit, so a test that rang real alarms leaves none ringing for the
     /// tests after it.
@@ -43,6 +45,7 @@
             if arguments.contains("-demo-ring-soon") { initial.routines.append(gym(now: Date())) }
             if arguments.contains("-demo-weekly") { initial.routines.append(weekly(now: Date())) }
             if arguments.contains("-demo-step-rang") { initial.routines.append(floss(now: Date())) }
+            if arguments.contains("-demo-interval-soon") { initial.routines.append(water(now: Date())) }
             let server = FakeAlertsServer(
                 state: initial, token: token,
                 offline: arguments.contains("-demo-offline"),
@@ -160,6 +163,17 @@
                         id: UUID(uuidString: "00000000-0000-4000-8000-000000000072")!, label: "Rinse",
                         offsetMinutes: 10),
                 ], updatedAt: now.addingTimeInterval(-86_400))
+        }
+
+        /// Water, every minute, first at the minute at least 80 s ahead.
+        static func water(now: Date) -> Routine {
+            let ring = Calendar.current.dateInterval(of: .minute, for: now.addingTimeInterval(140))?.start ?? now
+            let parts = Calendar.current.dateComponents([.hour, .minute], from: ring)
+            return Routine(
+                id: UUID(uuidString: "00000000-0000-4000-8000-000000000008")!, label: "Water",
+                hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: [],
+                updatedAt: now.addingTimeInterval(-86_400), repeatMode: .interval, every: 1, unit: .minutes,
+                startsOn: CivilDate(ring, in: .current).iso)
         }
 
         /// Weekly review at 09:00 on the weekday two days from now.

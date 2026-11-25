@@ -68,7 +68,7 @@ public actor MemoryAlarms: AlarmScheduling {
         guard alarms[id] != nil else { throw AlarmSystemError() }
         stops.append(id)
         ringing.remove(id)
-        if alarms[id]?.routine?.days.isEmpty != false { alarms[id] = nil }
+        if alarms[id]?.routine?.ringsOnce != false { alarms[id] = nil }
     }
 
     /// The alarm's time came: it rings until stopped or snoozed.
@@ -181,10 +181,21 @@ public actor FakeAlertsServer: HTTPTransport {
     public func failCalendarWrites(_ reason: String?) { calendarWriteFailure = reason }
     public func refuseNewEvents(_ reason: String?) { createRefusal = reason }
 
-    private func routineDraft(_ request: URLRequest) -> RoutineDraft? {
-        guard let data = request.httpBody, let draft = try? JSONDecoder().decode(RoutineDraft.self, from: data),
-            draft.problems.isEmpty
+    /// A routine body checked as abera.tech checks it. A field of the
+    /// repeat that a PUT leaves out keeps the value `stored` holds, so an
+    /// older phone build does not erase it. A POST takes the default.
+    private func routineDraft(_ request: URLRequest, stored: Routine? = nil) -> RoutineDraft? {
+        guard let data = request.httpBody, var draft = try? JSONDecoder().decode(RoutineDraft.self, from: data)
         else { return nil }
+        if let stored {
+            if !Self.hasKey("repeat", in: request) { draft.repeatMode = stored.repeatMode }
+            if !Self.hasKey("every", in: request) { draft.every = stored.every }
+            if !Self.hasKey("unit", in: request) { draft.unit = stored.unit }
+            if !Self.hasKey("startsOn", in: request) { draft.startsOn = stored.startsOn }
+        }
+        guard draft.problems.isEmpty else { return nil }
+        // Weekdays every week stores no start date.
+        if draft.repeatMode == .weekdays, draft.every == 1 { draft.startsOn = nil }
         return draft
     }
 
@@ -538,18 +549,25 @@ public actor FakeAlertsServer: HTTPTransport {
                 Routine(
                     id: UUID(), label: draft.sentLabel, hour: draft.hour, minute: draft.minute, days: draft.days,
                     enabled: draft.enabled, snoozeMinutes: draft.snoozeMinutes, steps: draft.steps.map(\.sent),
-                    updatedAt: now()))
+                    updatedAt: now(), repeatMode: draft.repeatMode, every: draft.every, unit: draft.unit,
+                    startsOn: draft.startsOn))
             sortRoutines()
             return respond(request, 201, (try? ServerDates.encoder().encode(state)) ?? Data())
         case ("PUT", _) where path.hasPrefix("/api/alerts/routines/"):
             guard let index = routineIndex(path) else { return respond(request, 404, Data()) }
-            guard let draft = routineDraft(request) else { return respond(request, 400, Data()) }
+            guard let draft = routineDraft(request, stored: state.routines[index]) else {
+                return respond(request, 400, Data())
+            }
             state.routines[index].label = draft.sentLabel
             state.routines[index].hour = draft.hour
             state.routines[index].minute = draft.minute
             state.routines[index].days = draft.days
             state.routines[index].enabled = draft.enabled
             state.routines[index].snoozeMinutes = draft.snoozeMinutes
+            state.routines[index].repeatMode = draft.repeatMode
+            state.routines[index].every = draft.every
+            state.routines[index].unit = draft.unit
+            state.routines[index].startsOn = draft.startsOn
             // As abera.tech: a body with no steps keeps the ones stored.
             if Self.hasKey("steps", in: request) { state.routines[index].steps = draft.steps.map(\.sent) }
             state.routines[index].updatedAt = now()
