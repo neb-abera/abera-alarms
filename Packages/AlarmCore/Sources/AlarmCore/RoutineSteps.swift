@@ -218,9 +218,15 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
     /// The cycles planned before `before`, in the last 7 days, that a delay
     /// moved and whose ring or a step's ring is after `now` or came within
     /// a day of it. A delay runs up to 7 days, so one can pass the rings after it.
+    /// For a routine every N weeks or every interval the stamp must name a
+    /// ring of its series: every 97 minutes, the hour and minute are the ring's own.
     static func moved(_ routine: Routine, before: Date, now: Date, calendar: Calendar) -> [RoutineCycle] {
-        routine.delays.keys.sorted().compactMap { stamp -> RoutineCycle? in
-            guard let planned = plannedDate(stamp, calendar: calendar), planned < before,
+        let schedule = routine.schedule
+        return routine.delays.keys.sorted().compactMap { stamp -> RoutineCycle? in
+            guard let named = plannedDate(stamp, calendar: calendar),
+                let planned = schedule.fitsSystemRepeat
+                    ? named : schedule.ring(stamped: stamp, near: named, calendar: calendar),
+                planned < before,
                 planned >= now.addingTimeInterval(-TimeInterval(RoutineDelay.minutes.upperBound * 60) - 86_400)
             else { return nil }
             let cycle = make(routine, at: planned, calendar: calendar)

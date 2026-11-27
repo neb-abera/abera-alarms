@@ -745,8 +745,8 @@ final class AlarmsUITests: XCTestCase {
     /// form past the start date at large text (CI, 2026-11-25).
     private func nudge(_ app: XCUIApplication, up: Bool) {
         let form = app.collectionViews.firstMatch
-        let low = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.55))
-        let high = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.30))
+        let low = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.50))
+        let high = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.25))
         if up {
             low.press(forDuration: 0.05, thenDragTo: high)
         } else {
@@ -1525,11 +1525,14 @@ extension AlarmsUITests {
 
     /// Scrolls a form until `element` sits above the keyboard. A step's
     /// Rings every row put the second step's time under it (2026-11-26).
+    /// The form builds the row first when it is not there yet, then moves
+    /// by the same short drag as `reveal` and `reach`.
     private func aboveKeyboard(_ element: XCUIElement, in app: XCUIApplication) {
+        reveal(element, in: app)
         let keyboard = app.keyboards.firstMatch
-        for _ in 0..<5 where keyboard.exists && element.frame.maxY > keyboard.frame.minY - 8 {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+        for _ in 0..<5 {
+            guard keyboard.exists, element.exists, element.frame.maxY > keyboard.frame.minY - 8 else { return }
+            nudge(app, up: true)
         }
     }
 
@@ -1548,17 +1551,20 @@ extension AlarmsUITests {
         app.textFields["routine-label"].tap()
         app.textFields["routine-label"].typeText("Get up")
         let addStep = app.buttons["add-step"]
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let firstLabel = app.textFields["step-label-0"]
+        reach(firstLabel, in: app)
         XCTAssertTrue(firstLabel.waitForExistence(timeout: 5), app.debugDescription)
         firstLabel.tap()
         firstLabel.typeText("Take medication")
+        reveal(app.textFields["step-after-0-amount"], in: app)
         XCTAssertEqual(app.textFields["step-after-0-amount"].value as? String, "5")
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let secondLabel = app.textFields["step-label-1"]
-        XCTAssertTrue(secondLabel.waitForExistence(timeout: 5))
+        reach(secondLabel, in: app)
+        XCTAssertTrue(secondLabel.waitForExistence(timeout: 5), app.debugDescription)
         secondLabel.tap()
         secondLabel.typeText("Beauty care")
         let amount = app.textFields["step-after-1-amount"]
@@ -1975,22 +1981,28 @@ extension AlarmsUITests {
         app.buttons["add-routine"].tap()
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        // The label, the steps, and a step's rows sit below the repeat rows:
+        // the form builds each only once it is scrolled to.
+        reach(app.textFields["routine-label"], in: app)
         app.textFields["routine-label"].tap()
         app.textFields["routine-label"].typeText("Night")
         let addStep = app.buttons["add-step"]
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let label = app.textFields["step-label-0"]
+        reach(label, in: app)
         XCTAssertTrue(label.waitForExistence(timeout: 5), app.debugDescription)
         label.tap()
         label.typeText("Tretinoin")
         let every = app.textFields["step-every-0-amount"]
+        reveal(every, in: app)
         XCTAssertEqual(every.value as? String, "1", "an empty field shows a grey 1")
         XCTAssertFalse(app.datePickers["step-every-0-from"].exists)
         aboveKeyboard(every, in: app)
         every.tap()
         every.typeText("2")
         XCTAssertEqual(every.value as? String, "2")
+        reveal(app.datePickers["step-every-0-from"], in: app)
         XCTAssertTrue(app.datePickers["step-every-0-from"].waitForExistence(timeout: 5), app.debugDescription)
         save.tap()
 
@@ -1999,9 +2011,11 @@ extension AlarmsUITests {
         scrollTo(night, in: app)
         night.tap()
         let reopened = app.textFields["step-every-0-amount"]
-        for _ in 0..<4 where !reopened.exists { app.swipeUp() }
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        reveal(reopened, in: app)
         XCTAssertTrue(reopened.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertEqual(reopened.value as? String, "2")
+        reveal(app.datePickers["step-every-0-from"], in: app)
         XCTAssertTrue(app.datePickers["step-every-0-from"].exists, app.debugDescription)
     }
 

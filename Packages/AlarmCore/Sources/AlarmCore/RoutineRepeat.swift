@@ -93,6 +93,23 @@ extension RoutineSchedule {
         }
     }
 
+    /// The ring of the series that carries `stamp`, or nil when none does:
+    /// the series changed since, or never rang then. `named` is the local
+    /// time the stamp reads. A ring every N minutes or hours can be the
+    /// second pass of that time, after the clocks went back, so the passes
+    /// up to 2 hours on are tried too.
+    func ring(stamped stamp: String, near named: Date, calendar: Calendar) -> Date? {
+        let candidates: [Date]
+        if isElapsed {
+            candidates = [0, 1800, 3600, 7200].map { named.addingTimeInterval($0) }
+        } else {
+            candidates = [ring(on: CivilDate(named, in: calendar.timeZone), calendar: calendar)].compactMap { $0 }
+        }
+        return candidates.first {
+            self.stamp(of: $0, calendar: calendar) == stamp && lastFire(atOrBefore: $0, calendar: calendar) == $0
+        }
+    }
+
     /// When hour:minute comes on `day`, by the same rules as a weekday ring.
     func ring(on day: CivilDate, calendar: Calendar) -> Date? {
         var gregorian = Calendar(identifier: .gregorian)

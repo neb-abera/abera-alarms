@@ -537,4 +537,139 @@ import Testing
         // Sunday with another day: Sunday's step falls in the next week. No one alarm rings there.
         #expect(RoutineChaining.separate(Self.stretchID, from: late(days: [3, 7], from: "2026-11-25")) == nil)
     }
+
+    // MARK: With a delay of up to 7 days, and steps every N days
+
+    @Test func aSevenDayDelayOnAnIntervalRingStaysHeldUnderItsStamp() {
+        var state = state([water])
+        let key = Self.key + "2026-11-25T22:37"
+        let moved = at("2026-12-02T22:37:00-05:00")
+        state.routineDelays = [
+            RoutineDelay(routineId: Self.waterID, cycle: "2026-11-25T22:37", minutes: 10080, at: Self.start)
+        ]
+        // Before its planned time it is one of the 16.
+        var alarms = desired(state)
+        #expect(alarms.count == 16)
+        #expect(alarms.first { $0.key == key }?.fireAt == moved)
+        #expect(alarms.last?.key == key)
+        // Three days on, 44 rings have passed it. It is still held, as a one-time alarm.
+        alarms = desired(state, at: at("2026-11-28T20:00:00-05:00"))
+        let held = alarms.first { $0.key == key }
+        #expect(held?.fireAt == moved)
+        #expect(held?.routine == nil && held?.id == AlarmID.of(key: key))
+        // The ring under way counts toward the 16, so 15 are ahead: it and 14 others.
+        #expect(alarms.count == 15)
+        #expect(Set(alarms.map(\.key)).count == 15)
+        // A minute before it rings it is the next ring in the phone's list.
+        alarms = desired(state, at: moved.addingTimeInterval(-60))
+        #expect(alarms.first?.key == key)
+        // Once it has rung it is no longer wanted, and the series goes on.
+        alarms = desired(state, at: moved.addingTimeInterval(120))
+        #expect(!alarms.contains { $0.key == key })
+        #expect(alarms.count == 15)
+    }
+
+    @Test func aDelayWhoseStampIsNoRingOfTheSeriesRingsNothing() {
+        var state = state([water])
+        // 22:38 is not a ring of 21:00 every 97 minutes: the series changed since the delay.
+        state.routineDelays = [
+            RoutineDelay(routineId: Self.waterID, cycle: "2026-11-25T22:38", minutes: 10080, at: Self.start)
+        ]
+        let alarms = desired(state, at: at("2026-11-28T20:00:00-05:00"))
+        #expect(!alarms.contains { $0.key.hasSuffix("2026-11-25T22:38") })
+        #expect(alarms.allSatisfy { $0.fireAt < at("2026-11-30T00:00:00-05:00") })
+    }
+
+    @Test func aDelayedRingInTheHourTheClocksRepeatKeepsItsOwnInstant() {
+        // Every 2 hours from 00:30 on 1 November: the second ring is 01:30 for the second time.
+        var late = water
+        late.hour = 0
+        late.minute = 30
+        late.every = 2
+        late.unit = .hours
+        late.startsOn = "2026-11-01"
+        var state = state([late])
+        state.routineDelays = [
+            RoutineDelay(routineId: Self.waterID, cycle: "2026-11-01T01:30", minutes: 2880, at: Self.start)
+        ]
+        let alarms = desired(state, at: at("2026-11-02T12:00:00-05:00"))
+        // Two days after 01:30 Eastern Standard Time, not after 01:30 daylight time.
+        #expect(
+            alarms.first { $0.key == Self.key + "2026-11-01T01:30" }?.fireAt == at("2026-11-03T01:30:00-05:00"))
+    }
+
+    @Test func aSevenDayDelayOnARingEveryTwoWeeksRingsInTheOffWeek() {
+        var state = state([fortnight])
+        let key = "routine:0a1b2c3d-0000-4000-8000-00000000000f:2026-11-27T06:30"
+        state.routineDelays = [
+            RoutineDelay(routineId: fortnight.id, cycle: "2026-11-27T06:30", minutes: 10080, at: Self.start)
+        ]
+        // Thursday, the day before its planned time.
+        var alarms = desired(state, at: at("2026-11-26T08:00:00-05:00"))
+        #expect(alarms.map(\.key) == [key])
+        #expect(alarms.first?.fireAt == at("2026-12-04T06:30:00-05:00"))
+        // Saturday, after its planned time: it and the next ring week's Monday.
+        alarms = desired(state, at: at("2026-11-28T08:00:00-05:00"))
+        #expect(alarms.map(\.fireAt) == [at("2026-12-04T06:30:00-05:00"), at("2026-12-07T06:30:00-05:00")])
+        #expect(alarms.first?.key == key)
+        #expect(alarms.allSatisfy { $0.routine == nil })
+    }
+
+    @Test func aStepEveryTwoDaysRingsAtEveryRingOfItsDaysOnAnIntervalWithSeveralRingsADay() {
+        // Every 8 hours from 06:00: 06:00, 14:00, and 22:00 each day.
+        var routine = water
+        routine.hour = 6
+        routine.every = 8
+        routine.unit = .hours
+        routine.steps = [
+            RoutineStep(id: Self.stretchID, label: "Serum", offsetMinutes: 5, everyDays: 2, startsOn: "2026-11-25")
+        ]
+        let now = at("2026-11-25T05:00:00-05:00")
+        let cycles = RoutineCycle.upcoming(routine, now: now, ahead: 72 * 3600, calendar: Self.newYork)
+        #expect(cycles.count == 9)
+        // The 25th and the 27th ring it at all three rings. The 26th at none.
+        #expect(cycles.map(\.steps.count) == [1, 1, 1, 0, 0, 0, 1, 1, 1])
+        let steps = desired(state([routine]), at: now).filter { $0.key.contains(":step:") }
+        let step = ":step:0a1b2c3d-0000-4000-8000-000000000051"
+        #expect(
+            steps.map(\.key) == [
+                Self.key + "2026-11-25T06:00" + step, Self.key + "2026-11-25T14:00" + step,
+                Self.key + "2026-11-25T22:00" + step,
+            ])
+        #expect(steps.first?.fireAt == at("2026-11-25T06:05:00-05:00"))
+    }
+
+    @Test func aStepEveryFewDaysCountsByTheDateInEachRingsOwnStamp() {
+        // Every 97 minutes from 21:00: two rings on the 25th, then the 26th from 00:14.
+        var routine = water
+        routine.steps = [
+            RoutineStep(id: Self.stretchID, label: "Serum", offsetMinutes: 5, everyDays: 2, startsOn: "2026-11-25")
+        ]
+        let cycles = RoutineCycle.upcoming(routine, now: Self.start, ahead: 7 * 86_400, calendar: Self.newYork)
+        #expect(
+            cycles.prefix(4).map(\.stamp) == [
+                "2026-11-25T21:00", "2026-11-25T22:37", "2026-11-26T00:14", "2026-11-26T01:51",
+            ])
+        #expect(cycles.prefix(4).map(\.steps.count) == [1, 1, 0, 0])
+        // A ring of the 25th delayed into the 26th keeps its step: the day is the stamp's.
+        routine.delays = ["2026-11-25T22:37": 180]
+        let moved = RoutineCycle.make(routine, at: at("2026-11-25T22:37:00-05:00"), calendar: Self.newYork)
+        #expect(moved.at == at("2026-11-26T01:37:00-05:00") && moved.steps.count == 1)
+    }
+
+    @Test func aStepEveryThreeDaysUnderAnAlarmEveryTwoWeeksRingsOnTheRingDaysThatMatch() {
+        var routine = fortnight
+        routine.steps = [
+            RoutineStep(id: Self.stretchID, label: "Serum", offsetMinutes: 5, everyDays: 3, startsOn: "2026-11-25")
+        ]
+        // Wed 25 Nov is day 0, Fri 27 day 2, Mon 7 Dec day 12, Wed 9 day 14, Fri 11 day 16.
+        let days = ["2026-11-25", "2026-11-27", "2026-12-07", "2026-12-09", "2026-12-11"]
+        let rings = days.map { RoutineCycle.make(routine, at: at($0 + "T06:30:00-05:00"), calendar: Self.newYork) }
+        #expect(rings.map(\.steps.count) == [1, 0, 1, 0, 0])
+        #expect(
+            RoutineDraft(
+                hour: 6, minute: 30, days: [1, 3, 5], steps: routine.steps, repeatMode: .weekdays,
+                every: 2, unit: .weeks, startsOn: "2026-11-25"
+            ).problems.isEmpty)
+    }
 }
