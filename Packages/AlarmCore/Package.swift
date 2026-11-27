@@ -23,7 +23,16 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux]))
             ]
         ),
-        .testTarget(name: "AlarmCoreTests", dependencies: ["AlarmCore"])
+        .testTarget(
+            name: "AlarmCoreTests",
+            dependencies: [
+                "AlarmCore",
+                // SHA-256 of the ring vectors file, as the target above takes it.
+                .product(name: "Crypto", package: "swift-crypto", condition: .when(platforms: [.linux])),
+            ],
+            // The routine ring vectors abera.tech tests too (RoutineRingVectorsTests).
+            resources: [.copy("Resources/routine-ring-vectors.json")]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )

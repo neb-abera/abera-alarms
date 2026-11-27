@@ -739,12 +739,44 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(added.label.contains("Tue Thu"), added.label)
     }
 
-    /// The editor scrolled until `element` shows. A scroll also puts the
-    /// number pad away, which has no key of its own for that.
-    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+    /// One short drag of the alarm editor, about a quarter of the screen,
+    /// so no row is jumped over. It starts above the keyboard and at the
+    /// form's right edge, clear of the time wheel. A full swipe moved the
+    /// form past the start date at large text (CI, 2026-11-25).
+    private func nudge(_ app: XCUIApplication, up: Bool) {
         let form = app.collectionViews.firstMatch
-        for _ in 0..<4 where !(element.exists && element.isHittable) { form.swipeUp() }
-        for _ in 0..<8 where !(element.exists && element.isHittable) { form.swipeDown() }
+        let low = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.55))
+        let high = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.30))
+        if up {
+            low.press(forDuration: 0.05, thenDragTo: high)
+        } else {
+            high.press(forDuration: 0.05, thenDragTo: low)
+        }
+    }
+
+    /// The editor scrolled down until its form has built `element`. A form
+    /// builds only the rows on screen, and the repeat rows pushed the steps
+    /// below it. An element already built costs one query: a `for where`
+    /// loop asked 24 times, 3 to 6 s for each control (CI, 2026-11-25).
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<6 {
+            if element.exists { return }
+            nudge(app, up: true)
+        }
+    }
+
+    /// The editor scrolled until `element` can be tapped: down the form
+    /// first, then back up it. `above` looks up the form first, for a
+    /// control known to be over the rows on screen.
+    private func reach(_ element: XCUIElement, in app: XCUIApplication, above: Bool = false) {
+        for _ in 0..<(above ? 10 : 6) {
+            if element.exists && element.isHittable { return }
+            nudge(app, up: !above)
+        }
+        for _ in 0..<(above ? 6 : 10) {
+            if element.exists && element.isHittable { return }
+            nudge(app, up: above)
+        }
     }
 
     /// Neb asked on 2026-11-25 to set an alarm by a number and a unit: every
@@ -954,7 +986,10 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(wake.waitForExistence(timeout: 10))
         wake.tap()
         let label = app.textFields["routine-label"]
-        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        // The label sits below the repeat rows.
+        reach(label, in: app)
+        XCTAssertTrue(label.waitForExistence(timeout: 5), app.debugDescription)
         label.tap()
         label.press(forDuration: 1)
         if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
@@ -1508,6 +1543,8 @@ extension AlarmsUITests {
         app.buttons["add-routine"].tap()
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        // The label sits below the repeat rows.
+        reach(app.textFields["routine-label"], in: app)
         app.textFields["routine-label"].tap()
         app.textFields["routine-label"].typeText("Get up")
         let addStep = app.buttons["add-step"]
@@ -1698,8 +1735,12 @@ extension AlarmsUITests {
         XCTAssertTrue(wake.waitForExistence(timeout: 10))
         wake.tap()
         let existing = app.buttons["add-existing-step"]
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        // The form builds only the rows on screen. With the repeat rows
+        // above it, Add Step is the last one built when the editor opens
+        // (CI, 2026-11-25), so scroll before looking.
+        reach(existing, in: app)
         XCTAssertTrue(existing.waitForExistence(timeout: 5), app.debugDescription)
-        for _ in 0..<4 where !existing.isHittable { app.swipeUp() }
         existing.tap()
         let weekend = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Weekend,'")).firstMatch
         XCTAssertTrue(weekend.waitForExistence(timeout: 5), app.debugDescription)
@@ -2165,64 +2206,94 @@ extension AlarmsUITests {
     }
 
     /// The repeat controls in the alarm's editor sit inside the screen at
-    /// large text sizes: the menu, the number, the unit, and the start date.
-    func testTheRepeatControlsFitAtLargeTextSizes() {
-        for size in ["UICTContentSizeCategoryXXXL", "UICTContentSizeCategoryAccessibilityL"] {
-            let app = launch("-UIPreferredContentSizeCategoryName", size, tab: nil)
-            XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10), "\(size)\n\(app.debugDescription)")
-            app.buttons["add-routine"].tap()
-            XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5), size)
-            let width = app.windows.firstMatch.frame.width
-            let form = app.collectionViews.firstMatch
-            /// Scrolls the control into reach and checks its edges.
-            func fits(_ element: XCUIElement, _ name: String) {
-                reveal(element, in: app)
-                XCTAssertTrue(element.exists, "\(size): \(name) is missing\n\(app.debugDescription)")
-                XCTAssertGreaterThan(element.frame.width, 0, "\(size): \(name) has no width")
-                XCTAssertGreaterThanOrEqual(element.frame.minX, 0, "\(size): \(name) is cut off")
-                XCTAssertLessThanOrEqual(element.frame.maxX, width, "\(size): \(name) is cut off")
-            }
-            let menu = app.buttons["routine-repeat"].firstMatch
-            fits(menu, "the repeat menu")
+    /// large text sizes: the menu, the days, the number, the unit, and the
+    /// start date. One test for each size: both in one ran past 2 minutes
+    /// (CI, 2026-11-25).
+    func testTheRepeatControlsFitAtXXXLText() {
+        repeatControlsFit(at: "UICTContentSizeCategoryXXXL")
+    }
 
-            // Days of the week, every 2 weeks.
-            reveal(app.buttons["day-2"], in: app)
-            app.buttons["day-2"].tap()
-            for day in 1...7 { fits(app.buttons["day-\(day)"], "day \(day)") }
-            let weeks = app.textFields["routine-weeks-amount"]
-            fits(weeks, "the weeks number")
-            replace(weeks, with: "2", in: app)
-            let starts = app.descendants(matching: .any)["routine-starts"].firstMatch
-            XCTAssertTrue(starts.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
-            fits(starts, "the start date")
-            let note = app.staticTexts["repeat-note"]
-            fits(note, "the note")
-            XCTAssertTrue(note.label.contains("Every 2 weeks on Tue"), "\(size): \(note.label)")
+    func testTheRepeatControlsFitAtAccessibilityLargeText() {
+        repeatControlsFit(at: "UICTContentSizeCategoryAccessibilityL")
+    }
 
-            // Every 999 months: the widest number and a long unit.
-            reveal(menu, in: app)
-            choose("Every…", from: "routine-repeat", in: app)
-            let amount = app.textFields["routine-every-amount"]
-            fits(amount, "the interval number")
-            replace(amount, with: "999", in: app)
-            choose("months", from: "routine-every-unit", in: app)
-            let unit = app.buttons["routine-every-unit"].firstMatch
-            fits(amount, "the interval number")
-            fits(unit, "the unit menu")
-            XCTAssertTrue(unit.label.contains("months"), "\(size): \(unit.label)")
-            XCTAssertEqual(amount.value as? String, "999", size)
-            // The number and its unit do not overlap.
-            XCTAssertFalse(amount.frame.intersects(unit.frame), "\(size): the number and the unit overlap")
-            fits(starts, "the start date")
-            fits(note, "the note")
-            XCTAssertTrue(note.label.contains("Every 999 months"), "\(size): \(note.label)")
-            // Every button and field in the form sits inside the screen's width.
-            for element in form.buttons.allElementsBoundByIndex + form.textFields.allElementsBoundByIndex
-            where element.exists && element.frame.width > 0 {
-                XCTAssertGreaterThanOrEqual(element.frame.minX, 0, "\(size): \(element.identifier) is cut off")
-                XCTAssertLessThanOrEqual(element.frame.maxX, width, "\(size): \(element.identifier) is cut off")
+    private func repeatControlsFit(at size: String) {
+        // About 60 s on the Xcode 27 runner and 100 s on the Xcode 26.5 one.
+        executionTimeAllowance = 180
+        let app = launch("-UIPreferredContentSizeCategoryName", size, tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10), "\(size)\n\(app.debugDescription)")
+        app.buttons["add-routine"].tap()
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5), size)
+        let width = app.windows.firstMatch.frame.width
+        let form = app.collectionViews.firstMatch
+        /// Scrolls until the form has built the control, then checks its
+        /// edges. The frame is read once. Returns it for the checks after.
+        @discardableResult
+        func fits(_ element: XCUIElement, _ name: String) -> CGRect {
+            reveal(element, in: app)
+            guard element.exists else {
+                XCTFail("\(size): \(name) is missing\n\(app.debugDescription)")
+                return .zero
             }
-            app.terminate()
+            let frame = element.frame
+            XCTAssertGreaterThan(frame.width, 0, "\(size): \(name) has no width")
+            XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(size): \(name) is cut off")
+            XCTAssertLessThanOrEqual(frame.maxX, width, "\(size): \(name) is cut off")
+            return frame
+        }
+        let menu = app.buttons["routine-repeat"].firstMatch
+        fits(menu, "the repeat menu")
+
+        // Days of the week, every 2 weeks.
+        let tuesday = app.buttons["day-2"]
+        reach(tuesday, in: app)
+        tuesday.tap()
+        var days: [CGRect] = []
+        for day in 1...7 { days.append(fits(app.buttons["day-\(day)"], "day \(day)")) }
+        // The seven days sit in one row, each clear of the next.
+        for (day, next) in zip(days, days.dropFirst()) {
+            XCTAssertEqual(day.midY, next.midY, accuracy: 1, "\(size): the days wrapped")
+            XCTAssertLessThanOrEqual(day.maxX, next.minX + 0.5, "\(size): two days overlap")
+        }
+        let weeks = app.textFields["routine-weeks-amount"]
+        fits(weeks, "the weeks number")
+        reach(weeks, in: app)
+        replace(weeks, with: "2", in: app)
+        let starts = app.descendants(matching: .any)["routine-starts"].firstMatch
+        fits(starts, "the start date")
+        let note = app.staticTexts["repeat-note"]
+        fits(note, "the note")
+        XCTAssertTrue(waitFor(note, labelContaining: "Every 2 weeks on Tue"), "\(size): \(note.label)")
+
+        // Every 999 months: the widest number and a long unit.
+        reach(menu, in: app, above: true)
+        choose("Every…", from: "routine-repeat", in: app)
+        let amount = app.textFields["routine-every-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
+        reach(amount, in: app)
+        replace(amount, with: "999", in: app)
+        choose("months", from: "routine-every-unit", in: app)
+        let unit = app.buttons["routine-every-unit"].firstMatch
+        let number = fits(amount, "the interval number")
+        let unitFrame = fits(unit, "the unit menu")
+        XCTAssertTrue(unit.label.contains("months"), "\(size): \(unit.label)")
+        XCTAssertEqual(amount.value as? String, "999", size)
+        // The number and its unit do not overlap, and the unit draws its
+        // word, in the accent blue.
+        XCTAssertFalse(number.intersects(unitFrame), "\(size): the number and the unit overlap")
+        reach(unit, in: app)
+        XCTAssertGreaterThan(
+            pixels(unit) { r, g, b in b > 180 && b > r + 80 && b > g + 30 }, 40, "\(size): the unit shows no text")
+        fits(starts, "the start date")
+        fits(note, "the note")
+        XCTAssertTrue(waitFor(note, labelContaining: "Every 999 months"), "\(size): \(note.label)")
+        // Every button and field the form has built sits inside the screen's width.
+        for element in form.buttons.allElementsBoundByIndex + form.textFields.allElementsBoundByIndex {
+            guard element.exists else { continue }
+            let frame = element.frame
+            guard frame.width > 0 else { continue }
+            XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(size): a control is cut off at \(frame)")
+            XCTAssertLessThanOrEqual(frame.maxX, width, "\(size): a control is cut off at \(frame)")
         }
     }
 
