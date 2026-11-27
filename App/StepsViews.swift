@@ -23,6 +23,7 @@ struct StepsEditorSection: View {
                     SpanField(
                         title: "After \(previousLabel(before: step))", span: $step.after,
                         id: "step-after-\(index(of: step))")
+                    EveryDaysField(step: $step, id: "step-every-\(index(of: step))")
                 }
             }
             .onDelete { steps.remove(atOffsets: $0) }
@@ -58,7 +59,7 @@ struct StepsEditorSection: View {
             Text(
                 steps.isEmpty
                     ? "A step rings after the alarm, such as Take medication 5 minutes later. Check one off and it does not ring that day. The next day every step is set again."
-                    : "Each step rings its time after the one above it. Check one off and it does not ring until the next time the alarm rings. Swipe to delete a step."
+                    : "Each step rings its time after the one above it. A step every 2 days rings every other day from its first day, and on a day it does not ring it takes no time. Check one off and it does not ring until the next time the alarm rings. Swipe to delete a step."
             )
         }
     }
@@ -75,11 +76,16 @@ struct StepsEditorSection: View {
     }
 }
 
-/// A step as the editor holds it, with its offset as a typed span.
+/// A step as the editor holds it, with its offset as a typed span, and
+/// how many days apart it rings with its first day.
 struct EditableStep: Identifiable, Equatable {
     var id = UUID()
     var label: String
     var after: TimeSpan
+    /// 1 rings at every ring of the alarm.
+    var everyDays = 1
+    /// The first day it rings when `everyDays` is above 1. Today for a new step.
+    var startsOn = Calendar.current.startOfDay(for: Date())
 
     init(label: String, after: TimeSpan) {
         self.label = label
@@ -90,10 +96,45 @@ struct EditableStep: Identifiable, Equatable {
         id = step.id
         label = step.label
         after = TimeSpan(minutes: step.offsetMinutes)
+        everyDays = step.everyDays
+        if let first = step.startsOn.flatMap({ StepDays.date($0) }) { startsOn = first }
     }
 
     var step: RoutineStep {
-        RoutineStep(id: id, label: label, offsetMinutes: min(after.minutes, RoutineStep.maxOffsetMinutes + 1))
+        RoutineStep(
+            id: id, label: label, offsetMinutes: min(after.minutes, RoutineStep.maxOffsetMinutes + 1),
+            everyDays: everyDays, startsOn: everyDays > 1 ? StepDays.text(startsOn) : nil)
+    }
+}
+
+/// "Rings every [1] day", typed, and the first day once it is more than 1.
+struct EveryDaysField: View {
+    @Binding var step: EditableStep
+    let id: String
+
+    var body: some View {
+        LabeledContent("Rings every") {
+            HStack {
+                TextField(
+                    "Rings every",
+                    // 1 shows as an empty field with a grey 1, so a typed
+                    // number replaces it rather than landing beside it.
+                    text: Binding(
+                        get: { step.everyDays == 1 ? "" : String(step.everyDays) },
+                        set: { step.everyDays = max(1, TimeSpan.amount(typed: $0)) }),
+                    prompt: Text("1")
+                )
+                .keyboardType(.numberPad)
+                .multilineTextAlignment(.trailing)
+                .frame(maxWidth: 80)
+                .accessibilityIdentifier("\(id)-amount")
+                Text(step.everyDays == 1 ? "day" : "days")
+            }
+        }
+        if step.everyDays > 1 {
+            DatePicker("First day", selection: $step.startsOn, displayedComponents: .date)
+                .accessibilityIdentifier("\(id)-from")
+        }
     }
 }
 
@@ -105,6 +146,8 @@ struct RingControlRow: View {
     @Bindable var model: AppModel
     let routine: Routine
     let control: AppModel.RingControl
+    /// The ring the Delay sheet is open for.
+    @State var delaying: RoutineCycle?
 
     var body: some View {
         switch control {
@@ -135,6 +178,9 @@ struct RingControlRow: View {
                 }
             }
             .padding(.leading, 20)
+            .sheet(item: $delaying) { cycle in
+                DelaySheet(model: model, routine: routine, cycle: cycle)
+            }
         case .marked(let cycle, let outcome):
             HStack {
                 Label(
@@ -210,19 +256,8 @@ extension RingControlRow {
     }
 
     fileprivate func delayButton(_ cycle: RoutineCycle) -> some View {
-        Menu {
-            ForEach(StepText.delayChoices, id: \.self) { minutes in
-                Button("\(RoutineDelay.words(minutes)) after \(StepText.clock(planned(cycle)))") {
-                    Task { await model.delay(routine, cycle: cycle, minutes: minutes) }
-                }
-                .accessibilityIdentifier("delay-\(minutes)")
-            }
-            if cycle.delay(in: routine) != nil {
-                Button("Ring at \(StepText.clock(planned(cycle))) as planned", systemImage: "arrow.uturn.backward") {
-                    Task { await model.undelay(routine, cycle: cycle) }
-                }
-                .accessibilityIdentifier("delay-clear")
-            }
+        Button {
+            delaying = cycle
         } label: {
             Text("Delay")
                 .fontWeight(.semibold)
@@ -235,9 +270,92 @@ extension RingControlRow {
         .accessibilityIdentifier("ring-delay-\(routine.label)")
     }
 
-    /// The ring's planned time, before any delay.
-    fileprivate func planned(_ cycle: RoutineCycle) -> Date {
-        cycle.at.addingTimeInterval(-TimeInterval((cycle.delay(in: routine) ?? 0) * 60))
+}
+
+/// Delay one ring of an alarm, and its steps, by a typed number and a unit
+/// from the time it rings now: up to 7 days in all. The presets delay in
+/// one tap. Neb asked on 2026-11-26 for a number and a unit, after the
+/// menu stopped at 3 hours.
+struct DelaySheet: View {
+    @Bindable var model: AppModel
+    let routine: Routine
+    let cycle: RoutineCycle
+    @Environment(\.dismiss) var dismiss
+    @State var span = TimeSpan(30, .minutes)
+
+    private var already: Int { cycle.delay(in: routine) ?? 0 }
+    private var planned: Date { cycle.at.addingTimeInterval(-TimeInterval(already * 60)) }
+    private var total: Int { RoutineDelay.total(adding: span.minutes, to: already) }
+    private var problem: String? { RoutineDelay.problem(adding: span.minutes, to: already) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    SpanField(title: "Delay by", span: $span, id: "delay-span")
+                    if let problem {
+                        Text(problem)
+                            .font(.footnote)
+                            .foregroundStyle(.red)
+                            .accessibilityIdentifier("delay-problem")
+                    } else {
+                        Text(preview)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("delay-preview")
+                    }
+                } footer: {
+                    Text(
+                        "Counts from \(StepText.on(cycle.at, now: Date())), when it rings now. "
+                            + "Planned for \(StepText.on(planned, now: Date())). At most 7 days after that."
+                    )
+                }
+                Section("In one tap") {
+                    ForEach(StepText.delayChoices, id: \.self) { minutes in
+                        Button("Delay \(RoutineDelay.words(minutes))") { save(minutes) }
+                            .disabled(RoutineDelay.problem(adding: minutes, to: already) != nil)
+                            .accessibilityIdentifier("delay-\(minutes)")
+                    }
+                }
+                if already > 0 {
+                    Section {
+                        Button("Ring at \(StepText.clock(planned)) as planned", systemImage: "arrow.uturn.backward") {
+                            Task { await model.undelay(routine, cycle: cycle) }
+                            dismiss()
+                        }
+                        .accessibilityIdentifier("delay-clear")
+                    }
+                }
+            }
+            .navigationTitle("Delay \(routine.label)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .accessibilityIdentifier("delay-cancel")
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Delay") { save(span.minutes) }
+                        .disabled(problem != nil)
+                        .accessibilityIdentifier("delay-save")
+                }
+            }
+        }
+    }
+
+    /// "Rings today, Thu 26 Nov at 14:00, and its 4 steps after it."
+    private var preview: String {
+        let at = planned.addingTimeInterval(TimeInterval(total * 60))
+        let steps = cycle.steps.count
+        let tail = steps == 0 ? "" : steps == 1 ? ", and its step after it" : ", and its \(steps) steps after it"
+        return "Rings \(StepText.on(at, now: Date()))\(tail)."
+    }
+
+    private func save(_ minutes: Int) {
+        guard RoutineDelay.problem(adding: minutes, to: already) == nil else { return }
+        let total = RoutineDelay.total(adding: minutes, to: already)
+        Task { await model.delay(routine, cycle: cycle, minutes: total) }
+        dismiss()
     }
 }
 

@@ -1394,6 +1394,16 @@ extension AlarmsUITests {
         return count
     }
 
+    /// Scrolls a form until `element` sits above the keyboard. A step's
+    /// Rings every row put the second step's time under it (2026-11-26).
+    private func aboveKeyboard(_ element: XCUIElement, in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        for _ in 0..<5 where keyboard.exists && element.frame.maxY > keyboard.frame.minY - 8 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+        }
+    }
+
     private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
         !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
     }
@@ -1421,6 +1431,7 @@ extension AlarmsUITests {
         secondLabel.tap()
         secondLabel.typeText("Beauty care")
         let amount = app.textFields["step-after-1-amount"]
+        aboveKeyboard(amount, in: app)
         amount.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "10")
         XCTAssertEqual(amount.value as? String, "10")
@@ -1773,6 +1784,90 @@ extension AlarmsUITests {
         XCTAssertTrue(waitFor(gymClock(app), labelContaining: "Rings in 0 days 00:0"), gymClock(app).label)
         XCTAssertTrue(poll(5) { !time.label.contains("Delayed") }, time.label)
         XCTAssertTrue(poll(5) { first(app, "step-Stretch-").label == before }, first(app, "step-Stretch-").label)
+    }
+
+    /// Delay takes a typed number and a unit past 3 hours, and a second
+    /// delay adds to the first. Neb asked on 2026-11-26, when the menu
+    /// stopped at 3 hours.
+    func testATypedDelayPassesThreeHoursAndAddsToTheFirst() {
+        let app = launch("-demo-ring-soon", tab: nil)
+        let delay = app.buttons["ring-delay-Gym"]
+        XCTAssertTrue(delay.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(delay, in: app)
+        delay.tap()
+        let amount = app.textFields["delay-span-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(amount.value as? String, "30")
+        amount.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "300")
+        let preview = app.staticTexts["delay-preview"]
+        XCTAssertTrue(poll(5) { preview.label.hasPrefix("Rings ") }, preview.label)
+        app.buttons["delay-save"].tap()
+
+        let time = app.descendants(matching: .any)["ring-time-Gym"].firstMatch
+        XCTAssertTrue(waitFor(time, labelContaining: "Delayed 5 h"), time.label)
+
+        app.buttons["ring-delay-Gym"].tap()
+        let day = app.buttons["delay-1440"]
+        XCTAssertTrue(day.waitForExistence(timeout: 5), app.debugDescription)
+        day.tap()
+        // A ring delayed past 12 hours keeps its row, lower in the list.
+        let moved = app.buttons["ring-delay-Gym"]
+        XCTAssertTrue(moved.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(moved, in: app)
+        XCTAssertTrue(waitFor(time, labelContaining: "Delayed 1 day 5 h"), time.label)
+
+        // Past 7 days in all, the sheet says how much is left and saves nothing.
+        moved.tap()
+        let more = app.textFields["delay-span-amount"]
+        XCTAssertTrue(more.waitForExistence(timeout: 5), app.debugDescription)
+        more.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
+        more.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "9000")
+        let problem = app.staticTexts["delay-problem"]
+        XCTAssertTrue(problem.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(problem.label.contains("5 days 19 h more"), problem.label)
+        XCTAssertFalse(app.buttons["delay-save"].isEnabled)
+        app.buttons["delay-cancel"].tap()
+        XCTAssertTrue(waitFor(time, labelContaining: "Delayed 1 day 5 h"), time.label)
+    }
+
+    /// A step rings every other day once its editor says 2, and keeps it.
+    /// Neb asked on 2026-11-26 for one night routine with tretinoin and
+    /// night serum on alternate nights.
+    func testAStepEveryOtherDayKeepsItsDaysAndFirstDay() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        app.textFields["routine-label"].tap()
+        app.textFields["routine-label"].typeText("Night")
+        let addStep = app.buttons["add-step"]
+        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        addStep.tap()
+        let label = app.textFields["step-label-0"]
+        XCTAssertTrue(label.waitForExistence(timeout: 5), app.debugDescription)
+        label.tap()
+        label.typeText("Tretinoin")
+        let every = app.textFields["step-every-0-amount"]
+        XCTAssertEqual(every.value as? String, "1", "an empty field shows a grey 1")
+        XCTAssertFalse(app.datePickers["step-every-0-from"].exists)
+        aboveKeyboard(every, in: app)
+        every.tap()
+        every.typeText("2")
+        XCTAssertEqual(every.value as? String, "2")
+        XCTAssertTrue(app.datePickers["step-every-0-from"].waitForExistence(timeout: 5), app.debugDescription)
+        save.tap()
+
+        let night = routine(app, "Night")
+        XCTAssertTrue(night.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(night, in: app)
+        night.tap()
+        let reopened = app.textFields["step-every-0-amount"]
+        for _ in 0..<4 where !reopened.exists { app.swipeUp() }
+        XCTAssertTrue(reopened.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(reopened.value as? String, "2")
+        XCTAssertTrue(app.datePickers["step-every-0-from"].exists, app.debugDescription)
     }
 
     /// A ring that has rung, delayed, rings again through iOS at its new

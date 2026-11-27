@@ -5,10 +5,29 @@ import Foundation
 /// beauty routine after it. The ring keeps its stamp, so check-offs and
 /// marks still name it. Only the times move.
 public struct RoutineDelay: Codable, Equatable, Hashable, Sendable {
-    /// From 1 minute to 12 hours after the planned time.
-    public static let minutes = 1...720
-    /// The choices the Alarms tab offers.
-    public static let choices = [15, 30, 45, 60, 90, 120, 180]
+    /// From 1 minute to 7 days after the planned time, as abera.tech takes
+    /// it. Neb asked on 2026-11-26 to delay past 3 hours, by a number and
+    /// a unit. It was 12 hours, and the menu stopped at 3.
+    public static let minutes = 1...10080
+    /// The presets beside the typed delay, each one tap.
+    public static let choices = [15, 30, 60, 120, 1440]
+
+    /// The delay from the planned time once `minutes` more are added to
+    /// the `already` the ring was moved.
+    public static func total(adding minutes: Int, to already: Int) -> Int {
+        let (sum, overflow) = already.addingReportingOverflow(max(minutes, 0))
+        return overflow ? .max : sum
+    }
+
+    /// Why that delay cannot be saved, or nil.
+    public static func problem(adding minutes: Int, to already: Int) -> String? {
+        if minutes < 1 { return "Type at least 1 minute." }
+        if total(adding: minutes, to: already) > self.minutes.upperBound {
+            let left = self.minutes.upperBound - already
+            return "At most 7 days after the planned time: \(words(left)) more."
+        }
+        return nil
+    }
 
     public var routineId: UUID
     /// The ring's planned stamp, "yyyy-MM-ddTHH:mm".
@@ -25,15 +44,16 @@ public struct RoutineDelay: Codable, Equatable, Hashable, Sendable {
         self.at = at
     }
 
-    /// "15 min", "1 h", "1 h 30 min".
+    /// "15 min", "1 h", "1 h 30 min", "1 day", "2 days 3 h".
     public static func words(_ minutes: Int) -> String {
-        let hours = minutes / 60
+        let days = minutes / 1440
+        let hours = minutes % 1440 / 60
         let rest = minutes % 60
-        switch (hours, rest) {
-        case (0, _): return "\(rest) min"
-        case (_, 0): return "\(hours) h"
-        default: return "\(hours) h \(rest) min"
-        }
+        var parts: [String] = []
+        if days > 0 { parts.append(days == 1 ? "1 day" : "\(days) days") }
+        if hours > 0 { parts.append("\(hours) h") }
+        if rest > 0 || parts.isEmpty { parts.append("\(rest) min") }
+        return parts.joined(separator: " ")
     }
 }
 

@@ -10,16 +10,58 @@ public struct RoutineStep: Codable, Equatable, Hashable, Sendable, Identifiable 
     /// Each offset, and all of them together, stay within a day.
     public static let maxOffsetMinutes = 1440
 
+    /// A step rings at most this many days apart.
+    public static let maxEveryDays = 365
+
     /// The phone makes the id, so a step added offline keeps it on abera.tech.
     public var id: UUID
     public var label: String
     /// Minutes after the item before it: 0 to 1440.
     public var offsetMinutes: Int
+    /// 1 rings at every ring of its alarm. 2 rings every other day from
+    /// `startsOn`. Neb asked on 2026-11-26 for one night routine with
+    /// tretinoin and night serum on alternate nights.
+    public var everyDays: Int
+    /// "yyyy-MM-dd", the first day it rings, when `everyDays` is above 1.
+    public var startsOn: String?
 
-    public init(id: UUID = UUID(), label: String, offsetMinutes: Int) {
+    public init(id: UUID = UUID(), label: String, offsetMinutes: Int, everyDays: Int = 1, startsOn: String? = nil) {
         self.id = id
         self.label = label
         self.offsetMinutes = offsetMinutes
+        self.everyDays = everyDays
+        self.startsOn = startsOn
+    }
+
+    enum CodingKeys: String, CodingKey { case id, label, offsetMinutes, everyDays, startsOn }
+
+    /// An older server sends no everyDays: every ring.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        label = try container.decode(String.self, forKey: .label)
+        offsetMinutes = try container.decode(Int.self, forKey: .offsetMinutes)
+        everyDays = try container.decodeIfPresent(Int.self, forKey: .everyDays) ?? 1
+        startsOn = try container.decodeIfPresent(String.self, forKey: .startsOn)
+    }
+
+    /// True when it rings with its alarm's ring on the local day `date`
+    /// falls on: every ring, or a whole number of `everyDays` from
+    /// `startsOn`, before or after it.
+    public func ringsOn(_ date: Date, calendar: Calendar) -> Bool {
+        guard everyDays > 1, let first = startsOn.flatMap({ StepDays.date($0, calendar: calendar) }) else {
+            return true
+        }
+        let days = calendar.dateComponents([.day], from: first, to: calendar.startOfDay(for: date)).day ?? 0
+        return ((days % everyDays) + everyDays) % everyDays == 0
+    }
+
+    /// "every 2 days from Fri 27 Nov", or nil for every ring.
+    public func everyWords(calendar: Calendar = .current) -> String? {
+        guard everyDays > 1, let first = startsOn.flatMap({ StepDays.date($0, calendar: calendar) }) else { return nil }
+        var style = Date.FormatStyle.dateTime.weekday(.abbreviated).day().month(.abbreviated)
+        style.timeZone = calendar.timeZone
+        return "every \(everyDays) days from \(first.formatted(style))"
     }
 
     /// The label as sent: trimmed, and "Step" when empty.
@@ -29,7 +71,9 @@ public struct RoutineStep: Codable, Equatable, Hashable, Sendable, Identifiable 
     }
 
     var sent: RoutineStep {
-        RoutineStep(id: id, label: sentLabel, offsetMinutes: offsetMinutes)
+        RoutineStep(
+            id: id, label: sentLabel, offsetMinutes: offsetMinutes, everyDays: everyDays,
+            startsOn: everyDays > 1 ? startsOn : nil)
     }
 
     /// The same bounds abera.tech checks.
@@ -44,8 +88,21 @@ public struct RoutineStep: Codable, Equatable, Hashable, Sendable, Identifiable 
         } else if steps.reduce(0, { $0 + $1.offsetMinutes }) > maxOffsetMinutes {
             problems.append("The steps must all ring within 24 hours of the alarm.")
         }
+        if steps.contains(where: { !(1...maxEveryDays).contains($0.everyDays) }) {
+            problems.append("A step rings every 1 to \(maxEveryDays) days.")
+        } else if steps.contains(where: { $0.everyDays > 1 && $0.startsOn.flatMap { StepDays.date($0) } == nil }) {
+            problems.append("A step every few days needs the first day it rings.")
+        }
         if Set(steps.map(\.id)).count != steps.count { problems.append("Two steps have the same id.") }
         return problems
+    }
+
+    /// The steps that ring with the ring on `date`, with the minutes from
+    /// the ring to each. A step that does not ring that day takes no time:
+    /// the next one follows the one before it by its own offset, as on abera.tech.
+    public static func ringing(_ steps: [RoutineStep], on date: Date, calendar: Calendar) -> [(RoutineStep, Int)] {
+        let kept = steps.filter { $0.ringsOn(date, calendar: calendar) }
+        return Array(zip(kept, cumulativeMinutes(kept)))
     }
 
     /// Minutes from the routine's ring to each step's ring, in order.
@@ -113,8 +170,7 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
             format: "%04d-%02d-%02dT%02d:%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0, routine.hour,
             routine.minute)
         let at = planned.addingTimeInterval(TimeInterval((routine.delays[stamp] ?? 0) * 60))
-        let offsets = RoutineStep.cumulativeMinutes(routine.steps)
-        let steps = zip(routine.steps, offsets).map { step, minutes in
+        let steps = RoutineStep.ringing(routine.steps, on: planned, calendar: calendar).map { step, minutes in
             StepRing(
                 step: step, at: at.addingTimeInterval(TimeInterval(minutes * 60)),
                 key: stepKey(routineID: routine.id, stamp: stamp, stepID: step.id))
@@ -137,10 +193,41 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
         }
         let previous = RoutineRing.latestRing(schedule, atOrBefore: now, window: 8 * 86_400, calendar: calendar)
         let next = schedule.nextFire(after: now, calendar: calendar)
-        return (
-            previous.map { make(routine, at: $0, calendar: calendar) },
-            next.map { make(routine, at: $0, calendar: calendar) }
-        )
+        var current = previous.map { make(routine, at: $0, calendar: calendar) }
+        var coming = next.map { make(routine, at: $0, calendar: calendar) }
+        // A ring delayed past the rings after it is still the one to come,
+        // or, once it has rung, the one under way.
+        for cycle in moved(routine, before: previous ?? now, now: now, calendar: calendar) {
+            if cycle.at > now {
+                if coming.map({ cycle.at < $0.at }) ?? true { coming = cycle }
+            } else if current.map({ cycle.at > $0.at }) ?? true {
+                current = cycle
+            }
+        }
+        return (current, coming)
+    }
+
+    /// The cycles planned before `before`, in the last 7 days, that a delay
+    /// moved and whose ring or a step's ring is after `now` or came within
+    /// a day of it. A delay runs up to 7 days, so one can pass the rings after it.
+    static func moved(_ routine: Routine, before: Date, now: Date, calendar: Calendar) -> [RoutineCycle] {
+        routine.delays.keys.sorted().compactMap { stamp -> RoutineCycle? in
+            guard let planned = plannedDate(stamp, calendar: calendar), planned < before,
+                planned >= now.addingTimeInterval(-TimeInterval(RoutineDelay.minutes.upperBound * 60) - 86_400)
+            else { return nil }
+            let cycle = make(routine, at: planned, calendar: calendar)
+            guard cycle.stamp == stamp else { return nil }
+            let last = cycle.steps.last?.at ?? cycle.at
+            return last.addingTimeInterval(86_400) > now ? cycle : nil
+        }
+    }
+
+    /// The local time a stamp names, or nil.
+    static func plannedDate(_ stamp: String, calendar: Calendar) -> Date? {
+        let parts = stamp.split(whereSeparator: { $0 == "-" || $0 == "T" || $0 == ":" }).compactMap { Int($0) }
+        guard parts.count == 5 else { return nil }
+        return calendar.date(
+            from: DateComponents(year: parts[0], month: parts[1], day: parts[2], hour: parts[3], minute: parts[4]))
     }
 
     /// Every cycle whose step rings may still come: the one under way and
@@ -149,14 +236,22 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
     static func upcoming(_ routine: Routine, now: Date, ahead: TimeInterval, calendar: Calendar) -> [RoutineCycle] {
         let (current, next) = around(routine, now: now, calendar: calendar)
         var cycles = [current].compactMap { $0 }
-        guard var cycle = next else { return cycles }
-        cycles.append(cycle)
+        if routine.repeats {
+            // Every other delayed ring that may still ring, with its steps.
+            let held = Set(cycles.map(\.stamp) + [next?.stamp].compactMap { $0 })
+            cycles += moved(routine, before: now, now: now, calendar: calendar).filter { !held.contains($0.stamp) }
+        }
+        guard let next else { return cycles }
+        cycles.append(next)
         guard routine.repeats else { return cycles }
-        while let after = routine.schedule.nextFire(after: cycle.at, calendar: calendar),
+        // The rings after the next one, by their planned times.
+        var planned = next.at.addingTimeInterval(-TimeInterval((next.delay(in: routine) ?? 0) * 60))
+        while let after = routine.schedule.nextFire(after: planned, calendar: calendar),
             after <= now.addingTimeInterval(ahead), cycles.count < 16
         {
-            cycle = make(routine, at: after, calendar: calendar)
-            cycles.append(cycle)
+            planned = after
+            let cycle = make(routine, at: after, calendar: calendar)
+            if !cycles.contains(where: { $0.stamp == cycle.stamp }) { cycles.append(cycle) }
         }
         return cycles
     }
@@ -529,5 +624,25 @@ public struct RoutineHistory: Codable, Equatable, Sendable {
             }
         }
         return counts.keys.sorted().map { Tally(label: $0, done: counts[$0]!.0, of: counts[$0]!.1) }
+    }
+}
+
+/// A step's first day, "yyyy-MM-dd", as a local date.
+public enum StepDays {
+    /// Midnight of that day in the calendar's zone, or nil when it is not a date.
+    public static func date(_ text: String, calendar: Calendar = .current) -> Date? {
+        let parts = text.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3, (1...12).contains(parts[1]), (1...31).contains(parts[2]) else { return nil }
+        let components = DateComponents(year: parts[0], month: parts[1], day: parts[2])
+        guard let date = calendar.date(from: components),
+            calendar.component(.day, from: date) == parts[2]
+        else { return nil }
+        return date
+    }
+
+    /// "2026-11-27" for the local day `date` falls on.
+    public static func text(_ date: Date, calendar: Calendar = .current) -> String {
+        let day = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0)
     }
 }

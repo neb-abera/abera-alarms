@@ -138,6 +138,55 @@ import Testing
         #expect(RoutineDelay.words(15) == "15 min")
         #expect(RoutineDelay.words(60) == "1 h")
         #expect(RoutineDelay.words(90) == "1 h 30 min")
+        #expect(RoutineDelay.words(1440) == "1 day")
+        #expect(RoutineDelay.words(2 * 1440 + 185) == "2 days 3 h 5 min")
+        #expect(RoutineDelay.words(10080) == "7 days")
+    }
+
+    /// Neb could not delay past 3 hours (2026-11-26). A typed delay adds to
+    /// the one already made, up to 7 days after the planned time.
+    @Test func aTypedDelayAddsToTheOneMadeAndStopsAtSevenDays() {
+        #expect(RoutineDelay.minutes == 1...10080)
+        #expect(RoutineDelay.total(adding: 120, to: 180) == 300)
+        #expect(RoutineDelay.problem(adding: 4 * 60, to: 180) == nil)
+        #expect(RoutineDelay.problem(adding: 10080 - 180, to: 180) == nil)
+        #expect(
+            RoutineDelay.problem(adding: 10080 - 179, to: 180)
+                == "At most 7 days after the planned time: 6 days 21 h more.")
+        #expect(RoutineDelay.problem(adding: 0, to: 0) == "Type at least 1 minute.")
+        #expect(RoutineDelay.problem(adding: Int.max, to: 30) != nil)
+        #expect(RoutineDelay.choices.allSatisfy { RoutineDelay.minutes.contains($0) })
+    }
+
+    /// Monday's 07:00 wake up, moved 3 days. Wednesday's ring comes first,
+    /// then the moved Monday ring on Thursday with its steps, then Friday's.
+    @Test func aRingMovedPastTheNextRingStillRingsWithItsStepsAndTheOthersStay() throws {
+        let moved = state(delays: [delay(3 * 1440)])
+        let now = at(7, 10)
+        let held = Reconciler.desired(from: moved, now: now, acknowledgedHere: [ringKey()], calendar: calendar)
+            .filter { $0.key.hasPrefix(DesiredAlarm.routinePrefix) && $0.fireAt < at(12, 0, day: 27) }
+            .sorted { $0.fireAt < $1.fireAt }
+        // Step alarms are held 48 hours ahead by their cycle's planned ring,
+        // so Friday's steps wait. The moved Monday steps are held.
+        #expect(
+            held.map(\.fireAt) == [
+                at(7, 0, day: 25), at(7, 5, day: 25), at(7, 8, day: 25),
+                at(7, 0, day: 26), at(7, 5, day: 26), at(7, 8, day: 26),
+                at(7, 0, day: 27),
+            ])
+        #expect(held[3].key == ringKey())
+        #expect(held[4].key == stepKey(wash))
+
+        // On Wednesday after its ring, the moved Monday ring is the next.
+        let routine = try #require(moved.routines.first)
+        let wednesday = RoutineCycle.around(routine, now: at(7, 30, day: 25), calendar: calendar)
+        #expect(wednesday.current?.stamp == "2026-11-25T07:00")
+        #expect(wednesday.next?.stamp == monday)
+        #expect(wednesday.next?.at == at(7, 0, day: 26))
+        // Once it has rung on Thursday, it is the one under way.
+        let thursday = RoutineCycle.around(routine, now: at(7, 6, day: 26), calendar: calendar)
+        #expect(thursday.current?.stamp == monday)
+        #expect(thursday.next?.stamp == "2026-11-27T07:00")
     }
 
     struct Rig {
@@ -179,8 +228,8 @@ import Testing
     @Test func abearaTechRefusesADelayOutOfBounds() async throws {
         let rig = rig(now: at(7, 10))
         _ = await rig.sync.sync()
-        var tooLong = delay(721)
-        tooLong.minutes = 721
+        var tooLong = delay(10081)
+        tooLong.minutes = 10081
         _ = await rig.sync.setDelay(tooLong)
         #expect(await rig.server.state.routineDelays.isEmpty)
         #expect(await rig.sync.completionChanges().isEmpty)
