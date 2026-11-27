@@ -1394,6 +1394,16 @@ extension AlarmsUITests {
         return count
     }
 
+    /// Scrolls a form until `element` sits above the keyboard. A step's
+    /// Rings every row put the second step's time under it (2026-11-26).
+    private func aboveKeyboard(_ element: XCUIElement, in app: XCUIApplication) {
+        let keyboard = app.keyboards.firstMatch
+        for _ in 0..<5 where keyboard.exists && element.frame.maxY > keyboard.frame.minY - 8 {
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+        }
+    }
+
     private func alarmsRefusedUnasked(_ app: XCUIApplication, asked: Bool) -> Bool {
         !asked && app.descendants(matching: .any)["check-refused"].waitForExistence(timeout: 10)
     }
@@ -1421,6 +1431,7 @@ extension AlarmsUITests {
         secondLabel.tap()
         secondLabel.typeText("Beauty care")
         let amount = app.textFields["step-after-1-amount"]
+        aboveKeyboard(amount, in: app)
         amount.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
         amount.typeText(XCUIKeyboardKey.delete.rawValue + XCUIKeyboardKey.delete.rawValue + "10")
         XCTAssertEqual(amount.value as? String, "10")
@@ -1800,10 +1811,14 @@ extension AlarmsUITests {
         let day = app.buttons["delay-1440"]
         XCTAssertTrue(day.waitForExistence(timeout: 5), app.debugDescription)
         day.tap()
+        // A ring delayed past 12 hours keeps its row, lower in the list.
+        let moved = app.buttons["ring-delay-Gym"]
+        XCTAssertTrue(moved.waitForExistence(timeout: 10), app.debugDescription)
+        scrollTo(moved, in: app)
         XCTAssertTrue(waitFor(time, labelContaining: "Delayed 1 day 5 h"), time.label)
 
         // Past 7 days in all, the sheet says how much is left and saves nothing.
-        app.buttons["ring-delay-Gym"].tap()
+        moved.tap()
         let more = app.textFields["delay-span-amount"]
         XCTAssertTrue(more.waitForExistence(timeout: 5), app.debugDescription)
         more.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
@@ -1835,10 +1850,11 @@ extension AlarmsUITests {
         label.tap()
         label.typeText("Tretinoin")
         let every = app.textFields["step-every-0-amount"]
-        XCTAssertEqual(every.value as? String, "1")
+        XCTAssertEqual(every.value as? String, "1", "an empty field shows a grey 1")
         XCTAssertFalse(app.datePickers["step-every-0-from"].exists)
-        every.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: 0.5)).tap()
-        every.typeText(XCUIKeyboardKey.delete.rawValue + "2")
+        aboveKeyboard(every, in: app)
+        every.tap()
+        every.typeText("2")
         XCTAssertEqual(every.value as? String, "2")
         XCTAssertTrue(app.datePickers["step-every-0-from"].waitForExistence(timeout: 5), app.debugDescription)
         save.tap()

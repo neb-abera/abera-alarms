@@ -117,8 +117,10 @@ struct EveryDaysField: View {
             HStack {
                 TextField(
                     "Rings every",
+                    // 1 shows as an empty field with a grey 1, so a typed
+                    // number replaces it rather than landing beside it.
                     text: Binding(
-                        get: { String(step.everyDays) },
+                        get: { step.everyDays == 1 ? "" : String(step.everyDays) },
                         set: { step.everyDays = max(1, TimeSpan.amount(typed: $0)) }),
                     prompt: Text("1")
                 )

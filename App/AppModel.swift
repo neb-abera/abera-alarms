@@ -433,8 +433,8 @@ final class AppModel {
     }
 
     /// What the row under an alarm offers for one ring: Done and Skip for
-    /// a ring within the next 12 hours that nothing has settled, or the
-    /// mark on a ring and its Undo.
+    /// a ring within the next 12 hours, or a delayed ring, that nothing has
+    /// settled, or the mark on a ring and its Undo.
     enum RingControl: Equatable {
         case mark(RoutineCycle)
         case marked(RoutineCycle, RoutineOutcome)
@@ -458,8 +458,10 @@ final class AppModel {
         {
             return .mark(underWay)
         }
+        // A delayed ring keeps its row however far it moved, so its delay
+        // shows and can be added to or undone.
         guard let shown = shownCycle(routine, at: now), shown.outcome(in: state) == nil, shown.at > now,
-            shown.at.timeIntervalSince(now) <= Self.markAhead
+            shown.at.timeIntervalSince(now) <= Self.markAhead || shown.delay(in: routine) != nil
         else { return nil }
         return .mark(shown)
     }
