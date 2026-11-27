@@ -695,7 +695,7 @@ public actor AlarmSync {
     /// and whose time has passed has rung. It is not set again for tomorrow,
     /// and a sync switches it off on abera.tech.
     private func noteRungOnce(ledger: [UUID: DesiredAlarm], system: Set<UUID>, at: Date) async {
-        for alarm in ledger.values where alarm.routine?.days.isEmpty == true {
+        for alarm in ledger.values where alarm.routine?.ringsOnce == true {
             if alarm.fireAt <= at, !system.contains(alarm.id) { await addPendingOff(alarm.id) }
         }
     }

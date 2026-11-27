@@ -13,6 +13,8 @@ struct StepsEditorSection: View {
     var addExisting: (Routine) -> Void = { _ in }
     /// Alarms picked here, deleted as alarms on Save.
     var absorbed: [Routine] = []
+    /// Why no existing alarm can be added, when none can.
+    var existingNote: String?
 
     var body: some View {
         Section {
@@ -47,6 +49,12 @@ struct StepsEditorSection: View {
                 }
                 .disabled(steps.count >= RoutineStep.maxSteps)
                 .accessibilityIdentifier("add-existing-step")
+            }
+            if let existingNote {
+                Text(existingNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("add-existing-blocked")
             }
             ForEach(absorbed) { alarm in
                 Text("\(alarm.label) becomes a step at its own time and stops being an alarm of its own when you save.")
@@ -431,17 +439,26 @@ struct StepRows: View {
             Button("Delete", role: .destructive) {
                 Task { await model.deleteStep(ring.step, from: routine) }
             }
-            Button("Separate") {
-                Task { await model.separate(ring.step, from: routine) }
+            // A step of an alarm that repeats by interval has no time of day of its own.
+            if RoutineChaining.canChain(routine) {
+                Button("Separate") {
+                    Task { await model.separate(ring.step, from: routine) }
+                }
+                .tint(.blue)
             }
-            .tint(.blue)
         }
         .contextMenu {
             Button("Note or Photo", systemImage: "square.and.pencil") { open(cycle, ring) }
-            Button("Make a Separate Alarm", systemImage: "arrow.uturn.left") {
-                Task { await model.separate(ring.step, from: routine) }
+            if RoutineChaining.canChain(routine) {
+                Button("Make a Separate Alarm", systemImage: "arrow.uturn.left") {
+                    Task { await model.separate(ring.step, from: routine) }
+                }
+                .accessibilityIdentifier("separate-step")
+            } else {
+                Button(RoutineChaining.intervalReason, systemImage: "arrow.uturn.left") {}
+                    .disabled(true)
+                    .accessibilityIdentifier("separate-step-blocked")
             }
-            .accessibilityIdentifier("separate-step")
             Button("Delete Step", systemImage: "trash", role: .destructive) {
                 Task { await model.deleteStep(ring.step, from: routine) }
             }

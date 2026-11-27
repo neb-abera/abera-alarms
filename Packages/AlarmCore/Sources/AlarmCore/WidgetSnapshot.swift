@@ -11,19 +11,32 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// At most this many events and calendar alarms are kept. A widget shows one.
     static let maxListed = 20
 
-    /// One alarm that rings once: a calendar alarm or a timer.
+    /// One alarm that rings once: a calendar alarm, a timer, or one ring of
+    /// a routine held ring by ring.
     public struct OneTime: Codable, Equatable, Sendable {
         public var title: String
         public var at: Date
+        /// True for one ring of a routine or of its step. False from an older build.
+        public var routine: Bool
 
-        public init(title: String, at: Date) {
+        public init(title: String, at: Date, routine: Bool = false) {
             self.title = title
             self.at = at
+            self.routine = routine
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            title = try container.decode(String.self, forKey: .title)
+            at = try container.decode(Date.self, forKey: .at)
+            routine = try container.decodeIfPresent(Bool.self, forKey: .routine) ?? false
         }
     }
 
-    /// A routine set on this phone. One that repeats rings at each of its
-    /// days. One that does not rings once, at `once`.
+    /// A routine set on this phone as one alarm. One that repeats rings at
+    /// each of its days. One that does not rings once, at `once`. A routine
+    /// every N weeks or every interval is held ring by ring, and its rings
+    /// are listed with the one-time alarms.
     public struct RoutineAlarm: Codable, Equatable, Sendable {
         public var label: String
         public var schedule: RoutineSchedule
@@ -102,13 +115,13 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
             .filter { !$0.isRoutine && $0.fireAt > now }
             .sorted { ($0.fireAt, $0.key) < ($1.fireAt, $1.key) }
             .prefix(maxListed)
-            .map { OneTime(title: $0.title, at: $0.fireAt) }
+            .map { OneTime(title: $0.title, at: $0.fireAt, routine: $0.key.hasPrefix(DesiredAlarm.routinePrefix)) }
         let routines =
             held
             .compactMap { alarm -> RoutineAlarm? in
                 guard let schedule = alarm.routine else { return nil }
                 return RoutineAlarm(
-                    label: alarm.title, schedule: schedule, once: schedule.days.isEmpty ? alarm.fireAt : nil)
+                    label: alarm.title, schedule: schedule, once: schedule.ringsOnce ? alarm.fireAt : nil)
             }
             .sorted { $0.label < $1.label }
         let events = (state?.alerts ?? [])
@@ -126,7 +139,9 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
     /// A repeating routine gives one ring for each of its days.
     public func rings(after now: Date, through end: Date, limit: Int = 50, calendar: Calendar = .current) -> [Ring] {
         var rings: [Ring] = []
-        rings += alarms.filter { $0.at > now && $0.at <= end }.map { Ring(title: $0.title, at: $0.at, kind: .calendar) }
+        rings += alarms.filter { $0.at > now && $0.at <= end }.map {
+            Ring(title: $0.title, at: $0.at, kind: $0.routine ? .routine : .calendar)
+        }
         if let timer, timer.at > now, timer.at <= end {
             rings.append(Ring(title: timer.title, at: timer.at, kind: .timer))
         }
@@ -147,10 +162,11 @@ public struct WidgetSnapshot: Codable, Equatable, Sendable {
 
     /// The next ring after `now`: the earliest calendar alarm, routine or
     /// timer. Nil when nothing is set. Routines are looked for a week ahead,
-    /// the longest a repeating one waits.
+    /// the longest one on weekdays waits, or as far as the soonest ring.
     public func nextRing(after now: Date, calendar: Calendar = .current) -> Ring? {
         let week = now.addingTimeInterval(8 * 86_400)
-        let soonestOneTime = (alarms.map(\.at) + (timer.map { [$0.at] } ?? []) + routines.compactMap(\.once))
+        let nextRoutine = routines.compactMap { $0.once ?? $0.schedule.nextFire(after: now, calendar: calendar) }
+        let soonestOneTime = (alarms.map(\.at) + (timer.map { [$0.at] } ?? []) + nextRoutine)
             .filter { $0 > now }.min()
         let end = max(week, soonestOneTime ?? week)
         return rings(after: now, through: end, limit: 1, calendar: calendar).first

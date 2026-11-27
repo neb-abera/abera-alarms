@@ -18,7 +18,11 @@ struct AlarmKitScheduler: AlarmScheduling {
     }
 
     func schedule(_ alarm: DesiredAlarm) async throws {
-        if let routine = alarm.routine {
+        // Only ring once and weekdays every week fit AlarmKit's own repeat.
+        // The sync holds any other routine ring by ring, with no schedule
+        // here. One that came with a schedule all the same rings once, at
+        // its time, and never weekly on days it does not have.
+        if let routine = alarm.routine, routine.fitsSystemRepeat {
             try await scheduleRoutine(alarm, routine)
             return
         }
@@ -61,7 +65,7 @@ struct AlarmKitScheduler: AlarmScheduling {
             metadata: AlarmInfo(key: alarm.key),
             tintColor: .accentColor)
         let repeats: Alarm.Schedule.Relative.Recurrence =
-            routine.days.isEmpty ? .never : .weekly(routine.days.compactMap(Self.weekday))
+            routine.ringsOnce ? .never : .weekly(routine.days.compactMap(Self.weekday))
         let schedule = Alarm.Schedule.relative(
             .init(time: .init(hour: routine.hour, minute: routine.minute), repeats: repeats))
         let configuration = AlarmManager.AlarmConfiguration<AlarmInfo>(

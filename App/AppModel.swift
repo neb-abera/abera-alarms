@@ -414,7 +414,14 @@ final class AppModel {
 
     /// Makes a step an alarm of its own, at the time it rang as a step.
     func separate(_ step: RoutineStep, from parent: Routine) async {
-        guard let (remaining, alarm) = RoutineChaining.separate(step.id, from: parent) else { return }
+        guard let (remaining, alarm) = RoutineChaining.separate(step.id, from: parent) else {
+            // The step is there and no alarm of its own rings where it did.
+            if parent.steps.contains(where: { $0.id == step.id }) {
+                routineError =
+                    RoutineChaining.canChain(parent) ? RoutineChaining.separateReason : RoutineChaining.intervalReason
+            }
+            return
+        }
         guard await saveRoutine(id: nil, alarm) else { return }
         await saveRoutine(id: parent.id, remaining)
     }

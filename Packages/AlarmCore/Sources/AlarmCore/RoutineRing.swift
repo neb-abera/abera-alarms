@@ -60,9 +60,17 @@ public struct RoutineRing: Codable, Equatable, Hashable, Sendable, Identifiable 
     }
 
     /// The ring times come from the same `nextFire` that schedules the alarm.
+    /// A series the alarm system cannot repeat finds its last ring directly:
+    /// every minute over an 8-day window is 11,520 steps of the walk below.
     static func latestRing(_ schedule: RoutineSchedule, atOrBefore now: Date, window: TimeInterval, calendar: Calendar)
         -> Date?
     {
+        guard schedule.fitsSystemRepeat else {
+            guard let ring = schedule.lastFire(atOrBefore: now, calendar: calendar),
+                ring > now.addingTimeInterval(-window - 1)
+            else { return nil }
+            return ring
+        }
         var latest: Date?
         var next = schedule.nextFire(after: now.addingTimeInterval(-window - 1), calendar: calendar)
         while let ring = next, ring <= now {
@@ -72,14 +80,11 @@ public struct RoutineRing: Codable, Equatable, Hashable, Sendable, Identifiable 
         return latest
     }
 
-    /// The ring's local date with the routine's own hour and minute. On a day
-    /// the clocks skip that time the ring sounds later, and the key still
-    /// names the time it was scheduled for.
+    /// The routine and the ring's own stamp (`RoutineSchedule.stamp`): its
+    /// local date with the routine's hour and minute, or for a ring every N
+    /// minutes or hours the time it rings at.
     static func key(routineID: UUID, schedule: RoutineSchedule, ring: Date, calendar: Calendar) -> String {
-        let day = calendar.dateComponents([.year, .month, .day], from: ring)
-        let stamp = String(
-            format: "%04d-%02d-%02dT%02d:%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0, schedule.hour,
-            schedule.minute)
-        return DesiredAlarm.routinePrefix + routineID.uuidString.lowercased() + ":" + stamp
+        DesiredAlarm.routinePrefix + routineID.uuidString.lowercased() + ":"
+            + schedule.stamp(of: ring, calendar: calendar)
     }
 }

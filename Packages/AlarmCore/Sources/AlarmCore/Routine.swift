@@ -1,16 +1,28 @@
 import Foundation
 
-/// A Clock-style alarm: a wall-clock time, the weekdays it repeats on, and
-/// an on/off switch. Stored on abera.tech, rung by the phone. It never
-/// passes through Pushover or Google Calendar.
+/// A Clock-style alarm: a wall-clock time, how it repeats, and an on/off
+/// switch. It repeats on weekdays, on weekdays every N weeks, or every N
+/// minutes, hours, days, weeks, months, or years from a start date. Stored
+/// on abera.tech, rung by the phone. It never passes through Pushover or
+/// Google Calendar.
 public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var id: UUID
     public var label: String
     public var hour: Int
     public var minute: Int
-    /// ISO weekdays, Monday 1 to Sunday 7. Empty rings once, at the next
-    /// hour:minute, and the phone then switches it off.
+    /// ISO weekdays, Monday 1 to Sunday 7. Empty with `repeatMode` weekdays
+    /// rings once, at the next hour:minute, and the phone then switches it
+    /// off. Always empty for an interval.
     public var days: [Int]
+    /// On weekdays, or every `every` units from `startsOn`. "repeat" in JSON.
+    public var repeatMode: RoutineRepeat
+    /// The N: weeks between ring weeks on weekdays, units for an interval.
+    public var every: Int
+    /// Weeks for weekdays. Any of the six for an interval.
+    public var unit: RoutineUnit
+    /// The local date the series counts from, "yyyy-MM-dd". Nil for
+    /// weekdays every week.
+    public var startsOn: String?
     public var enabled: Bool
     public var snoozeMinutes: Int
     /// Sub-alarms chained after the ring, in order. An older server sends none.
@@ -23,12 +35,14 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
     public var delays: [String: Int] = [:]
 
     enum CodingKeys: String, CodingKey {
-        case id, label, hour, minute, days, enabled, snoozeMinutes, steps, updatedAt
+        case id, label, hour, minute, days, enabled, snoozeMinutes, steps, updatedAt, every, unit, startsOn
+        case repeatMode = "repeat"
     }
 
     public init(
         id: UUID, label: String, hour: Int, minute: Int, days: [Int], enabled: Bool = true, snoozeMinutes: Int = 9,
-        steps: [RoutineStep] = [], updatedAt: Date? = nil
+        steps: [RoutineStep] = [], updatedAt: Date? = nil, repeatMode: RoutineRepeat = .weekdays, every: Int = 1,
+        unit: RoutineUnit = .weeks, startsOn: String? = nil
     ) {
         self.id = id
         self.label = label
@@ -39,6 +53,10 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.snoozeMinutes = snoozeMinutes
         self.steps = steps
         self.updatedAt = updatedAt
+        self.repeatMode = repeatMode
+        self.every = every
+        self.unit = unit
+        self.startsOn = startsOn
     }
 
     public init(from decoder: any Decoder) throws {
@@ -52,19 +70,32 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         snoozeMinutes = try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? 9
         steps = try container.decodeIfPresent([RoutineStep].self, forKey: .steps) ?? []
         updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt)
+        // An older server sends none of the four. A value this build does
+        // not know reads as the default, so a newer server never breaks the list.
+        repeatMode = (try? container.decodeIfPresent(RoutineRepeat.self, forKey: .repeatMode)) ?? .weekdays
+        every = (try? container.decodeIfPresent(Int.self, forKey: .every)) ?? 1
+        unit = (try? container.decodeIfPresent(RoutineUnit.self, forKey: .unit)) ?? .weeks
+        startsOn = try? container.decodeIfPresent(String.self, forKey: .startsOn)
     }
 
-    public var repeats: Bool { !days.isEmpty }
+    /// False for a ring-once routine: on weekdays with no days.
+    public var repeats: Bool { !schedule.ringsOnce }
 
+    /// A routine on weekdays every week carries no start date and no other
+    /// unit, so the alarm the phone holds for it compares equal from one
+    /// sync to the next.
     public var schedule: RoutineSchedule {
-        RoutineSchedule(hour: hour, minute: minute, days: days.sorted(), snoozeMinutes: snoozeMinutes)
+        let plain = repeatMode == .weekdays && (every <= 1 || days.isEmpty)
+        return RoutineSchedule(
+            hour: hour, minute: minute, days: days.sorted(), snoozeMinutes: snoozeMinutes, repeatMode: repeatMode,
+            every: plain ? 1 : every, unit: plain ? .weeks : unit, startsOn: plain ? nil : startsOn)
     }
 
     /// The draft that recreates this routine, for an edit or a switch.
     public var draft: RoutineDraft {
         RoutineDraft(
             label: label, hour: hour, minute: minute, days: days, enabled: enabled, snoozeMinutes: snoozeMinutes,
-            steps: steps)
+            steps: steps, repeatMode: repeatMode, every: every, unit: unit, startsOn: startsOn)
     }
 
     /// The next time it rings after `now`, in the phone's calendar.
@@ -82,9 +113,30 @@ public struct Routine: Codable, Equatable, Hashable, Sendable, Identifiable {
         case Set(1...7): return "Every day"
         case Set(1...5): return "Weekdays"
         case [6, 7]: return "Weekends"
-        default:
-            let names = [1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"]
-            return set.sorted().compactMap { names[$0] }.joined(separator: " ")
+        default: return dayNames(days)
+        }
+    }
+
+    /// "Mon Wed Fri": the short names in week order.
+    static func dayNames(_ days: [Int]) -> String {
+        let names = [1: "Mon", 2: "Tue", 3: "Wed", 4: "Thu", 5: "Fri", 6: "Sat", 7: "Sun"]
+        return Set(days).sorted().compactMap { names[$0] }.joined(separator: " ")
+    }
+
+    /// How it repeats, in the words abera.tech uses: `daysText` on weekdays
+    /// every week, "Every 2 weeks on Mon Wed Fri", "Every 97 minutes",
+    /// "Every hour".
+    public var repeatText: String {
+        Self.repeatText(repeatMode: repeatMode, every: every, unit: unit, days: days)
+    }
+
+    public static func repeatText(repeatMode: RoutineRepeat, every: Int, unit: RoutineUnit, days: [Int]) -> String {
+        switch repeatMode {
+        case .interval:
+            return unit.describe(every: every)
+        case .weekdays:
+            guard every > 1, !days.isEmpty else { return daysText(days) }
+            return "Every \(every) weeks on " + dayNames(days)
         }
     }
 }
@@ -95,19 +147,65 @@ public struct RoutineSchedule: Codable, Equatable, Hashable, Sendable {
     public var minute: Int
     public var days: [Int]
     public var snoozeMinutes: Int
+    public var repeatMode: RoutineRepeat
+    public var every: Int
+    public var unit: RoutineUnit
+    public var startsOn: String?
 
-    public init(hour: Int, minute: Int, days: [Int], snoozeMinutes: Int) {
+    enum CodingKeys: String, CodingKey {
+        case hour, minute, days, snoozeMinutes, every, unit, startsOn
+        case repeatMode = "repeat"
+    }
+
+    public init(
+        hour: Int, minute: Int, days: [Int], snoozeMinutes: Int, repeatMode: RoutineRepeat = .weekdays,
+        every: Int = 1, unit: RoutineUnit = .weeks, startsOn: String? = nil
+    ) {
         self.hour = hour
         self.minute = minute
         self.days = days
         self.snoozeMinutes = snoozeMinutes
+        self.repeatMode = repeatMode
+        self.every = every
+        self.unit = unit
+        self.startsOn = startsOn
     }
+
+    /// A ledger or a widget snapshot from an older build has none of the
+    /// last four. It reads as weekdays every week.
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hour = try container.decode(Int.self, forKey: .hour)
+        minute = try container.decode(Int.self, forKey: .minute)
+        days = try container.decode([Int].self, forKey: .days)
+        snoozeMinutes = try container.decode(Int.self, forKey: .snoozeMinutes)
+        repeatMode = (try? container.decodeIfPresent(RoutineRepeat.self, forKey: .repeatMode)) ?? .weekdays
+        every = (try? container.decodeIfPresent(Int.self, forKey: .every)) ?? 1
+        unit = (try? container.decodeIfPresent(RoutineUnit.self, forKey: .unit)) ?? .weeks
+        startsOn = try? container.decodeIfPresent(String.self, forKey: .startsOn)
+    }
+
+    /// Ring once: on weekdays with no days. An interval has no days and repeats.
+    public var ringsOnce: Bool { repeatMode == .weekdays && days.isEmpty }
+
+    /// True when the phone's alarm system can hold it as one alarm: ring
+    /// once, or weekdays every week. Any other repeat is held ring by ring.
+    public var fitsSystemRepeat: Bool { repeatMode == .weekdays && (every <= 1 || days.isEmpty) }
 
     /// The next ring strictly after `now`, in the calendar's zone. A time the
     /// clocks skip (02:30 when they go from 02:00 to 03:00) rings when the
     /// clock reaches the next time that exists. A time the clocks pass twice
     /// (01:30 when they go from 02:00 back to 01:00) rings at the first.
+    /// Nil when nothing is left to ring, or the repeat needs a start date
+    /// and has none.
     public func nextFire(after now: Date, calendar: Calendar = .current) -> Date? {
+        guard fitsSystemRepeat else { return seriesFire(after: now, calendar: calendar) }
+        return clockFire(after: now, on: days, calendar: calendar)
+    }
+
+    /// The next hour:minute after `now` on one of `days`, or on any day when
+    /// `days` is empty.
+    func clockFire(after now: Date, on days: [Int], calendar: Calendar) -> Date? {
         var best: Date?
         let weekdays: [Int?] = days.isEmpty ? [nil] : days.map { Optional($0) }
         for iso in weekdays {
@@ -156,10 +254,20 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
     public var enabled: Bool
     public var snoozeMinutes: Int
     public var steps: [RoutineStep]
+    public var repeatMode: RoutineRepeat
+    public var every: Int
+    public var unit: RoutineUnit
+    public var startsOn: String?
+
+    enum CodingKeys: String, CodingKey {
+        case label, hour, minute, days, enabled, snoozeMinutes, steps, every, unit, startsOn
+        case repeatMode = "repeat"
+    }
 
     public init(
         label: String = RoutineDraft.defaultLabel, hour: Int, minute: Int, days: [Int] = [], enabled: Bool = true,
-        snoozeMinutes: Int = 9, steps: [RoutineStep] = []
+        snoozeMinutes: Int = 9, steps: [RoutineStep] = [], repeatMode: RoutineRepeat = .weekdays, every: Int = 1,
+        unit: RoutineUnit = .weeks, startsOn: String? = nil
     ) {
         self.label = label
         self.hour = hour
@@ -168,9 +276,14 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         self.enabled = enabled
         self.snoozeMinutes = snoozeMinutes
         self.steps = steps
+        self.repeatMode = repeatMode
+        self.every = every
+        self.unit = unit
+        self.startsOn = startsOn
     }
 
-    /// A draft queued by a build before steps decodes with none.
+    /// A draft queued by a build before steps decodes with none. One queued
+    /// by a build before intervals decodes as weekdays every week.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         label = try container.decode(String.self, forKey: .label)
@@ -180,6 +293,10 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
         snoozeMinutes = try container.decodeIfPresent(Int.self, forKey: .snoozeMinutes) ?? 9
         steps = try container.decodeIfPresent([RoutineStep].self, forKey: .steps) ?? []
+        repeatMode = (try? container.decodeIfPresent(RoutineRepeat.self, forKey: .repeatMode)) ?? .weekdays
+        every = (try? container.decodeIfPresent(Int.self, forKey: .every)) ?? 1
+        unit = (try? container.decodeIfPresent(RoutineUnit.self, forKey: .unit)) ?? .weeks
+        startsOn = try? container.decodeIfPresent(String.self, forKey: .startsOn)
     }
 
     /// The label as sent: trimmed, and "Alarm" when empty.
@@ -195,16 +312,40 @@ public struct RoutineDraft: Codable, Equatable, Sendable {
         if !(0...23).contains(hour) || !(0...59).contains(minute) { problems.append("Choose a time.") }
         if days.contains(where: { !(1...7).contains($0) }) { problems.append("Choose days from Monday to Sunday.") }
         if !(1...30).contains(snoozeMinutes) { problems.append("Snooze must be 1 to 30 minutes.") }
+        problems += repeatProblems
         problems += RoutineStep.problems(steps)
         return problems
     }
 
-    /// The body the server expects: the label trimmed, the days unique and sorted.
+    /// What is wrong with the repeat, by the rules abera.tech checks.
+    public var repeatProblems: [String] {
+        var problems: [String] = []
+        if !(1...RoutineUnit.maxEvery).contains(every) {
+            problems.append("Repeat every 1 to \(RoutineUnit.maxEvery).")
+        }
+        let started = startsOn.flatMap { CivilDate(iso: $0) } != nil
+        switch repeatMode {
+        case .weekdays:
+            if unit != .weeks { problems.append("An alarm on days of the week repeats in weeks.") }
+            if every > 1 {
+                if days.isEmpty { problems.append("Choose the days it rings on.") }
+                if !started { problems.append("Choose the date it starts on.") }
+            }
+        case .interval:
+            if !days.isEmpty { problems.append("An alarm that repeats by interval has no days of the week.") }
+            if !started { problems.append("Choose the date it starts on.") }
+        }
+        return problems
+    }
+
+    /// The body the server expects: the label trimmed, the days unique and
+    /// sorted, and no start date on weekdays every week.
     var body: RoutineDraft {
         var body = self
         body.label = sentLabel
         body.days = Array(Set(days)).sorted()
         body.steps = steps.map(\.sent)
+        if repeatMode == .weekdays, every == 1 { body.startsOn = nil }
         return body
     }
 }
@@ -273,7 +414,8 @@ public enum RoutineChange: Codable, Equatable, Sendable {
                 state.routines.append(
                     Routine(
                         id: local, label: body.label, hour: body.hour, minute: body.minute, days: body.days,
-                        enabled: body.enabled, snoozeMinutes: body.snoozeMinutes, steps: body.steps))
+                        enabled: body.enabled, snoozeMinutes: body.snoozeMinutes, steps: body.steps,
+                        repeatMode: body.repeatMode, every: body.every, unit: body.unit, startsOn: body.startsOn))
             case .update(let id, let draft):
                 guard let index = state.routines.firstIndex(where: { $0.id == id }) else { continue }
                 let body = draft.body
@@ -284,6 +426,10 @@ public enum RoutineChange: Codable, Equatable, Sendable {
                 state.routines[index].enabled = body.enabled
                 state.routines[index].snoozeMinutes = body.snoozeMinutes
                 state.routines[index].steps = body.steps
+                state.routines[index].repeatMode = body.repeatMode
+                state.routines[index].every = body.every
+                state.routines[index].unit = body.unit
+                state.routines[index].startsOn = body.startsOn
                 // Saved again when abera.tech takes it: a ring-once routine rings after that.
                 state.routines[index].updatedAt = nil
             case .delete(let id):

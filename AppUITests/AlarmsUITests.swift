@@ -739,6 +739,132 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(added.label.contains("Tue Thu"), added.label)
     }
 
+    /// One short drag of the alarm editor, about a quarter of the screen,
+    /// so no row is jumped over. It starts above the keyboard and at the
+    /// form's right edge, clear of the time wheel. A full swipe moved the
+    /// form past the start date at large text (CI, 2026-11-25).
+    private func nudge(_ app: XCUIApplication, up: Bool) {
+        let form = app.collectionViews.firstMatch
+        let low = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.50))
+        let high = form.coordinate(withNormalizedOffset: CGVector(dx: 0.97, dy: 0.25))
+        if up {
+            low.press(forDuration: 0.05, thenDragTo: high)
+        } else {
+            high.press(forDuration: 0.05, thenDragTo: low)
+        }
+    }
+
+    /// The editor scrolled down until its form has built `element`. A form
+    /// builds only the rows on screen, and the repeat rows pushed the steps
+    /// below it. An element already built costs one query: a `for where`
+    /// loop asked 24 times, 3 to 6 s for each control (CI, 2026-11-25).
+    private func reveal(_ element: XCUIElement, in app: XCUIApplication) {
+        for _ in 0..<6 {
+            if element.exists { return }
+            nudge(app, up: true)
+        }
+    }
+
+    /// The editor scrolled until `element` can be tapped: down the form
+    /// first, then back up it. `above` looks up the form first, for a
+    /// control known to be over the rows on screen.
+    private func reach(_ element: XCUIElement, in app: XCUIApplication, above: Bool = false) {
+        for _ in 0..<(above ? 10 : 6) {
+            if element.exists && element.isHittable { return }
+            nudge(app, up: !above)
+        }
+        for _ in 0..<(above ? 6 : 10) {
+            if element.exists && element.isHittable { return }
+            nudge(app, up: above)
+        }
+    }
+
+    /// Neb asked on 2026-11-25 to set an alarm by a number and a unit: every
+    /// 97 minutes.
+    func testAddingARoutineThatRepeatsEvery97Minutes() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        choose("Every…", from: "routine-repeat", in: app)
+        let amount = app.textFields["routine-every-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), app.debugDescription)
+        // An interval has no days of the week.
+        XCTAssertFalse(app.buttons["day-2"].exists)
+        replace(amount, with: "97", in: app)
+        choose("minutes", from: "routine-every-unit", in: app)
+        XCTAssertEqual(amount.value as? String, "97")
+        let note = app.staticTexts["repeat-note"]
+        reveal(note, in: app)
+        XCTAssertTrue(app.descendants(matching: .any)["routine-starts"].firstMatch.exists, app.debugDescription)
+        XCTAssertTrue(waitFor(note, labelContaining: "Repeats: Every 97 minutes, from "), note.label)
+        XCTAssertTrue(
+            note.label.hasSuffix("It rings until you stop it. The phone sets the next rings each time it syncs."),
+            note.label)
+        save.tap()
+        let added = routine(app, "Alarm")
+        XCTAssertTrue(added.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(added.label.contains("Alarm, Every 97 minutes"), added.label)
+        XCTAssertTrue(waitFor(added, labelContaining: "Rings in ", timeout: 15), added.label)
+
+        // The editor opens on what was saved.
+        added.tap()
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(amount.value as? String, "97")
+        XCTAssertTrue(
+            app.buttons["routine-every-unit"].firstMatch.label.contains("minutes"),
+            app.buttons["routine-every-unit"].firstMatch.label)
+        reveal(note, in: app)
+        XCTAssertTrue(waitFor(note, labelContaining: "Every 97 minutes"), note.label)
+    }
+
+    /// Every other week on the days chosen.
+    func testAddingARoutineOnDaysEveryTwoWeeks() {
+        let app = launch(tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10))
+        app.buttons["add-routine"].tap()
+        let save = app.buttons["save-routine"]
+        XCTAssertTrue(save.waitForExistence(timeout: 5))
+        let note = app.staticTexts["repeat-note"]
+        // A day tapped with no repeat chosen sets days of the week.
+        app.buttons["day-2"].tap()
+        app.buttons["day-4"].tap()
+        XCTAssertEqual(note.label, "Repeats: Tue Thu. It rings until you stop it.")
+        let weeks = app.textFields["routine-weeks-amount"]
+        XCTAssertTrue(weeks.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(weeks.value as? String, "1")
+        // Every week needs no start date.
+        XCTAssertFalse(app.descendants(matching: .any)["routine-starts"].firstMatch.exists)
+        replace(weeks, with: "2", in: app)
+        reveal(note, in: app)
+        XCTAssertTrue(waitFor(note, labelContaining: "Repeats: Every 2 weeks on Tue Thu, from "), note.label)
+        XCTAssertTrue(app.descendants(matching: .any)["routine-starts"].firstMatch.waitForExistence(timeout: 5))
+        save.tap()
+        let added = routine(app, "Alarm")
+        XCTAssertTrue(added.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(added.label.contains("Alarm, Every 2 weeks on Tue Thu"), added.label)
+    }
+
+    /// No repeat in the menu takes the days off again.
+    func testChoosingNoRepeatClearsTheDays() {
+        let app = launch(tab: nil)
+        let wake = routine(app, "Wake")
+        XCTAssertTrue(wake.waitForExistence(timeout: 10))
+        wake.tap()
+        let note = app.staticTexts["repeat-note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 5))
+        XCTAssertEqual(note.label, "Repeats: Weekdays. It rings until you stop it.")
+        // The menu shows the choice in its label or its value.
+        let menu = app.buttons["routine-repeat"].firstMatch
+        XCTAssertTrue(
+            "\(menu.label) \(menu.value as? String ?? "")".contains("Days of the week"), menu.debugDescription)
+        choose("No repeat", from: "routine-repeat", in: app)
+        XCTAssertTrue(waitFor(note, labelContaining: "No repeat."), note.label)
+        XCTAssertEqual(app.buttons["day-1"].value as? String, "Off")
+        XCTAssertFalse(app.textFields["routine-weeks-amount"].exists)
+    }
+
     func testAddingARoutineOfflineSetsItAndSaysItWaits() {
         let app = launch("-demo-offline", tab: nil)
         app.buttons["add-routine"].tap()
@@ -860,7 +986,10 @@ final class AlarmsUITests: XCTestCase {
         XCTAssertTrue(wake.waitForExistence(timeout: 10))
         wake.tap()
         let label = app.textFields["routine-label"]
-        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        // The label sits below the repeat rows.
+        reach(label, in: app)
+        XCTAssertTrue(label.waitForExistence(timeout: 5), app.debugDescription)
         label.tap()
         label.press(forDuration: 1)
         if app.menuItems["Select All"].waitForExistence(timeout: 2) { app.menuItems["Select All"].tap() }
@@ -1396,11 +1525,14 @@ extension AlarmsUITests {
 
     /// Scrolls a form until `element` sits above the keyboard. A step's
     /// Rings every row put the second step's time under it (2026-11-26).
+    /// The form builds the row first when it is not there yet, then moves
+    /// by the same short drag as `reveal` and `reach`.
     private func aboveKeyboard(_ element: XCUIElement, in app: XCUIApplication) {
+        reveal(element, in: app)
         let keyboard = app.keyboards.firstMatch
-        for _ in 0..<5 where keyboard.exists && element.frame.maxY > keyboard.frame.minY - 8 {
-            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.45))
-                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25)))
+        for _ in 0..<5 {
+            guard keyboard.exists, element.exists, element.frame.maxY > keyboard.frame.minY - 8 else { return }
+            nudge(app, up: true)
         }
     }
 
@@ -1414,20 +1546,25 @@ extension AlarmsUITests {
         app.buttons["add-routine"].tap()
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        // The label sits below the repeat rows.
+        reach(app.textFields["routine-label"], in: app)
         app.textFields["routine-label"].tap()
         app.textFields["routine-label"].typeText("Get up")
         let addStep = app.buttons["add-step"]
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let firstLabel = app.textFields["step-label-0"]
+        reach(firstLabel, in: app)
         XCTAssertTrue(firstLabel.waitForExistence(timeout: 5), app.debugDescription)
         firstLabel.tap()
         firstLabel.typeText("Take medication")
+        reveal(app.textFields["step-after-0-amount"], in: app)
         XCTAssertEqual(app.textFields["step-after-0-amount"].value as? String, "5")
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let secondLabel = app.textFields["step-label-1"]
-        XCTAssertTrue(secondLabel.waitForExistence(timeout: 5))
+        reach(secondLabel, in: app)
+        XCTAssertTrue(secondLabel.waitForExistence(timeout: 5), app.debugDescription)
         secondLabel.tap()
         secondLabel.typeText("Beauty care")
         let amount = app.textFields["step-after-1-amount"]
@@ -1604,8 +1741,12 @@ extension AlarmsUITests {
         XCTAssertTrue(wake.waitForExistence(timeout: 10))
         wake.tap()
         let existing = app.buttons["add-existing-step"]
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        // The form builds only the rows on screen. With the repeat rows
+        // above it, Add Step is the last one built when the editor opens
+        // (CI, 2026-11-25), so scroll before looking.
+        reach(existing, in: app)
         XCTAssertTrue(existing.waitForExistence(timeout: 5), app.debugDescription)
-        for _ in 0..<4 where !existing.isHittable { app.swipeUp() }
         existing.tap()
         let weekend = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Weekend,'")).firstMatch
         XCTAssertTrue(weekend.waitForExistence(timeout: 5), app.debugDescription)
@@ -1840,22 +1981,28 @@ extension AlarmsUITests {
         app.buttons["add-routine"].tap()
         let save = app.buttons["save-routine"]
         XCTAssertTrue(save.waitForExistence(timeout: 5))
+        // The label, the steps, and a step's rows sit below the repeat rows:
+        // the form builds each only once it is scrolled to.
+        reach(app.textFields["routine-label"], in: app)
         app.textFields["routine-label"].tap()
         app.textFields["routine-label"].typeText("Night")
         let addStep = app.buttons["add-step"]
-        for _ in 0..<4 where !addStep.isHittable { app.swipeUp() }
+        reach(addStep, in: app)
         addStep.tap()
         let label = app.textFields["step-label-0"]
+        reach(label, in: app)
         XCTAssertTrue(label.waitForExistence(timeout: 5), app.debugDescription)
         label.tap()
         label.typeText("Tretinoin")
         let every = app.textFields["step-every-0-amount"]
+        reveal(every, in: app)
         XCTAssertEqual(every.value as? String, "1", "an empty field shows a grey 1")
         XCTAssertFalse(app.datePickers["step-every-0-from"].exists)
         aboveKeyboard(every, in: app)
         every.tap()
         every.typeText("2")
         XCTAssertEqual(every.value as? String, "2")
+        reveal(app.datePickers["step-every-0-from"], in: app)
         XCTAssertTrue(app.datePickers["step-every-0-from"].waitForExistence(timeout: 5), app.debugDescription)
         save.tap()
 
@@ -1864,9 +2011,11 @@ extension AlarmsUITests {
         scrollTo(night, in: app)
         night.tap()
         let reopened = app.textFields["step-every-0-amount"]
-        for _ in 0..<4 where !reopened.exists { app.swipeUp() }
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5))
+        reveal(reopened, in: app)
         XCTAssertTrue(reopened.waitForExistence(timeout: 5), app.debugDescription)
         XCTAssertEqual(reopened.value as? String, "2")
+        reveal(app.datePickers["step-every-0-from"], in: app)
         XCTAssertTrue(app.datePickers["step-every-0-from"].exists, app.debugDescription)
     }
 
@@ -1911,6 +2060,55 @@ extension AlarmsUITests {
             RunLoop.current.run(until: Date().addingTimeInterval(1))
         }
         XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the ring")
+    }
+
+    /// An alarm every minute rings through iOS, stops on Stop, and rings
+    /// again a minute later: each ring is its own alarm, and the next is set.
+    func testAnIntervalAlarmRingsThroughIOSAndItsNextRingRingsToo() throws {
+        // The first ring comes up to 2 minutes 20 s after launch, the second a minute after it.
+        executionTimeAllowance = 360
+        addTeardownBlock { @MainActor in
+            let cleaner = XCUIApplication()
+            cleaner.launchArguments = ["-demo", "-demo-clear-alarms"]
+            cleaner.launch()
+            RunLoop.current.run(until: Date().addingTimeInterval(5))
+            cleaner.terminate()
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let app = launch("-demo-interval-soon", "-demo-real-alarms", tab: nil)
+        let allow = springboard.buttons["Allow"].firstMatch
+        let asked = allow.waitForExistence(timeout: 5)
+        if asked { allow.tap() }
+        let water = routine(app, "Water")
+        XCTAssertTrue(water.waitForExistence(timeout: 10), app.debugDescription)
+        XCTAssertTrue(water.label.contains("Water, Every minute"), water.label)
+        XCTAssertTrue(waitFor(water, labelContaining: "Rings in 0 days 00:0"), water.label)
+        if alarmsRefusedUnasked(app, asked: asked) { throw XCTSkip("The simulator refused alarms without asking") }
+
+        let ios = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
+        XCUIDevice.shared.press(.home)
+        let stop = springboard.buttons["Stop"].firstMatch
+        if !stop.waitForExistence(timeout: 170) {
+            if !asked && ios >= 27 { throw XCTSkip("The iOS \(ios) simulator denied alarms without asking") }
+            XCTFail("the interval alarm did not ring:\n\(springboard.debugDescription)")
+            return
+        }
+        XCTAssertTrue(springboard.debugDescription.contains("Water"), springboard.debugDescription)
+        for _ in 0..<5 where stop.exists {
+            if stop.isHittable { stop.tap() }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the first ring")
+
+        // The ring a minute on is a separate alarm, set before the first rang.
+        XCTAssertTrue(
+            stop.waitForExistence(timeout: 90), "the next ring did not ring:\n\(springboard.debugDescription)")
+        XCTAssertTrue(springboard.debugDescription.contains("Water"), springboard.debugDescription)
+        for _ in 0..<5 where stop.exists {
+            if stop.isHittable { stop.tap() }
+            RunLoop.current.run(until: Date().addingTimeInterval(1))
+        }
+        XCTAssertTrue(poll(15) { !stop.exists }, "Stop did not end the second ring")
     }
 
     func testDoneAndSkipAreInTheAlarmsMenu() {
@@ -2018,6 +2216,98 @@ extension AlarmsUITests {
             XCTAssertTrue(undo.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
             XCTAssertLessThanOrEqual(undo.frame.maxX, width, size)
             app.terminate()
+        }
+    }
+
+    /// The repeat controls in the alarm's editor sit inside the screen at
+    /// large text sizes: the menu, the days, the number, the unit, and the
+    /// start date. One test for each size: both in one ran past 2 minutes
+    /// (CI, 2026-11-25).
+    func testTheRepeatControlsFitAtXXXLText() {
+        repeatControlsFit(at: "UICTContentSizeCategoryXXXL")
+    }
+
+    func testTheRepeatControlsFitAtAccessibilityLargeText() {
+        repeatControlsFit(at: "UICTContentSizeCategoryAccessibilityL")
+    }
+
+    private func repeatControlsFit(at size: String) {
+        // About 60 s on the Xcode 27 runner and 100 s on the Xcode 26.5 one.
+        executionTimeAllowance = 180
+        let app = launch("-UIPreferredContentSizeCategoryName", size, tab: nil)
+        XCTAssertTrue(routine(app, "Wake").waitForExistence(timeout: 10), "\(size)\n\(app.debugDescription)")
+        app.buttons["add-routine"].tap()
+        XCTAssertTrue(app.buttons["save-routine"].waitForExistence(timeout: 5), size)
+        let width = app.windows.firstMatch.frame.width
+        let form = app.collectionViews.firstMatch
+        /// Scrolls until the form has built the control, then checks its
+        /// edges. The frame is read once. Returns it for the checks after.
+        @discardableResult
+        func fits(_ element: XCUIElement, _ name: String) -> CGRect {
+            reveal(element, in: app)
+            guard element.exists else {
+                XCTFail("\(size): \(name) is missing\n\(app.debugDescription)")
+                return .zero
+            }
+            let frame = element.frame
+            XCTAssertGreaterThan(frame.width, 0, "\(size): \(name) has no width")
+            XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(size): \(name) is cut off")
+            XCTAssertLessThanOrEqual(frame.maxX, width, "\(size): \(name) is cut off")
+            return frame
+        }
+        let menu = app.buttons["routine-repeat"].firstMatch
+        fits(menu, "the repeat menu")
+
+        // Days of the week, every 2 weeks.
+        let tuesday = app.buttons["day-2"]
+        reach(tuesday, in: app)
+        tuesday.tap()
+        var days: [CGRect] = []
+        for day in 1...7 { days.append(fits(app.buttons["day-\(day)"], "day \(day)")) }
+        // The seven days sit in one row, each clear of the next.
+        for (day, next) in zip(days, days.dropFirst()) {
+            XCTAssertEqual(day.midY, next.midY, accuracy: 1, "\(size): the days wrapped")
+            XCTAssertLessThanOrEqual(day.maxX, next.minX + 0.5, "\(size): two days overlap")
+        }
+        let weeks = app.textFields["routine-weeks-amount"]
+        fits(weeks, "the weeks number")
+        reach(weeks, in: app)
+        replace(weeks, with: "2", in: app)
+        let starts = app.descendants(matching: .any)["routine-starts"].firstMatch
+        fits(starts, "the start date")
+        let note = app.staticTexts["repeat-note"]
+        fits(note, "the note")
+        XCTAssertTrue(waitFor(note, labelContaining: "Every 2 weeks on Tue"), "\(size): \(note.label)")
+
+        // Every 999 months: the widest number and a long unit.
+        reach(menu, in: app, above: true)
+        choose("Every…", from: "routine-repeat", in: app)
+        let amount = app.textFields["routine-every-amount"]
+        XCTAssertTrue(amount.waitForExistence(timeout: 5), "\(size)\n\(app.debugDescription)")
+        reach(amount, in: app)
+        replace(amount, with: "999", in: app)
+        choose("months", from: "routine-every-unit", in: app)
+        let unit = app.buttons["routine-every-unit"].firstMatch
+        let number = fits(amount, "the interval number")
+        let unitFrame = fits(unit, "the unit menu")
+        XCTAssertTrue(unit.label.contains("months"), "\(size): \(unit.label)")
+        XCTAssertEqual(amount.value as? String, "999", size)
+        // The number and its unit do not overlap, and the unit draws its
+        // word, in the accent blue.
+        XCTAssertFalse(number.intersects(unitFrame), "\(size): the number and the unit overlap")
+        reach(unit, in: app)
+        XCTAssertGreaterThan(
+            pixels(unit) { r, g, b in b > 180 && b > r + 80 && b > g + 30 }, 40, "\(size): the unit shows no text")
+        fits(starts, "the start date")
+        fits(note, "the note")
+        XCTAssertTrue(waitFor(note, labelContaining: "Every 999 months"), "\(size): \(note.label)")
+        // Every button and field the form has built sits inside the screen's width.
+        for element in form.buttons.allElementsBoundByIndex + form.textFields.allElementsBoundByIndex {
+            guard element.exists else { continue }
+            let frame = element.frame
+            guard frame.width > 0 else { continue }
+            XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(size): a control is cut off at \(frame)")
+            XCTAssertLessThanOrEqual(frame.maxX, width, "\(size): a control is cut off at \(frame)")
         }
     }
 

@@ -139,8 +139,13 @@ struct RoutinesView: View {
                                 Task { await model.mark(routine, cycle: cycle, .skipped) }
                             }
                         }
-                        let others = model.routines.filter { $0.id != routine.id }
-                        if !others.isEmpty {
+                        // An alarm that repeats by interval has no time of day to keep as a step.
+                        let others = model.routines.filter { $0.id != routine.id && RoutineChaining.canChain($0) }
+                        if !RoutineChaining.canChain(routine) {
+                            Button(RoutineChaining.intervalReason, systemImage: "arrow.turn.down.right") {}
+                                .disabled(true)
+                                .accessibilityIdentifier("make-step-blocked")
+                        } else if !others.isEmpty {
                             Menu("Make a Step of…", systemImage: "arrow.turn.down.right") {
                                 ForEach(others) { parent in
                                     Button(
@@ -271,7 +276,7 @@ struct RoutinesView: View {
                 .accessibilityIdentifier("confirm-make-step")
             } message: { move in
                 Text(
-                    "It rings at \(RoutineText.time(hour: move.child.hour, minute: move.child.minute)) as a step of \(move.parent.label), on \(move.parent.label)'s days: \(move.parent.daysText). It is no longer an alarm of its own. Separate it to undo."
+                    "It rings at \(RoutineText.time(hour: move.child.hour, minute: move.child.minute)) as a step of \(move.parent.label), on \(move.parent.label)'s days: \(move.parent.repeatText). It is no longer an alarm of its own. Separate it to undo."
                 )
             }
             .sheet(item: $editing) { routine in
@@ -297,7 +302,7 @@ struct RoutineRow: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(RoutineText.time(hour: routine.hour, minute: routine.minute))
                         .font(.system(size: 44, weight: .light).monospacedDigit())
-                    Text("\(routine.label), \(routine.daysText)")
+                    Text("\(routine.label), \(routine.repeatText)")
                         .font(.subheadline)
                     if let status = model.syncStatus(routine) {
                         RoutineSyncLine(status: status)
@@ -389,13 +394,28 @@ enum RoutineText {
     }
 }
 
-/// Add or edit a routine: a time wheel, the days it repeats, a label and
-/// the snooze length.
+/// Add or edit a routine: a time wheel, how it repeats, a label and the
+/// snooze length. It repeats on days of the week, every N weeks on those
+/// days, or every N minutes, hours, days, weeks, months, or years from a
+/// start date. Neb asked on 2026-11-25 for a number and a unit: he could not
+/// set an alarm for every 97 minutes, or every other week.
 struct RoutineEditor: View {
+    /// What the Repeat menu shows.
+    enum RepeatChoice: Hashable {
+        case once, weekdays, interval
+    }
+
     @Bindable var model: AppModel
     let routine: Routine?
     @Environment(\.dismiss) private var dismiss
     @State private var time: Date
+    @State private var choice: RepeatChoice
+    /// Weeks between ring weeks, for days of the week. 0 while the field is empty.
+    @State private var weeks: Int
+    /// The N of an interval. 0 while the field is empty.
+    @State private var every: Int
+    @State private var unit: RoutineUnit
+    @State private var starts: Date
     @State private var days: Set<Int>
     @State private var label: String
     @State private var snoozeMinutes: Int
@@ -410,6 +430,14 @@ struct RoutineEditor: View {
         let minute = routine?.minute ?? 0
         _time = State(initialValue: Calendar.current.date(from: DateComponents(hour: hour, minute: minute)) ?? Date())
         _days = State(initialValue: Set(routine?.days ?? []))
+        let interval = routine?.repeatMode == .interval
+        let choice: RepeatChoice = interval ? .interval : (routine?.days.isEmpty ?? true) ? .once : .weekdays
+        _choice = State(initialValue: choice)
+        _weeks = State(initialValue: interval ? 1 : max(routine?.every ?? 1, 1))
+        _every = State(initialValue: interval ? routine?.every ?? 1 : 1)
+        _unit = State(initialValue: interval ? routine?.unit ?? .hours : .hours)
+        _starts = State(
+            initialValue: Self.date(of: routine?.startsOn) ?? Calendar.current.startOfDay(for: Date()))
         _label = State(initialValue: routine?.label == RoutineDraft.defaultLabel ? "" : routine?.label ?? "")
         _snoozeMinutes = State(initialValue: routine?.snoozeMinutes ?? 9)
         _steps = State(initialValue: routine?.steps.map(EditableStep.init) ?? [])
@@ -424,16 +452,55 @@ struct RoutineEditor: View {
                     .frame(maxWidth: .infinity)
                     .accessibilityIdentifier("routine-time")
                 Section {
-                    DayButtons(days: $days)
+                    Picker("Repeats", selection: $choice) {
+                        Text("No repeat").tag(RepeatChoice.once)
+                        Text("Days of the week").tag(RepeatChoice.weekdays)
+                        Text("Every…").tag(RepeatChoice.interval)
+                    }
+                    .accessibilityIdentifier("routine-repeat")
+                    // The days stay in reach with no repeat chosen: one tap on a day sets a weekly alarm.
+                    if choice != .interval {
+                        DayButtons(days: $days)
+                    }
+                    if choice == .weekdays {
+                        EveryRow(amount: $weeks, id: "routine-weeks") {
+                            Text(RoutineUnit.weeks.name(weeks))
+                        }
+                    }
+                    if choice == .interval {
+                        EveryRow(amount: $every, id: "routine-every") {
+                            Picker("Unit", selection: $unit) {
+                                ForEach(RoutineUnit.allCases, id: \.self) { unit in
+                                    Text(unit.name(every)).tag(unit)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .accessibilityIdentifier("routine-every-unit")
+                        }
+                    }
+                    if choice == .interval || (choice == .weekdays && weeks > 1) {
+                        // Side by side, or the date under its word when the text is large.
+                        ViewThatFits(in: .horizontal) {
+                            HStack {
+                                Text("Starting")
+                                Spacer(minLength: 8)
+                                startPicker
+                            }
+                            VStack(alignment: .leading) {
+                                Text("Starting")
+                                startPicker
+                            }
+                        }
+                    }
+                    ForEach(draft.repeatProblems, id: \.self) { problem in
+                        Text(problem).foregroundStyle(.red)
+                    }
                 } header: {
                     Text("Repeat")
                 } footer: {
-                    Text(
-                        days.isEmpty
-                            ? "No repeat. It rings on the next day at this time until you stop it, then switches off."
-                            : "Repeats: \(Routine.daysText(Array(days))). It rings until you stop it."
-                    )
-                    .accessibilityIdentifier("repeat-note")
+                    Text(draft.repeatNote(today: CivilDate(Date(), in: .current)))
+                        .accessibilityIdentifier("repeat-note")
                 }
                 Section {
                     TextField("Label", text: $label, prompt: Text(RoutineDraft.defaultLabel))
@@ -442,10 +509,8 @@ struct RoutineEditor: View {
                 }
                 StepsEditorSection(
                     steps: $steps, routineLabel: label,
-                    existing: model.routines.filter { alarm in
-                        alarm.id != routine?.id && !absorbed.contains { $0.id == alarm.id }
-                    },
-                    addExisting: absorb, absorbed: absorbed)
+                    existing: chainable, addExisting: absorb, absorbed: absorbed,
+                    existingNote: chainingNote)
                 if let stepRefusal {
                     Text(stepRefusal).foregroundStyle(.red)
                 }
@@ -487,14 +552,53 @@ struct RoutineEditor: View {
                 }
             }
             .onAppear { model.clearRoutineError() }
+            // A day tapped with no repeat chosen makes it days of the week.
+            // The last day taken off makes it no repeat again.
+            .onChange(of: days) { _, chosen in
+                if choice == .once, !chosen.isEmpty { choice = .weekdays }
+                if choice == .weekdays, chosen.isEmpty { choice = .once }
+            }
+            .onChange(of: choice) { _, chosen in
+                if chosen == .once, !days.isEmpty { days = [] }
+            }
         }
+    }
+
+    /// The alarms that can be added as steps: none while this one repeats
+    /// by interval, and never one that does.
+    private var chainable: [Routine] {
+        guard choice != .interval else { return [] }
+        return model.routines.filter { alarm in
+            alarm.id != routine?.id && RoutineChaining.canChain(alarm)
+                && !absorbed.contains(where: { $0.id == alarm.id })
+        }
+    }
+
+    /// Why no existing alarm is offered as a step, when there is one to offer.
+    private var chainingNote: String? {
+        guard choice == .interval, model.routines.contains(where: { $0.id != routine?.id }) else { return nil }
+        return RoutineChaining.intervalReason
+    }
+
+    private var startPicker: some View {
+        DatePicker("Starting", selection: $starts, displayedComponents: .date)
+            .labelsHidden()
+            .accessibilityIdentifier("routine-starts")
+    }
+
+    /// Midnight on a "yyyy-MM-dd" date in the phone's zone. Nil when it is not one.
+    private static func date(of text: String?) -> Date? {
+        guard let text, let day = CivilDate(iso: text) else { return nil }
+        return Calendar.current.date(from: DateComponents(year: day.year, month: day.month, day: day.day))
     }
 
     /// Puts an existing alarm into the steps at the time it rings.
     private func absorb(_ alarm: Routine) {
+        let current = self.draft
         let shape = Routine(
-            id: routine?.id ?? UUID(), label: label, hour: draft.hour, minute: draft.minute, days: draft.days,
-            steps: steps.map(\.step))
+            id: routine?.id ?? UUID(), label: label, hour: current.hour, minute: current.minute, days: current.days,
+            steps: steps.map(\.step), repeatMode: current.repeatMode, every: current.every, unit: current.unit,
+            startsOn: current.startsOn)
         switch RoutineChaining.subordinate(alarm, under: shape) {
         case .success(let made):
             steps = made.steps.map(EditableStep.init)
@@ -507,9 +611,77 @@ struct RoutineEditor: View {
 
     private var draft: RoutineDraft {
         let parts = Calendar.current.dateComponents([.hour, .minute], from: time)
-        return RoutineDraft(
-            label: label, hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: days.sorted(),
+        var draft = RoutineDraft(
+            label: label, hour: parts.hour ?? 0, minute: parts.minute ?? 0, days: [],
             enabled: routine?.enabled ?? true, snoozeMinutes: snoozeMinutes, steps: steps.map(\.step))
+        let start = CivilDate(starts, in: .current).iso
+        // A day just tapped counts at once, before the menu follows it.
+        let shown: RepeatChoice = choice == .once && !days.isEmpty ? .weekdays : choice
+        switch shown {
+        case .once:
+            break
+        case .weekdays:
+            draft.days = days.sorted()
+            draft.every = weeks
+            draft.startsOn = weeks > 1 ? start : nil
+        case .interval:
+            draft.repeatMode = .interval
+            draft.every = every
+            draft.unit = unit
+            draft.startsOn = start
+        }
+        return draft
+    }
+}
+
+/// "Every", a typed number, and its unit: "Every 97 minutes". On one line,
+/// or the number and unit under the word when the text is large.
+struct EveryRow<Trailing: View>: View {
+    @Binding var amount: Int
+    let id: String
+    let unit: Trailing
+    /// Wide enough for 999 at the text size in use.
+    @ScaledMetric(relativeTo: .body) private var fieldWidth: CGFloat = 64
+
+    init(amount: Binding<Int>, id: String, @ViewBuilder unit: () -> Trailing) {
+        _amount = amount
+        self.id = id
+        self.unit = unit()
+    }
+
+    var body: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                Text("Every")
+                field
+                unit
+                Spacer(minLength: 0)
+            }
+            VStack(alignment: .leading) {
+                Text("Every")
+                HStack {
+                    field
+                    unit
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+    }
+
+    // An empty field shows a grey 0, so a typed number replaces it.
+    private var field: some View {
+        TextField(
+            "Every",
+            text: Binding(
+                get: { amount == 0 ? "" : String(amount) },
+                set: { amount = min(TimeSpan.amount(typed: $0), 9999) }),
+            prompt: Text("0")
+        )
+        .keyboardType(.numberPad)
+        .multilineTextAlignment(.trailing)
+        .textFieldStyle(.roundedBorder)
+        .frame(width: fieldWidth)
+        .accessibilityIdentifier("\(id)-amount")
     }
 }
 

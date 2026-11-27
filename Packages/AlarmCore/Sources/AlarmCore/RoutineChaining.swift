@@ -12,15 +12,30 @@ public enum RoutineChaining {
         case tooLate
         /// An alarm cannot be moved under itself.
         case sameAlarm
+        /// One of the two repeats by interval, so it has no time of day to keep.
+        case interval
 
         public var message: String {
             switch self {
+            case .interval: RoutineChaining.intervalReason
             case .tooManySteps: "An alarm holds at most \(RoutineStep.maxSteps) steps."
             case .tooLate: "Every step must ring within 24 hours of its alarm."
             case .sameAlarm: "An alarm cannot be moved under itself."
             }
         }
     }
+
+    /// Why an alarm that repeats by interval is not moved under another,
+    /// takes none under it, and gives none of its steps back as an alarm.
+    public static let intervalReason = "Only an alarm set by days of the week can become a step or take one."
+
+    /// Why a step is not made an alarm of its own.
+    public static let separateReason = "This step cannot ring at the same times as an alarm of its own."
+
+    /// True when the alarm can become a step of another, take another as a
+    /// step, or give a step back as an alarm: it repeats on weekdays or
+    /// rings once. An interval rings at no fixed time of day.
+    public static func canChain(_ routine: Routine) -> Bool { routine.repeatMode == .weekdays }
 
     /// The steps with one more, at `delta` minutes after the alarm. It goes
     /// before the first step that rings later, and that step's offset
@@ -56,6 +71,7 @@ public enum RoutineChaining {
     /// the parent's days. The caller deletes `child`.
     public static func subordinate(_ child: Routine, under parent: Routine) -> Result<RoutineDraft, Refusal> {
         guard child.id != parent.id else { return .failure(.sameAlarm) }
+        guard canChain(child), canChain(parent) else { return .failure(.interval) }
         let start = delta(from: (parent.hour, parent.minute), to: child.hour, child.minute)
         var steps = insert(
             RoutineStep(id: child.id, label: child.label, offsetMinutes: 0), atDelta: start, into: parent.steps)
@@ -72,17 +88,40 @@ public enum RoutineChaining {
 
     /// `parent`'s draft without the step, and a new alarm at the time the
     /// step rang, on the parent's days, moved a day on when the step rang
-    /// after midnight. Nil when the parent has no such step.
+    /// after midnight. A parent every N weeks gives its weeks too, with the
+    /// start date moved a day on with the days. Nil when the parent has no
+    /// such step, when the parent repeats by interval, and when no one
+    /// alarm rings where the step did: every N weeks, after midnight, from
+    /// Sunday and another day, so Sunday's step falls in the next week and
+    /// the others do not.
     public static func separate(_ stepID: UUID, from parent: Routine) -> (parent: RoutineDraft, alarm: RoutineDraft)? {
-        guard let index = parent.steps.firstIndex(where: { $0.id == stepID }) else { return nil }
+        guard canChain(parent), let index = parent.steps.firstIndex(where: { $0.id == stepID }) else { return nil }
         let step = parent.steps[index]
         let at = parent.hour * 60 + parent.minute + RoutineStep.cumulativeMinutes(parent.steps)[index]
-        let days = at >= 1440 ? parent.days.map { $0 % 7 + 1 } : parent.days
+        let nextDay = at >= 1440
+        let days = nextDay ? parent.days.map { $0 % 7 + 1 } : parent.days
+        let schedule = parent.schedule
+        var startsOn = schedule.startsOn
+        if !schedule.fitsSystemRepeat, nextDay, let start = schedule.start {
+            // The ring weeks count from the Monday of the start's week.
+            let monday = start.dayNumber - (start.weekday - 1)
+            if parent.days.contains(7) {
+                // Sunday's step rings on the Monday of the week after.
+                guard Set(parent.days) == [7] else { return nil }
+                startsOn = CivilDate(dayNumber: monday + 7).iso
+            } else if start.weekday == 7 {
+                // No ring in the start's own week. The first is a whole step on.
+                startsOn = CivilDate(dayNumber: monday + 7 * schedule.step).iso
+            } else {
+                startsOn = CivilDate(dayNumber: start.dayNumber + 1).iso
+            }
+        }
         var remaining = parent.draft
         remaining.steps = remove(stepID, from: parent.steps)
         let alarm = RoutineDraft(
             label: step.sentLabel, hour: (at / 60) % 24, minute: at % 60, days: days.sorted(),
-            enabled: parent.enabled, snoozeMinutes: parent.snoozeMinutes)
+            enabled: parent.enabled, snoozeMinutes: parent.snoozeMinutes, repeatMode: .weekdays,
+            every: schedule.every, unit: .weeks, startsOn: startsOn)
         return (remaining, alarm)
     }
 }

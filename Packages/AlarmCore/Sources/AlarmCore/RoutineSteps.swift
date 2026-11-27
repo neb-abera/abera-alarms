@@ -165,10 +165,7 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
     /// The cycle a routine ring at `at` starts. A ring moved later rings,
     /// with its steps, that many minutes after `at`.
     static func make(_ routine: Routine, at planned: Date, calendar: Calendar) -> RoutineCycle {
-        let day = calendar.dateComponents([.year, .month, .day], from: planned)
-        let stamp = String(
-            format: "%04d-%02d-%02dT%02d:%02d", day.year ?? 0, day.month ?? 0, day.day ?? 0, routine.hour,
-            routine.minute)
+        let stamp = routine.schedule.stamp(of: planned, calendar: calendar)
         let at = planned.addingTimeInterval(TimeInterval((routine.delays[stamp] ?? 0) * 60))
         let steps = RoutineStep.ringing(routine.steps, on: planned, calendar: calendar).map { step, minutes in
             StepRing(
@@ -181,6 +178,9 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
     /// The cycle under way at `now`, whose ring is the latest at or before
     /// `now`, and the next one. A ring-once routine has one cycle: its ring
     /// after its last save, or after `now` when the save time is not known.
+    /// A routine on weekdays every week looks back 8 days for its last ring.
+    /// Any other repeat finds its last ring however long ago, a month or a
+    /// year, and never one at or before its last save.
     public static func around(_ routine: Routine, now: Date, calendar: Calendar) -> (
         current: RoutineCycle?, next: RoutineCycle?
     ) {
@@ -191,7 +191,15 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
             let cycle = make(routine, at: ring, calendar: calendar)
             return ring <= now ? (cycle, nil) : (nil, cycle)
         }
-        let previous = RoutineRing.latestRing(schedule, atOrBefore: now, window: 8 * 86_400, calendar: calendar)
+        let previous: Date?
+        if schedule.fitsSystemRepeat {
+            previous = RoutineRing.latestRing(schedule, atOrBefore: now, window: 8 * 86_400, calendar: calendar)
+        } else {
+            previous = schedule.lastFire(atOrBefore: now, calendar: calendar).flatMap { ring -> Date? in
+                if let saved = routine.updatedAt, ring <= saved { return nil }
+                return ring
+            }
+        }
         let next = schedule.nextFire(after: now, calendar: calendar)
         var current = previous.map { make(routine, at: $0, calendar: calendar) }
         var coming = next.map { make(routine, at: $0, calendar: calendar) }
@@ -210,9 +218,15 @@ public struct RoutineCycle: Equatable, Hashable, Sendable, Identifiable {
     /// The cycles planned before `before`, in the last 7 days, that a delay
     /// moved and whose ring or a step's ring is after `now` or came within
     /// a day of it. A delay runs up to 7 days, so one can pass the rings after it.
+    /// For a routine every N weeks or every interval the stamp must name a
+    /// ring of its series: every 97 minutes, the hour and minute are the ring's own.
     static func moved(_ routine: Routine, before: Date, now: Date, calendar: Calendar) -> [RoutineCycle] {
-        routine.delays.keys.sorted().compactMap { stamp -> RoutineCycle? in
-            guard let planned = plannedDate(stamp, calendar: calendar), planned < before,
+        let schedule = routine.schedule
+        return routine.delays.keys.sorted().compactMap { stamp -> RoutineCycle? in
+            guard let named = plannedDate(stamp, calendar: calendar),
+                let planned = schedule.fitsSystemRepeat
+                    ? named : schedule.ring(stamped: stamp, near: named, calendar: calendar),
+                planned < before,
                 planned >= now.addingTimeInterval(-TimeInterval(RoutineDelay.minutes.upperBound * 60) - 86_400)
             else { return nil }
             let cycle = make(routine, at: planned, calendar: calendar)
